@@ -7,6 +7,7 @@ import {
   useParticipants,
   useTracks,
 } from "@livekit/components-react";
+import type { TrackReference, TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import { Track } from "livekit-client";
 import {
   Camera,
@@ -27,6 +28,10 @@ type Props = {
   onLog: (msg: string) => void;
 };
 
+function pickTrackRef(tracks: TrackReferenceOrPlaceholder[]): TrackReference | undefined {
+  return tracks.find((t): t is TrackReference => !!t.publication);
+}
+
 function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (members: MemberItem[]) => void }) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
@@ -34,7 +39,7 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: false }]);
 
-  const heroTrack = screenTracks[0] ?? cameraTracks[0];
+  const heroTrack = pickTrackRef(screenTracks) ?? pickTrackRef(cameraTracks);
 
   useEffect(() => {
     onMembersChange(
