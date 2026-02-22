@@ -97,4 +97,5 @@ export interface MemberItem {
   identity: string;
   isLocal: boolean;
   speaking: boolean;
+  micEnabled: boolean;
 }

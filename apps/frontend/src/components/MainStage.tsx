@@ -32,6 +32,15 @@ function pickTrackRef(tracks: TrackReferenceOrPlaceholder[]): TrackReference | u
   return tracks.find((t): t is TrackReference => !!t.publication);
 }
 
+function participantMicEnabled(trackPublications: Map<string, unknown>): boolean {
+  for (const pub of trackPublications.values() as Iterable<{ source?: Track.Source; isMuted?: boolean }>) {
+    if (pub.source === Track.Source.Microphone) {
+      return !pub.isMuted;
+    }
+  }
+  return false;
+}
+
 function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (members: MemberItem[]) => void }) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
@@ -42,14 +51,22 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
   const heroTrack = pickTrackRef(screenTracks) ?? pickTrackRef(cameraTracks);
 
   useEffect(() => {
+    // Enter room with mic muted by default; user can enable from control bar.
+    if (localParticipant?.isMicrophoneEnabled) {
+      void localParticipant.setMicrophoneEnabled(false);
+    }
+  }, [localParticipant]);
+
+  useEffect(() => {
     onMembersChange(
       participants.map((p) => ({
         identity: p.identity,
         isLocal: p.isLocal,
         speaking: p.isSpeaking,
+        micEnabled: participantMicEnabled(p.trackPublications as unknown as Map<string, unknown>),
       })),
     );
-  }, [participants]);
+  }, [participants, onMembersChange]);
 
   const micOn = !!localParticipant?.isMicrophoneEnabled;
   const camOn = !!localParticipant?.isCameraEnabled;
@@ -122,6 +139,7 @@ export function MainStage({ joined, roomId, userName, role, onMembersChange, onL
   return (
     <main className="relative min-h-[calc(100vh-1.5rem)] rounded-2xl bg-bg p-2 lg:p-3">
       <LiveKitRoom
+        key={joined.token}
         token={joined.token}
         serverUrl={joined.lk_url}
         connect

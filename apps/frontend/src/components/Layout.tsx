@@ -11,7 +11,6 @@ export function Layout() {
 
   const [roomId, setRoomId] = useState("test");
   const [userName, setUserName] = useState("guest_01");
-  const [nickname, setNickname] = useState("Guest");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [role, setRole] = useState<Role>("member");
 
@@ -46,8 +45,6 @@ export function Layout() {
             setRoomId={setRoomId}
             userName={userName}
             setUserName={setUserName}
-            nickname={nickname}
-            setNickname={setNickname}
             avatarUrl={avatarUrl}
             setAvatarUrl={setAvatarUrl}
             role={role}
