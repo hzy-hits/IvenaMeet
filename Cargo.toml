@@ -1,0 +1,23 @@
+[package]
+name = "control-plane"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+livekit-api = "0.3"
+livekit-protocol = "=0.3.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "=1.0.145"
+uuid = { version = "1.7", features = ["v4"] }
+chrono = { version = "0.4", features = ["clock", "serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror = "2.0"
+dotenvy = "0.15"
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[patch.crates-io]
+livekit-api = { path = "vendor/livekit-api" }
