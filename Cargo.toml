@@ -14,7 +14,7 @@ serde_json = "=1.0.145"
 uuid = { version = "1.7", features = ["v4"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 thiserror = "2.0"
 dotenvy = "0.15"
 rusqlite = { version = "0.32", features = ["bundled"] }
