@@ -1,5 +1,16 @@
 # LiveKit Rust Control Plane (Axum + Redis + SQLite)
 
+## Repo layout
+
+```txt
+.
+├── src/                     # Rust control-plane
+├── apps/
+│   └── frontend/            # React + Vite frontend
+├── vendor/livekit-api/      # temporary patched dependency
+└── .github/workflows/ci.yml
+```
+
 ## Capabilities
 
 - `POST /rooms/join`
@@ -45,6 +56,14 @@ cp .env.example .env
 cargo run
 ```
 
+Run frontend:
+
+```bash
+cd /opt/livekit/control-plane/apps/frontend
+npm install
+npm run dev -- --host 0.0.0.0 --port 8090
+```
+
 ## Bearer admin token usage
 
 `Bearer ADMIN_TOKEN` is passed in the HTTP header:
@@ -88,6 +107,12 @@ cargo run
 4. Member joins (`/rooms/join` with `redeem_token`).
 5. Admin issues broadcast token (`/broadcast/issue`).
 6. Admin starts broadcast (`/broadcast/start` with `start_token`).
+
+## Reverse proxy (recommended)
+
+- `meet.ivena.top` -> `192.168.1.108:8090` (frontend)
+- `meet.ivena.top/api` -> `192.168.1.108:3000` (control-plane)
+- `livekit.ivena.top` -> LiveKit server (WSS)
 
 ## Minimal curl
 
