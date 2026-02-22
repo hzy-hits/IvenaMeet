@@ -1,7 +1,16 @@
 use crate::error::{AppError, AppResult};
+use crate::request_meta;
 use crate::state::AppState;
-use axum::{Json, Router, extract::State, http::HeaderMap, routing::post};
+use crate::validation;
+use axum::{
+    Json, Router,
+    extract::{ConnectInfo, State},
+    http::HeaderMap,
+    routing::post,
+};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use tracing::info;
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/invites/redeem", post(redeem_invite))
@@ -23,20 +32,22 @@ struct RedeemInviteResp {
 
 async fn redeem_invite(
     State(state): State<AppState>,
+    peer: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<RedeemInviteReq>,
 ) -> AppResult<Json<RedeemInviteResp>> {
-    if req.room_id.trim().is_empty()
-        || req.user_name.trim().is_empty()
-        || req.invite_ticket.trim().is_empty()
-        || req.invite_code.trim().is_empty()
-    {
+    let request_id = request_meta::request_id(&headers);
+    let room_id = validation::room_id(&req.room_id)?;
+    let user_name = validation::user_name(&req.user_name)?;
+    let invite_ticket = req.invite_ticket.trim();
+    let invite_code = req.invite_code.trim();
+    if invite_ticket.is_empty() || invite_code.is_empty() {
         return Err(AppError::BadRequest(
-            "room_id, user_name, invite_ticket, invite_code are required".to_string(),
+            "invite_ticket and invite_code are required".to_string(),
         ));
     }
 
-    let ip = client_ip(&headers);
+    let ip = request_meta::client_ip(&state.config.trusted_proxy_ips, &headers, peer);
     let mut redis = state.redis.clone();
     state
         .rate_limit_service
@@ -51,7 +62,7 @@ async fn redeem_invite(
 
     let room = state
         .storage_service
-        .get_room_active(req.room_id.clone())
+        .get_room_active(room_id)
         .await?
         .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
 
@@ -60,30 +71,25 @@ async fn redeem_invite(
         .redeem_ticket(
             &mut redis,
             &room.room_id,
-            &req.user_name,
-            &req.invite_ticket,
-            &req.invite_code,
+            &user_name,
+            invite_ticket,
+            invite_code,
             state.config.redeem_ttl_seconds,
         )
         .await?;
+
+    info!(
+        request_id,
+        route = "/invites/redeem",
+        room_id = room.room_id,
+        user_name,
+        ip,
+        result = "ok",
+        "invite redeemed"
+    );
 
     Ok(Json(RedeemInviteResp {
         redeem_token,
         expires_in_seconds: state.config.redeem_ttl_seconds,
     }))
-}
-
-fn client_ip(headers: &HeaderMap) -> String {
-    if let Some(raw) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(first) = raw.split(',').next() {
-            let ip = first.trim();
-            if !ip.is_empty() {
-                return ip.to_string();
-            }
-        }
-    }
-    if let Some(ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
-        return ip.to_string();
-    }
-    "unknown".to_string()
 }

@@ -2,9 +2,11 @@ mod app;
 mod config;
 mod error;
 mod middleware;
+mod request_meta;
 mod routes;
 mod services;
 mod state;
+mod validation;
 
 use crate::error::AppError;
 use tracing::info;
@@ -25,7 +27,12 @@ async fn main() -> Result<(), AppError> {
         .map_err(AppError::Io)?;
     info!(%bind, "control plane listening");
 
-    axum::serve(listener, app).await.map_err(AppError::Io)
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .map_err(AppError::Io)
 }
 
 fn init_tracing() {

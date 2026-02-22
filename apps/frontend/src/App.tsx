@@ -19,6 +19,8 @@ type JoinResp = {
   token: string;
   role: Role;
   expires_in_seconds: number;
+  app_session_token: string;
+  app_session_expires_in_seconds: number;
 };
 
 type IssueInviteResp = {
@@ -29,6 +31,11 @@ type IssueInviteResp = {
 
 type RedeemResp = {
   redeem_token: string;
+};
+
+type RefreshSessionResp = {
+  app_session_token: string;
+  app_session_expires_in_seconds: number;
 };
 
 type IssueStartResp = {
@@ -102,6 +109,7 @@ export function App() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [inviteTicket, setInviteTicket] = useState("");
+  const [inviteUrl, setInviteUrl] = useState("");
   const [redeemToken, setRedeemToken] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [adminToken, setAdminToken] = useState("");
@@ -117,6 +125,8 @@ export function App() {
   const [members, setMembers] = useState<Member[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [sessionToken, setSessionToken] = useState("");
+  const [sessionExpireAt, setSessionExpireAt] = useState(0);
 
   const roomRef = useRef<Room | null>(null);
   const currentRole = useRef<Role>(role);
@@ -146,6 +156,25 @@ export function App() {
     const res = await fetch(`${base}${path}`, {
       method: "POST",
       headers: authHeaders(needAdmin),
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `${res.status} ${res.statusText}`);
+    return json as T;
+  };
+
+  const apiPostWithAuth = async <T,>(
+    path: string,
+    body: unknown,
+    authToken: string,
+  ): Promise<T> => {
+    const base = apiBase.trim().replace(/\/$/, "") || "/api";
+    const res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${authToken}`,
+      },
       body: JSON.stringify(body),
     });
     const json = await res.json().catch(() => ({}));
@@ -239,6 +268,29 @@ export function App() {
     }
   };
 
+  const refreshSession = async (token?: string) => {
+    const oldToken = (token ?? sessionToken).trim();
+    if (!oldToken) throw new Error("app session missing");
+    const next = await apiPostWithAuth<RefreshSessionResp>(
+      "/sessions/refresh",
+      {},
+      oldToken,
+    );
+    setSessionToken(next.app_session_token);
+    setSessionExpireAt(nowTs() + next.app_session_expires_in_seconds);
+    return next.app_session_token;
+  };
+
+  useEffect(() => {
+    if (!connected || !sessionToken || !sessionExpireAt) return;
+    const id = window.setInterval(() => {
+      if (nowTs() >= sessionExpireAt - 120) {
+        void refreshSession().catch((e) => appendLog(`session refresh error: ${String(e)}`));
+      }
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [connected, sessionToken, sessionExpireAt]);
+
   const join = async () => {
     if (roomRef.current) await leave();
 
@@ -275,6 +327,8 @@ export function App() {
 
     const joinResp = await apiPost<JoinResp>("/rooms/join", payload, needAdmin);
     currentRole.current = joinResp.role;
+    setSessionToken(joinResp.app_session_token);
+    setSessionExpireAt(nowTs() + joinResp.app_session_expires_in_seconds);
 
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
@@ -344,6 +398,8 @@ export function App() {
     room.disconnect();
     roomRef.current = null;
     currentRole.current = "member";
+    setSessionToken("");
+    setSessionExpireAt(0);
     setTiles([]);
     setMembers([]);
     setConnected(false);
@@ -400,11 +456,15 @@ export function App() {
       kind: DataPacket_Kind.RELIABLE,
     });
 
-    await apiPost(`/rooms/${encodeURIComponent(roomId.trim())}/messages`, {
-      user_name: msg.user_name,
-      role: msg.role,
+    let token = sessionToken.trim();
+    if (!token) throw new Error("app session missing");
+    if (nowTs() >= sessionExpireAt - 120) {
+      token = await refreshSession(token);
+    }
+
+    await apiPostWithAuth(`/rooms/${encodeURIComponent(roomId.trim())}/messages`, {
       text: msg.text,
-    }, false);
+    }, token);
 
     setMessages((prev) => [...prev.slice(-199), msg]);
     setChatInput("");
@@ -418,7 +478,21 @@ export function App() {
     );
     setInviteCode(data.invite_code);
     setInviteTicket(data.invite_ticket);
+    setInviteUrl(data.invite_url);
     appendLog(`invite url: ${data.invite_url}`);
+  };
+
+  const copyInviteText = async () => {
+    if (!inviteUrl.trim() || !inviteCode.trim()) {
+      throw new Error("issue invite first");
+    }
+    const text = [
+      `房间链接：${inviteUrl.trim()}`,
+      `邀请码：${inviteCode.trim()}`,
+      "有效期：24小时",
+    ].join("\n");
+    await navigator.clipboard.writeText(text);
+    appendLog("invite message copied");
   };
 
   const redeemInvite = async () => {
@@ -499,6 +573,7 @@ export function App() {
           </label>
           <label>Invite Code<input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} /></label>
           <label>Invite Ticket<input value={inviteTicket} onChange={(e) => setInviteTicket(e.target.value)} /></label>
+          <label>Invite URL<input value={inviteUrl} onChange={(e) => setInviteUrl(e.target.value)} /></label>
           <label>Redeem Token<input value={redeemToken} onChange={(e) => setRedeemToken(e.target.value)} /></label>
           <label>Admin Token (required for host)<input type="password" value={adminToken} onChange={(e) => setAdminToken(e.target.value)} /></label>
           <div className="row">
@@ -516,6 +591,7 @@ export function App() {
           <h2>Admin Flow</h2>
           <div className="row">
             <button className="primary" onClick={() => run(issueInvite)}>Issue Invite</button>
+            <button onClick={() => run(copyInviteText)}>Copy Invite Text</button>
             <button onClick={() => run(redeemInvite)}>Redeem</button>
           </div>
           <div className="row">

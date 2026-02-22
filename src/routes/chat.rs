@@ -1,11 +1,15 @@
 use crate::error::{AppError, AppResult};
+use crate::request_meta;
 use crate::state::AppState;
+use crate::validation;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
+    http::{HeaderMap, header::AUTHORIZATION},
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -25,8 +29,6 @@ struct ListMessagesResp {
 
 #[derive(Debug, Deserialize)]
 struct CreateMessageReq {
-    user_name: String,
-    role: String,
     text: String,
 }
 
@@ -45,11 +47,11 @@ struct MessageItem {
 async fn list_messages(
     State(state): State<AppState>,
     Path(room_id): Path<String>,
+    headers: HeaderMap,
     Query(query): Query<ListQuery>,
 ) -> AppResult<Json<ListMessagesResp>> {
-    if room_id.trim().is_empty() {
-        return Err(AppError::BadRequest("room_id is required".to_string()));
-    }
+    let request_id = request_meta::request_id(&headers);
+    let room_id = validation::room_id(&room_id)?;
 
     let _room = state
         .storage_service
@@ -59,6 +61,13 @@ async fn list_messages(
 
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let messages = state.storage_service.list_messages(room_id, limit).await?;
+    info!(
+        request_id,
+        route = "/rooms/:room_id/messages [GET]",
+        limit,
+        result = "ok",
+        "messages listed"
+    );
 
     Ok(Json(ListMessagesResp {
         items: messages
@@ -80,17 +89,12 @@ async fn list_messages(
 async fn create_message(
     State(state): State<AppState>,
     Path(room_id): Path<String>,
+    headers: HeaderMap,
     Json(req): Json<CreateMessageReq>,
 ) -> AppResult<Json<MessageItem>> {
-    if room_id.trim().is_empty() {
-        return Err(AppError::BadRequest("room_id is required".to_string()));
-    }
-    if req.user_name.trim().is_empty() {
-        return Err(AppError::BadRequest("user_name is required".to_string()));
-    }
-    if req.text.trim().is_empty() {
-        return Err(AppError::BadRequest("text is required".to_string()));
-    }
+    let request_id = request_meta::request_id(&headers);
+    let room_id = validation::room_id(&room_id)?;
+    let text = validation::message_text(&req.text)?;
 
     let _room = state
         .storage_service
@@ -98,18 +102,31 @@ async fn create_message(
         .await?
         .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
 
-    let role = match req.role.as_str() {
-        "host" | "member" => req.role,
-        _ => {
-            return Err(AppError::BadRequest(
-                "role must be host or member".to_string(),
-            ));
-        }
-    };
+    let app_session_token = bearer_from_headers(&headers)
+        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, app_session_token)
+        .await?;
+    if claims.room_id != room_id {
+        warn!(
+            request_id,
+            route = "/rooms/:room_id/messages [POST]",
+            user_name = claims.user_name,
+            token_room_id = claims.room_id,
+            path_room_id = room_id,
+            result = "denied",
+            "room mismatch for session token"
+        );
+        return Err(AppError::Unauthorized(
+            "app session does not match room".to_string(),
+        ));
+    }
 
     let profile = state
         .storage_service
-        .get_user(req.user_name.clone())
+        .get_user(claims.user_name.clone())
         .await?;
     if profile.is_none() {
         return Err(AppError::BadRequest(
@@ -119,8 +136,16 @@ async fn create_message(
 
     let m = state
         .storage_service
-        .insert_message(room_id, req.user_name, role, req.text)
+        .insert_message(room_id, claims.user_name, claims.role, text)
         .await?;
+    info!(
+        request_id,
+        route = "/rooms/:room_id/messages [POST]",
+        room_id = m.room_id,
+        user_name = m.user_name,
+        result = "ok",
+        "message created"
+    );
 
     Ok(Json(MessageItem {
         id: m.id,
@@ -132,4 +157,11 @@ async fn create_message(
         text: m.text,
         created_at: m.created_at,
     }))
+}
+
+fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
 }

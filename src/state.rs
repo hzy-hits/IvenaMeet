@@ -1,6 +1,8 @@
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
-use crate::services::{InviteService, LiveKitService, RateLimitService, StorageService};
+use crate::services::{
+    InviteService, LiveKitService, RateLimitService, SessionService, StorageService,
+};
 use redis::aio::ConnectionManager;
 
 #[derive(Clone)]
@@ -8,6 +10,7 @@ pub struct AppState {
     pub config: Config,
     pub redis: ConnectionManager,
     pub invite_service: InviteService,
+    pub session_service: SessionService,
     pub rate_limit_service: RateLimitService,
     pub livekit_service: LiveKitService,
     pub storage_service: StorageService,
@@ -24,6 +27,7 @@ impl AppState {
 
         let invite_service =
             InviteService::new(config.invite_prefix.clone(), config.invite_ttl_seconds);
+        let session_service = SessionService::new(config.session_prefix.clone());
         let rate_limit_service = RateLimitService::new();
         let livekit_service = LiveKitService::new(
             config.livekit_host.clone(),
@@ -38,6 +42,7 @@ impl AppState {
             config,
             redis,
             invite_service,
+            session_service,
             rate_limit_service,
             livekit_service,
             storage_service,

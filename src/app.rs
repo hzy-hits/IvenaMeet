@@ -1,4 +1,4 @@
-use crate::middleware::admin_auth;
+use crate::middleware::{admin_auth, http_trace, request_id};
 use crate::routes;
 use crate::state::AppState;
 use axum::{Router, middleware};
@@ -24,9 +24,12 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(routes::health::router())
         .merge(routes::invite::router())
+        .merge(routes::session::router())
         .merge(room_routes)
         .merge(routes::chat::router())
         .merge(routes::user::router())
         .merge(admin_routes)
+        .layer(middleware::from_fn(http_trace::log))
+        .layer(middleware::from_fn(request_id::inject))
         .with_state(state)
 }

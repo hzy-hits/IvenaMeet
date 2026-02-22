@@ -17,6 +17,9 @@
   - `role=host|member`
   - `host` join requires `Authorization: Bearer <ADMIN_TOKEN>`
   - room lifetime enforced (`ROOM_TTL_SECONDS`, default 4h)
+  - returns short-lived `app_session_token` for app-level write APIs
+- `POST /sessions/refresh`
+  - rotate/refresh `app_session_token` before expiry
 - `POST /auth/invite` (admin)
   - issue one-time invite link ticket + invite code
 - `POST /invites/redeem`
@@ -29,6 +32,7 @@
 - `POST /users/upsert`
 - `GET /rooms/:room_id/messages`
 - `POST /rooms/:room_id/messages`
+  - requires `Authorization: Bearer <app_session_token>`
 - `GET /healthz`
 
 ## Security model
@@ -43,10 +47,21 @@
 - Member join can require invite flow (`REQUIRE_INVITE=true`):
   - redeem link ticket + invite code first
   - pass returned `redeem_token` to `/rooms/join`
+- Chat write identity is bound to backend-issued `app_session_token` (client body cannot forge `user_name`).
 - Rate limits (Redis):
   - `room_join`
   - `invite_redeem`
   - `broadcast_start`
+- Client IP is taken from direct peer address by default; `x-forwarded-for` is only trusted when peer IP is in `TRUSTED_PROXY_IPS`.
+- Input validation (centralized):
+  - `room_id`: `[a-zA-Z0-9_-]`, 3-64 chars
+  - `user_name`: `[a-zA-Z0-9_-]`, 2-32 chars
+  - `nickname`: 2-32 chars
+  - `message.text`: 1-500 chars
+  - `avatar_url`: optional `https://`, max 512 chars
+- Request tracing:
+  - `x-request-id` is auto-generated if missing and echoed back in response headers
+  - key routes emit structured logs with `request_id/route/room_id/user_name/ip/result`
 
 ## Run
 
@@ -92,12 +107,15 @@ npm run dev -- --host 0.0.0.0 --port 8090
 - `ROOM_TTL_SECONDS` default `14400`
 - `BROADCAST_ISSUE_TTL_SECONDS` default `120`
 - `INVITE_PREFIX` default `invite`
+- `SESSION_PREFIX` default `appsession`
+- `SESSION_TTL_SECONDS` default `1800`
 - `REQUIRE_INVITE` default `false`
 - `REQUIRE_ADMIN_FOR_JOIN` default `false`
 - `RATE_LIMIT_WINDOW_SECONDS` default `60`
 - `RATE_LIMIT_ROOM_JOIN` default `20`
 - `RATE_LIMIT_INVITE_REDEEM` default `12`
 - `RATE_LIMIT_BROADCAST_START` default `3`
+- `TRUSTED_PROXY_IPS` default empty (example: `127.0.0.1,192.168.1.20`)
 
 ## End-to-end flow (invite + secure start)
 
@@ -140,6 +158,18 @@ curl -sS -X POST http://127.0.0.1:3000/invites/redeem \
 curl -sS -X POST http://127.0.0.1:3000/rooms/join \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","user_name":"alice","role":"member","redeem_token":"<redeem_token>"}'
+
+# 4.1) write message with app_session_token from join response
+curl -sS -X POST http://127.0.0.1:3000/rooms/test/messages \
+  -H "authorization: Bearer <app_session_token>" \
+  -H 'content-type: application/json' \
+  -d '{"text":"hello"}'
+
+# 4.2) refresh app_session_token before expiry
+curl -sS -X POST http://127.0.0.1:3000/sessions/refresh \
+  -H "authorization: Bearer <app_session_token>" \
+  -H 'content-type: application/json' \
+  -d '{}'
 
 # 5) issue short broadcast start token
 curl -sS -X POST http://127.0.0.1:3000/broadcast/issue \

@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use std::net::IpAddr;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -16,6 +17,8 @@ pub struct Config {
     pub room_ttl_seconds: u64,
     pub broadcast_issue_ttl_seconds: u64,
     pub invite_prefix: String,
+    pub session_prefix: String,
+    pub session_ttl_seconds: u64,
     pub require_invite: bool,
     pub admin_token: String,
     pub require_admin_for_join: bool,
@@ -23,6 +26,7 @@ pub struct Config {
     pub rate_limit_room_join: u64,
     pub rate_limit_invite_redeem: u64,
     pub rate_limit_broadcast_start: u64,
+    pub trusted_proxy_ips: Vec<IpAddr>,
 }
 
 impl Config {
@@ -42,6 +46,8 @@ impl Config {
             room_ttl_seconds: parse_env_u64("ROOM_TTL_SECONDS", 4 * 3600)?,
             broadcast_issue_ttl_seconds: parse_env_u64("BROADCAST_ISSUE_TTL_SECONDS", 120)?,
             invite_prefix: env_or("INVITE_PREFIX", "invite"),
+            session_prefix: env_or("SESSION_PREFIX", "appsession"),
+            session_ttl_seconds: parse_env_u64("SESSION_TTL_SECONDS", 30 * 60)?,
             require_invite: parse_env_bool("REQUIRE_INVITE", false),
             admin_token: env_required("ADMIN_TOKEN")?,
             require_admin_for_join: parse_env_bool("REQUIRE_ADMIN_FOR_JOIN", false),
@@ -49,6 +55,7 @@ impl Config {
             rate_limit_room_join: parse_env_u64("RATE_LIMIT_ROOM_JOIN", 20)?,
             rate_limit_invite_redeem: parse_env_u64("RATE_LIMIT_INVITE_REDEEM", 12)?,
             rate_limit_broadcast_start: parse_env_u64("RATE_LIMIT_BROADCAST_START", 3)?,
+            trusted_proxy_ips: parse_env_ip_list("TRUSTED_PROXY_IPS")?,
         })
     }
 }
@@ -75,4 +82,19 @@ fn parse_env_bool(key: &str, default: bool) -> bool {
         Ok(v) => matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"),
         Err(_) => default,
     }
+}
+
+fn parse_env_ip_list(key: &str) -> Result<Vec<IpAddr>, AppError> {
+    let raw = std::env::var(key).unwrap_or_default();
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    raw.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            s.parse::<IpAddr>()
+                .map_err(|_| AppError::Config(format!("invalid ip env {key}: {s}")))
+        })
+        .collect()
 }

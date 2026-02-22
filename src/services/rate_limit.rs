@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use redis::AsyncCommands;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct RateLimitService;
@@ -32,6 +33,7 @@ impl RateLimitService {
                 .map_err(|e| AppError::Redis(e.to_string()))?;
         }
         if current > limit {
+            warn!(bucket, key, current, limit, "rate limit exceeded");
             return Err(AppError::TooManyRequests(format!(
                 "rate limited: {} > {}",
                 current, limit
