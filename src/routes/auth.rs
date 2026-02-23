@@ -80,7 +80,7 @@ async fn create_invite(
         .await?;
     let expires_at = Utc::now() + Duration::seconds(state.config.invite_ttl_seconds as i64);
     let invite_url = format!(
-        "{}/invite?room={}&ticket={}",
+        "{}/?room={}&ticket={}",
         state.config.meet_base_url.trim_end_matches('/'),
         room_id,
         issued.invite_ticket

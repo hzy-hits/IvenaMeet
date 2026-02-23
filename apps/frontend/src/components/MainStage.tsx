@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -44,6 +44,12 @@ function participantMicEnabled(trackPublications: Map<string, unknown>): boolean
 function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (members: MemberItem[]) => void }) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
+  const [stageNotice, setStageNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  const showStageNotice = (kind: "ok" | "error", text: string) => {
+    setStageNotice({ kind, text });
+    window.setTimeout(() => setStageNotice(null), 2400);
+  };
 
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: false }]);
@@ -72,6 +78,41 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
   const camOn = !!localParticipant?.isCameraEnabled;
   const shareOn = !!localParticipant?.isScreenShareEnabled;
 
+  const toggleMic = async () => {
+    try {
+      await localParticipant?.setMicrophoneEnabled(!micOn);
+      showStageNotice("ok", !micOn ? "麦克风已开启" : "麦克风已关闭");
+    } catch (e) {
+      showStageNotice("error", `麦克风操作失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const toggleCamera = async () => {
+    try {
+      await localParticipant?.setCameraEnabled(!camOn);
+      showStageNotice("ok", !camOn ? "摄像头已开启" : "摄像头已关闭");
+    } catch (e) {
+      showStageNotice("error", `摄像头操作失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const toggleShare = async () => {
+    if (role !== "host") {
+      showStageNotice("error", "仅主持人可共享屏幕");
+      return;
+    }
+    if (!navigator.mediaDevices || !("getDisplayMedia" in navigator.mediaDevices)) {
+      showStageNotice("error", "当前设备/浏览器不支持屏幕共享");
+      return;
+    }
+    try {
+      await localParticipant?.setScreenShareEnabled(!shareOn);
+      showStageNotice("ok", !shareOn ? "已开始共享屏幕" : "已停止共享屏幕");
+    } catch (e) {
+      showStageNotice("error", `共享屏幕失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl bg-bg">
       <div className="absolute inset-0">
@@ -94,14 +135,18 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
         <div className="flex items-center gap-2">
           <button
             className={`rounded-xl p-2 ${micOn ? "text-accent" : "text-white"}`}
-            onClick={() => localParticipant?.setMicrophoneEnabled(!micOn)}
+            onClick={() => {
+              void toggleMic();
+            }}
             title="Mic"
           >
             {micOn ? <Mic size={18} /> : <MicOff size={18} />}
           </button>
           <button
             className={`rounded-xl p-2 ${camOn ? "text-accent" : "text-white"}`}
-            onClick={() => localParticipant?.setCameraEnabled(!camOn)}
+            onClick={() => {
+              void toggleCamera();
+            }}
             title="Camera"
           >
             {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
@@ -109,8 +154,7 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
           <button
             className={`rounded-xl p-2 ${shareOn ? "text-accent" : "text-white"}`}
             onClick={() => {
-              if (role !== "host") return;
-              void localParticipant?.setScreenShareEnabled(!shareOn);
+              void toggleShare();
             }}
             title="Share"
           >
@@ -118,6 +162,18 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
           </button>
         </div>
       </div>
+
+      {stageNotice ? (
+        <div
+          className={`absolute left-1/2 top-5 z-20 -translate-x-1/2 rounded-xl border px-3 py-2 text-xs ${
+            stageNotice.kind === "ok"
+              ? "border-ok/40 bg-ok/10 text-ok"
+              : "border-red-300/40 bg-red-500/20 text-red-100"
+          }`}
+        >
+          {stageNotice.text}
+        </div>
+      ) : null}
 
       <RoomAudioRenderer />
     </div>
@@ -147,6 +203,7 @@ export function MainStage({ joined, roomId, userName, role, onMembersChange, onL
         video={false}
         onConnected={() => onLog(`livekit connected: ${roomId} as ${userName}`)}
         onDisconnected={() => onLog("livekit disconnected")}
+        onError={(e) => onLog(`livekit error: ${e?.message ?? String(e)}`)}
       >
         <StageScene role={role} onMembersChange={onMembersChange} />
       </LiveKitRoom>

@@ -9,7 +9,7 @@ use axum::{
     http::{HeaderMap, header::AUTHORIZATION},
     routing::post,
 };
-use google_authenticator::{ErrorCorrectionLevel, GoogleAuthenticator};
+use google_authenticator::GoogleAuthenticator;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tracing::{info, warn};
@@ -27,12 +27,16 @@ pub fn public_router() -> Router<AppState> {
 #[derive(Deserialize)]
 pub struct EnrollMfaReq {
     pub host_identity: String,
+    pub reset_mfa: Option<bool>,
 }
 
 #[derive(Serialize)]
 pub struct EnrollMfaResp {
     pub secret: String,
     pub otpauth_url: String,
+    pub qr_svg: String,
+    pub issuer: String,
+    pub account_name: String,
 }
 
 #[derive(Deserialize)]
@@ -55,28 +59,47 @@ async fn enroll_mfa(
 ) -> AppResult<Json<EnrollMfaResp>> {
     let request_id = request_meta::request_id(&headers);
     let host_identity = validation::user_name(&req.host_identity)?;
+    let reset_mfa = req.reset_mfa.unwrap_or(false);
 
     let ga = GoogleAuthenticator::new();
-    let secret = ga.create_secret(32);
-    let otpauth_url = ga.qr_code_url(
-        &secret,
-        &state.config.host_mfa_issuer,
-        &host_identity,
-        0,
-        0,
-        ErrorCorrectionLevel::Medium,
-    );
-
     let mut redis = state.redis.clone();
-    state
+    let existing = state
         .host_auth_service
-        .set_totp_secret(&mut redis, &host_identity, &secret)
+        .get_totp_secret(&mut redis, &host_identity)
         .await?;
+    let secret = if reset_mfa || existing.is_none() {
+        let s = ga.create_secret(32);
+        state
+            .host_auth_service
+            .set_totp_secret(&mut redis, &host_identity, &s)
+            .await?;
+        s
+    } else {
+        existing.expect("checked is_some above")
+    };
+    // Return standard otpauth URI instead of external chart URL.
+    let otpauth_url = format!(
+        "otpauth://totp/{}?secret={}&issuer={}",
+        pct_encode(&host_identity),
+        secret,
+        pct_encode(&state.config.host_mfa_issuer)
+    );
+    let qr_svg = ga
+        .qr_code(
+            &secret,
+            &state.config.host_mfa_issuer,
+            &host_identity,
+            256,
+            256,
+            google_authenticator::ErrorCorrectionLevel::Medium,
+        )
+        .map_err(|e| AppError::Config(format!("failed to generate qr svg: {e}")))?;
 
     info!(
         request_id,
         route = "/host/mfa/enroll",
         host_identity,
+        reset_mfa,
         result = "ok",
         "host mfa enrolled"
     );
@@ -84,6 +107,9 @@ async fn enroll_mfa(
     Ok(Json(EnrollMfaResp {
         secret,
         otpauth_url,
+        qr_svg,
+        issuer: state.config.host_mfa_issuer.clone(),
+        account_name: host_identity,
     }))
 }
 
@@ -141,7 +167,7 @@ async fn login_with_totp(
         .ok_or_else(|| AppError::Unauthorized("mfa not enrolled for host".to_string()))?;
 
     let ga = GoogleAuthenticator::new();
-    if !ga.verify_code(&secret, totp_code, 1, 30) {
+    if !ga.verify_code(&secret, totp_code, 1, 0) {
         warn!(
             request_id,
             route = "/host/login/totp",
@@ -221,4 +247,16 @@ fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
+}
+
+fn pct_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for b in input.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{:02X}", b));
+        }
+    }
+    out
 }

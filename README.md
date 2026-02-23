@@ -129,6 +129,11 @@ This command does two admin operations:
 - create/refresh host room binding (`/rooms/join role=host`)
 
 The output includes `otpauth_url` for Google Authenticator scanning.
+By default, MFA enroll reuses existing secret (idempotent). To rotate secret:
+
+```bash
+ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' RESET_MFA=1 make bootstrap-host
+```
 
 Run frontend:
 

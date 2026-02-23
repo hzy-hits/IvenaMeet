@@ -62,6 +62,15 @@ impl LiveKitService {
         &self.public_ws_url
     }
 
+    fn api_hosts_in_order(&self) -> Vec<String> {
+        let mut hosts = vec![self.api_host.clone()];
+        // Some livekit-api/Twirp paths require plain http scheme for server API endpoint.
+        if let Some(rest) = self.api_host.strip_prefix("https://") {
+            hosts.push(format!("http://{rest}"));
+        }
+        hosts
+    }
+
     pub fn issue_room_token(
         &self,
         identity: &str,
@@ -101,8 +110,6 @@ impl LiveKitService {
         participant_identity: &str,
         participant_name: &str,
     ) -> AppResult<CreatedIngress> {
-        let client = IngressClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
-
         let options = CreateIngressOptions {
             name: format!("stream_{room_id}"),
             room_name: room_id.to_string(),
@@ -120,26 +127,42 @@ impl LiveKitService {
             },
             ..Default::default()
         };
-
-        let ingress = client
-            .create_ingress(proto::IngressInput::WhipInput, options)
-            .await
-            .map_err(|e| AppError::LiveKit(e.to_string()))?;
-
-        Ok(CreatedIngress {
-            whip_url: ingress.url,
-            stream_key: ingress.stream_key,
-            ingress_id: ingress.ingress_id,
-        })
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = IngressClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client
+                .create_ingress(proto::IngressInput::WhipInput, options.clone())
+                .await
+            {
+                Ok(ingress) => {
+                    return Ok(CreatedIngress {
+                        whip_url: ingress.url,
+                        stream_key: ingress.stream_key,
+                        ingress_id: ingress.ingress_id,
+                    });
+                }
+                Err(e) => {
+                    last_err = Some(e.to_string());
+                }
+            }
+        }
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "create ingress failed".to_string()),
+        ))
     }
 
     pub async fn delete_ingress(&self, ingress_id: &str) -> AppResult<()> {
-        let client = IngressClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
-        client
-            .delete_ingress(ingress_id)
-            .await
-            .map_err(|e| AppError::LiveKit(e.to_string()))?;
-        Ok(())
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = IngressClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client.delete_ingress(ingress_id).await {
+                Ok(_) => return Ok(()),
+                Err(e) => last_err = Some(e.to_string()),
+            }
+        }
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "delete ingress failed".to_string()),
+        ))
     }
 
     pub async fn mute_participant_microphone(
@@ -148,24 +171,30 @@ impl LiveKitService {
         participant_identity: &str,
         muted: bool,
     ) -> AppResult<u32> {
-        let client = RoomClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
-        let participant = client
-            .get_participant(room_id, participant_identity)
-            .await
-            .map_err(|e| AppError::LiveKit(e.to_string()))?;
-
-        let mut changed = 0_u32;
-        for track in participant.tracks {
-            if track.source != proto::TrackSource::Microphone as i32 {
-                continue;
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client.get_participant(room_id, participant_identity).await {
+                Ok(participant) => {
+                    let mut changed = 0_u32;
+                    for track in participant.tracks {
+                        if track.source != proto::TrackSource::Microphone as i32 {
+                            continue;
+                        }
+                        client
+                            .mute_published_track(room_id, participant_identity, &track.sid, muted)
+                            .await
+                            .map_err(|e| AppError::LiveKit(e.to_string()))?;
+                        changed += 1;
+                    }
+                    return Ok(changed);
+                }
+                Err(e) => last_err = Some(e.to_string()),
             }
-            client
-                .mute_published_track(room_id, participant_identity, &track.sid, muted)
-                .await
-                .map_err(|e| AppError::LiveKit(e.to_string()))?;
-            changed += 1;
         }
-        Ok(changed)
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "mute participant failed".to_string()),
+        ))
     }
 
     pub async fn mute_all_microphones(
@@ -174,28 +203,34 @@ impl LiveKitService {
         exclude_identity: Option<&str>,
         muted: bool,
     ) -> AppResult<u32> {
-        let client = RoomClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
-        let participants = client
-            .list_participants(room_id)
-            .await
-            .map_err(|e| AppError::LiveKit(e.to_string()))?;
-
-        let mut changed = 0_u32;
-        for participant in participants {
-            if exclude_identity.is_some_and(|id| id == participant.identity) {
-                continue;
-            }
-            for track in participant.tracks {
-                if track.source != proto::TrackSource::Microphone as i32 {
-                    continue;
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client.list_participants(room_id).await {
+                Ok(participants) => {
+                    let mut changed = 0_u32;
+                    for participant in participants {
+                        if exclude_identity.is_some_and(|id| id == participant.identity) {
+                            continue;
+                        }
+                        for track in participant.tracks {
+                            if track.source != proto::TrackSource::Microphone as i32 {
+                                continue;
+                            }
+                            client
+                                .mute_published_track(room_id, &participant.identity, &track.sid, muted)
+                                .await
+                                .map_err(|e| AppError::LiveKit(e.to_string()))?;
+                            changed += 1;
+                        }
+                    }
+                    return Ok(changed);
                 }
-                client
-                    .mute_published_track(room_id, &participant.identity, &track.sid, muted)
-                    .await
-                    .map_err(|e| AppError::LiveKit(e.to_string()))?;
-                changed += 1;
+                Err(e) => last_err = Some(e.to_string()),
             }
         }
-        Ok(changed)
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "mute all failed".to_string()),
+        ))
     }
 }

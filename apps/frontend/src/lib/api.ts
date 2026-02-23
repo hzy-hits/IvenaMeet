@@ -16,6 +16,7 @@ import type {
   RedeemInviteReq,
   RedeemInviteResp,
   RefreshSessionResp,
+  ReconnectResp,
   StartBroadcastReq,
   StartBroadcastResp,
   StopBroadcastReq,
@@ -54,6 +55,15 @@ export function createApi(baseURL: string, getters: TokenGetters) {
         const { data } = await raw.post<JoinResp>("/rooms/join", payload, {
           headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         });
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async reconnectRoom(): Promise<ReconnectResp> {
+      try {
+        const { data } = await withAppSession.post<ReconnectResp>("/rooms/reconnect", {});
         return data;
       } catch (e) {
         toError(e);

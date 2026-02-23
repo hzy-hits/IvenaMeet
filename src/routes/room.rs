@@ -7,7 +7,7 @@ use crate::validation;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, State},
-    http::HeaderMap,
+    http::{HeaderMap, header::AUTHORIZATION},
     routing::post,
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,9 @@ use std::net::SocketAddr;
 use tracing::{info, warn};
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/rooms/join", post(join_room))
+    Router::new()
+        .route("/rooms/join", post(join_room))
+        .route("/rooms/reconnect", post(reconnect_room))
 }
 
 #[derive(Deserialize)]
@@ -38,6 +40,14 @@ pub struct JoinResp {
     pub app_session_expires_in_seconds: u64,
     pub host_session_token: Option<String>,
     pub host_session_expires_in_seconds: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct ReconnectResp {
+    pub lk_url: String,
+    pub token: String,
+    pub expires_in_seconds: u64,
+    pub role: String,
 }
 
 async fn join_room(
@@ -218,9 +228,52 @@ async fn join_room(
     }))
 }
 
+async fn reconnect_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<ReconnectResp>> {
+    let request_id = request_meta::request_id(&headers);
+    let app_session_token = bearer_from_headers(&headers)
+        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
+
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, app_session_token)
+        .await?;
+
+    let _room = state
+        .storage_service
+        .get_room_active(claims.room_id.clone())
+        .await?
+        .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
+
+    let role = UserRole::from_str(&claims.role)
+        .ok_or_else(|| AppError::Unauthorized("session role invalid".to_string()))?;
+    let token = state
+        .livekit_service
+        .issue_room_token(&claims.user_name, &claims.room_id, role)?;
+
+    info!(
+        request_id,
+        route = "/rooms/reconnect",
+        room_id = claims.room_id,
+        user_name = claims.user_name,
+        result = "ok",
+        "room reconnect token issued"
+    );
+
+    Ok(Json(ReconnectResp {
+        lk_url: state.livekit_service.public_ws_url().to_string(),
+        token,
+        expires_in_seconds: state.config.token_ttl_seconds,
+        role: claims.role,
+    }))
+}
+
 fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {
     headers
-        .get(axum::http::header::AUTHORIZATION)
+        .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
 }

@@ -31,6 +31,13 @@ export interface JoinResp {
   host_session_expires_in_seconds?: number;
 }
 
+export interface ReconnectResp {
+  lk_url: string;
+  token: string;
+  expires_in_seconds: number;
+  role: Role;
+}
+
 export interface RedeemInviteReq {
   room_id: string;
   user_name: string;

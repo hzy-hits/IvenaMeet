@@ -47,6 +47,12 @@ type Props = {
   pushLog: (s: string) => void;
 };
 
+const LS_KEYS = {
+  joined: "ivena.meet.joined",
+  appSessionToken: "ivena.meet.app_session_token",
+  hostSessionToken: "ivena.meet.host_session_token",
+} as const;
+
 function parseInviteFromQuery() {
   const q = new URLSearchParams(window.location.search);
   return {
@@ -89,6 +95,10 @@ export function Sidebar(props: Props) {
   const [streamKey, setStreamKey] = useState("");
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [actionNotice, setActionNotice] = useState<{
+    kind: "ok" | "error";
+    text: string;
+  } | null>(null);
 
   const [openMembers, setOpenMembers] = useState(true);
   const [openChat, setOpenChat] = useState(true);
@@ -101,6 +111,7 @@ export function Sidebar(props: Props) {
     text: string;
   }>({ kind: "idle", text: "未上传，使用默认头像" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initialReconnectChecked = useRef(false);
   const inviteMode = Boolean(inviteTicket);
   const effectiveRole: Role = inviteMode ? "member" : hostEntryUnlocked ? "host" : role;
   const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
@@ -108,6 +119,11 @@ export function Sidebar(props: Props) {
     () => (joined?.role ?? effectiveRole) === "host",
     [joined?.role, effectiveRole],
   );
+
+  const showActionNotice = (kind: "ok" | "error", text: string) => {
+    setActionNotice({ kind, text });
+    window.setTimeout(() => setActionNotice(null), 2600);
+  };
 
   useEffect(() => {
     const parsed = parseInviteFromQuery();
@@ -126,6 +142,32 @@ export function Sidebar(props: Props) {
       .then((res) => setMessages(res.items))
       .catch((e) => pushLog(`history error: ${String(e)}`));
   }, [joined, roomId, api, setMessages, pushLog]);
+
+  useEffect(() => {
+    if (initialReconnectChecked.current) return;
+    initialReconnectChecked.current = true;
+    if (!joined) return;
+
+    void api
+      .reconnectRoom()
+      .then((res) => {
+        setJoined({ ...joined, ...res });
+        pushLog("session restored after refresh");
+      })
+      .catch((e) => {
+        setJoined(null);
+        setAppSessionToken("");
+        setHostSessionToken("");
+        setHostSessionExpireAt(0);
+        setSessionExpireAt(0);
+        setMessages([]);
+        localStorage.removeItem(LS_KEYS.joined);
+        localStorage.removeItem(LS_KEYS.appSessionToken);
+        localStorage.removeItem(LS_KEYS.hostSessionToken);
+        pushLog(`session restore failed: ${String(e)}`);
+        showActionNotice("error", "会话已失效，请重新加入房间");
+      });
+  }, [joined, api, setJoined, setAppSessionToken, setHostSessionToken, setMessages, pushLog]);
 
   useEffect(() => {
     if (!joined || !sessionExpireAt) return;
@@ -180,6 +222,9 @@ export function Sidebar(props: Props) {
     setHostSessionExpireAt(0);
     setSessionExpireAt(0);
     setMessages([]);
+    localStorage.removeItem(LS_KEYS.joined);
+    localStorage.removeItem(LS_KEYS.appSessionToken);
+    localStorage.removeItem(LS_KEYS.hostSessionToken);
     pushLog("left room");
   };
 
@@ -261,6 +306,7 @@ export function Sidebar(props: Props) {
     setRole("host");
     pushLog("invite issued and copied");
     pushLog(`switched to host room url: ${hostRoomUrl}`);
+    showActionNotice("ok", "已复制微信群邀请文案");
   };
 
   const startBroadcast = async () => {
@@ -281,12 +327,14 @@ export function Sidebar(props: Props) {
     setStreamKey(started.stream_key);
     setShowBroadcastModal(true);
     pushLog("broadcast started");
+    showActionNotice("ok", "推流参数已生成");
   };
 
   const stopBroadcast = async () => {
     if (!ingressId.trim()) throw new Error("ingress_id required");
     await api.stopBroadcast({ ingress_id: ingressId.trim() });
     pushLog("broadcast stopped");
+    showActionNotice("ok", "推流已停止");
   };
 
   const muteAll = async (muted: boolean) => {
@@ -340,12 +388,16 @@ export function Sidebar(props: Props) {
   };
 
   const run = (fn: () => Promise<void>) => {
-    void fn().catch((e) => pushLog(String(e)));
+    void fn().catch((e) => {
+      const message = e instanceof Error ? e.message : String(e);
+      pushLog(message);
+      showActionNotice("error", message);
+    });
   };
 
   return (
     <>
-      <aside className="flex h-[calc(100vh-1.5rem)] min-h-0 flex-col gap-3 overflow-hidden rounded-2xl bg-card p-3 lg:p-4">
+      <aside className="flex h-[calc(100vh-1.5rem)] min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-2xl bg-card p-3 lg:p-4">
         <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -364,6 +416,18 @@ export function Sidebar(props: Props) {
             ) : null}
           </div>
         </section>
+
+        {actionNotice ? (
+          <section
+            className={`rounded-2xl border px-3 py-2 text-sm ${
+              actionNotice.kind === "ok"
+                ? "border-ok/40 bg-ok/10 text-ok"
+                : "border-red-300/40 bg-red-500/20 text-red-100"
+            }`}
+          >
+            {actionNotice.text}
+          </section>
+        ) : null}
 
         {isHost ? (
           <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
@@ -429,7 +493,7 @@ export function Sidebar(props: Props) {
                   <div className="inline-flex items-center gap-2">
                     <span className="inline-flex items-center gap-1 text-xs text-white/60">
                       {m.micEnabled ? <Mic size={12} /> : <MicOff size={12} />}
-                      {m.speaking ? "speaking" : "idle"}
+                      {m.speaking ? "speaking" : m.micEnabled ? "on" : "muted"}
                     </span>
                     {isHost && !m.isLocal ? (
                       <button
@@ -477,7 +541,7 @@ export function Sidebar(props: Props) {
                   />
                   <button
                     onClick={() => run(sendChat)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-[#06211f]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent leading-none text-[#06211f]"
                   >
                     <Send size={16} />
                   </button>
