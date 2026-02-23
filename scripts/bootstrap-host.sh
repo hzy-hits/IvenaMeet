@@ -76,11 +76,24 @@ JOIN_JSON="$(curl -fsS -X POST "$API_BASE_URL/rooms/join" \
   -d "{\"room_id\":\"$ROOM_ID\",\"user_name\":\"$HOST_IDENTITY\",\"role\":\"host\"}")"
 
 HOST_SESSION_TTL="$(printf '%s' "$JOIN_JSON" | jq -r '.host_session_expires_in_seconds // 0')"
+APP_SESSION_TOKEN="$(printf '%s' "$JOIN_JSON" | jq -r '.app_session_token // empty')"
 if [[ -z "$HOST_SESSION_TTL" || "$HOST_SESSION_TTL" == "null" ]]; then
   echo "unexpected /rooms/join response:" >&2
   echo "$JOIN_JSON" >&2
   exit 5
 fi
+if [[ -z "$APP_SESSION_TOKEN" || "$APP_SESSION_TOKEN" == "null" ]]; then
+  echo "unexpected /rooms/join response: missing app_session_token" >&2
+  echo "$JOIN_JSON" >&2
+  exit 6
+fi
+
+echo "==> releasing bootstrap join session lock"
+LEAVE_JSON="$(curl -fsS -X POST "$API_BASE_URL/rooms/leave" \
+  -H "authorization: Bearer $APP_SESSION_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{}')"
+LEAVE_RELEASED="$(printf '%s' "$LEAVE_JSON" | jq -r '.released // false')"
 
 cat <<EOF
 
@@ -91,6 +104,7 @@ bootstrap complete:
   secret:        $SECRET
   qr_svg_file:   ${QR_FILE:-"(not returned)"}
   host_ttl_sec:  $HOST_SESSION_TTL
+  presence_released: $LEAVE_RELEASED
 
 next:
   1) ask host to scan otpauth_url with Google Authenticator

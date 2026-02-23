@@ -21,6 +21,7 @@ import {
   AVATAR_MAX_BYTES,
   CHAT_HISTORY_LIMIT,
   INVITE_COPY_HINT_MS,
+  SESSION_HEARTBEAT_MS,
   SESSION_REFRESH_BEFORE_SECONDS,
   SESSION_REFRESH_POLL_MS,
 } from "../lib/env";
@@ -119,6 +120,15 @@ function createClientId(): string {
     return crypto.randomUUID().replace(/-/g, "");
   }
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function errorText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
+function isIdentityInUseError(message: string): boolean {
+  return message.toLowerCase().includes("identity already in use");
 }
 
 function normalizeMessage(message: MessageItem): MessageItem {
@@ -245,6 +255,8 @@ export function Sidebar(props: Props) {
   const [streamKey, setStreamKey] = useState("");
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [reclaiming, setReclaiming] = useState(false);
+  const [showReclaimCta, setShowReclaimCta] = useState(false);
   const [actionNotice, setActionNotice] = useState<{
     kind: "ok" | "error";
     text: string;
@@ -266,6 +278,7 @@ export function Sidebar(props: Props) {
   const initialReconnectChecked = useRef(false);
   const lastMessageIdRef = useRef(0);
   const historySyncErrorLoggedRef = useRef(false);
+  const heartbeatErrorLoggedRef = useRef(false);
   const shouldReconnectOnBoot = useRef(
     Boolean(localStorage.getItem(LS_KEYS.joined) && localStorage.getItem(LS_KEYS.appSessionToken)),
   );
@@ -285,6 +298,12 @@ export function Sidebar(props: Props) {
     setActionNotice({ kind, text });
     window.setTimeout(() => setActionNotice(null), 2600);
   };
+
+  useEffect(() => {
+    if (effectiveRole !== "host" && showReclaimCta) {
+      setShowReclaimCta(false);
+    }
+  }, [effectiveRole, showReclaimCta]);
 
   useEffect(() => {
     return () => {
@@ -418,6 +437,23 @@ export function Sidebar(props: Props) {
   }, [joined, sessionExpireAt, api, setAppSessionToken, pushLog]);
 
   useEffect(() => {
+    if (!joined || !appSessionToken) return;
+    const timer = window.setInterval(() => {
+      void api
+        .heartbeatSession()
+        .then(() => {
+          heartbeatErrorLoggedRef.current = false;
+        })
+        .catch((e) => {
+          if (heartbeatErrorLoggedRef.current) return;
+          heartbeatErrorLoggedRef.current = true;
+          pushLog(`session heartbeat failed: ${errorText(e)}`);
+        });
+    }, SESSION_HEARTBEAT_MS);
+    return () => window.clearInterval(timer);
+  }, [joined, appSessionToken, api, pushLog]);
+
+  useEffect(() => {
     if (!joined || !isHost || !hostSessionExpireAt) return;
     const timer = window.setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
@@ -461,6 +497,7 @@ export function Sidebar(props: Props) {
     setHostTotpCode("");
     setHostSessionExpireAt(0);
     setSessionExpireAt(0);
+    setShowReclaimCta(false);
     avatarUploadDataRef.current = "";
     if (avatarPreviewBlobRef.current) {
       URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -473,7 +510,7 @@ export function Sidebar(props: Props) {
     pushLog("left room");
   };
 
-  const joinRoom = async () => {
+  const joinRoom = async (options?: { skipAutoReclaim?: boolean }) => {
     if (joining) return;
     if (!userName.trim()) throw new Error("name is required");
 
@@ -512,15 +549,45 @@ export function Sidebar(props: Props) {
         pushLog("host login verified");
       }
 
-      const res = await api.join({
-        room_id: roomId.trim(),
-        user_name: userName.trim(),
-        role: effectiveRole,
-        nickname: userName.trim(),
-        redeem_token: token || undefined,
-      }, joinAuthToken);
+      let res: JoinResp;
+      try {
+        res = await api.join({
+          room_id: roomId.trim(),
+          user_name: userName.trim(),
+          role: effectiveRole,
+          nickname: userName.trim(),
+          redeem_token: token || undefined,
+        }, joinAuthToken);
+      } catch (e) {
+        const message = errorText(e);
+        const shouldAutoReclaim =
+          effectiveRole === "host" &&
+          !options?.skipAutoReclaim &&
+          isIdentityInUseError(message);
+        if (!shouldAutoReclaim) {
+          throw e;
+        }
+        const reclaimed = await api.forceReclaimHostLock(
+          {
+            room_id: roomId.trim(),
+            host_identity: userName.trim(),
+          },
+          joinAuthToken,
+        );
+        pushLog(
+          `host reclaim(auto): ${reclaimed.reason} (stale_age=${reclaimed.stale_age_seconds}s)`,
+        );
+        res = await api.join({
+          room_id: roomId.trim(),
+          user_name: userName.trim(),
+          role: effectiveRole,
+          nickname: userName.trim(),
+          redeem_token: token || undefined,
+        }, joinAuthToken);
+      }
 
       setJoined(res);
+      setShowReclaimCta(false);
       setAppSessionToken(res.app_session_token);
       setHostSessionToken(res.host_session_token ?? "");
       if (res.host_session_token && res.host_session_expires_in_seconds) {
@@ -549,8 +616,35 @@ export function Sidebar(props: Props) {
           pushLog(`avatar upload failed: ${String(e)}`);
         }
       }
+    } catch (e) {
+      const message = errorText(e);
+      if (effectiveRole === "host" && isIdentityInUseError(message)) {
+        setShowReclaimCta(true);
+        showActionNotice("error", "主持身份被占用，可一键回收后重试");
+        pushLog("host identity occupied; use force reclaim and retry");
+      }
+      throw e;
     } finally {
       setJoining(false);
+    }
+  };
+
+  const forceReclaimAndRetry = async () => {
+    if (reclaiming) return;
+    setReclaiming(true);
+    try {
+      const reclaimed = await api.forceReclaimHostLock({
+        room_id: roomId.trim(),
+        host_identity: userName.trim(),
+      });
+      pushLog(
+        `host reclaim: ${reclaimed.reason} (stale_age=${reclaimed.stale_age_seconds}s)`,
+      );
+      showActionNotice("ok", "已回收残留会话，正在重试");
+      setShowReclaimCta(false);
+      await joinRoom({ skipAutoReclaim: true });
+    } finally {
+      setReclaiming(false);
     }
   };
 
@@ -752,8 +846,11 @@ export function Sidebar(props: Props) {
 
   const run = (fn: () => Promise<void>) => {
     void fn().catch((e) => {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = errorText(e);
       pushLog(message);
+      if (showReclaimCta && isIdentityInUseError(message)) {
+        return;
+      }
       showActionNotice("error", message);
     });
   };
@@ -836,13 +933,13 @@ export function Sidebar(props: Props) {
 
         {isHost ? (
           <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
-            <h3 className="mb-2 text-sm font-semibold">Host Tools</h3>
+            <h3 className="mb-2 text-sm font-semibold">主持工具</h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => run(issueInvite)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-[#06211f]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
               >
-                <UserPlus size={16} /> Issue Invite
+                <UserPlus size={16} /> 复制邀请
               </button>
               <button
                 onClick={() => run(startBroadcast)}
@@ -1173,6 +1270,16 @@ export function Sidebar(props: Props) {
             >
               {joining ? "Joining..." : "Join Room"}
             </button>
+
+            {effectiveRole === "host" && showReclaimCta ? (
+              <button
+                disabled={reclaiming}
+                onClick={() => run(forceReclaimAndRetry)}
+                className="mt-2 w-full rounded-xl border border-ok/40 bg-ok/15 px-3 py-2 font-semibold text-ok disabled:opacity-60"
+              >
+                {reclaiming ? "回收中..." : "房间被占用，回收后重试"}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

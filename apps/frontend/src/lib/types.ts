@@ -117,9 +117,25 @@ export interface RefreshSessionResp {
   app_session_expires_in_seconds: number;
 }
 
+export interface SessionHeartbeatResp {
+  ok: boolean;
+  app_session_expires_in_seconds: number;
+}
+
 export interface RefreshHostSessionResp {
   host_session_token: string;
   expires_in_seconds: number;
+}
+
+export interface ForceReclaimReq {
+  room_id: string;
+  host_identity: string;
+}
+
+export interface ForceReclaimResp {
+  reclaimed: boolean;
+  reason: string;
+  stale_age_seconds: number;
 }
 
 export interface MessageItem {

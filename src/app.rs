@@ -8,6 +8,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::auth::router())
         .merge(routes::broadcast::router())
         .merge(routes::moderation::router())
+        .merge(routes::room::control_router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             control_auth::require_control,

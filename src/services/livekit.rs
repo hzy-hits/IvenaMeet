@@ -246,6 +246,25 @@ impl LiveKitService {
             last_err.unwrap_or_else(|| "mute all failed".to_string()),
         ))
     }
+
+    pub async fn is_identity_active(&self, room_id: &str, identity: &str) -> AppResult<bool> {
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client.list_participants(room_id).await {
+                Ok(participants) => {
+                    let active = participants
+                        .into_iter()
+                        .any(|participant| participant.identity == identity);
+                    return Ok(active);
+                }
+                Err(e) => last_err = Some(e.to_string()),
+            }
+        }
+        Err(AppError::LiveKit(last_err.unwrap_or_else(|| {
+            "identity active check failed".to_string()
+        })))
+    }
 }
 
 fn fallback_whip_url_from_public_ws(public_ws_url: &str) -> String {

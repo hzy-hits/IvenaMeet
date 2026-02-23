@@ -3,6 +3,8 @@ import type {
   CreateInviteReq,
   CreateInviteResp,
   CreateMessageReq,
+  ForceReclaimReq,
+  ForceReclaimResp,
   HostLoginResp,
   HostLoginTotpReq,
   IssueBroadcastReq,
@@ -19,6 +21,7 @@ import type {
   RedeemInviteResp,
   RefreshSessionResp,
   ReconnectResp,
+  SessionHeartbeatResp,
   StartBroadcastReq,
   StartBroadcastResp,
   StopBroadcastReq,
@@ -138,6 +141,31 @@ export function createApi(baseURL: string, getters: TokenGetters) {
     async refreshSession(): Promise<RefreshSessionResp> {
       try {
         const { data } = await withAppSession.post<RefreshSessionResp>("/sessions/refresh", {});
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async heartbeatSession(): Promise<SessionHeartbeatResp> {
+      try {
+        const { data } = await withAppSession.post<SessionHeartbeatResp>("/sessions/heartbeat", {});
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async forceReclaimHostLock(
+      payload: ForceReclaimReq,
+      authTokenOverride?: string,
+    ): Promise<ForceReclaimResp> {
+      try {
+        const { data } = await withControl.post<ForceReclaimResp>(
+          "/rooms/host/force-reclaim",
+          payload,
+          authTokenOverride ? { headers: { Authorization: `Bearer ${authTokenOverride}` } } : undefined,
+        );
         return data;
       } catch (e) {
         toError(e);

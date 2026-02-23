@@ -179,6 +179,7 @@ async fn login_with_totp(
                 user_name: host_identity.clone(),
                 room_id: room_id.clone(),
                 role: "host".to_string(),
+                jti: None,
             },
             state.config.host_session_ttl_seconds,
         )

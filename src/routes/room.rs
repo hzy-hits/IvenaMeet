@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::services::livekit::UserRole;
 use crate::services::session::SessionClaims;
@@ -6,7 +7,7 @@ use crate::state::AppState;
 use crate::validation;
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Extension, State},
     http::{HeaderMap, header::AUTHORIZATION},
     routing::post,
 };
@@ -15,12 +16,18 @@ use std::net::SocketAddr;
 use tracing::{info, warn};
 
 const JOIN_LOCK_TTL_SECONDS: u64 = 30;
+const HOST_STALE_SECONDS: i64 = 60;
+const MEMBER_STALE_SECONDS: i64 = 180;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/rooms/join", post(join_room))
         .route("/rooms/leave", post(leave_room))
         .route("/rooms/reconnect", post(reconnect_room))
+}
+
+pub fn control_router() -> Router<AppState> {
+    Router::new().route("/rooms/host/force-reclaim", post(force_reclaim_host_lock))
 }
 
 #[derive(Deserialize)]
@@ -56,6 +63,19 @@ pub struct ReconnectResp {
 #[derive(Serialize)]
 pub struct LeaveResp {
     pub released: bool,
+}
+
+#[derive(Deserialize)]
+pub struct ForceReclaimReq {
+    pub room_id: String,
+    pub host_identity: String,
+}
+
+#[derive(Serialize)]
+pub struct ForceReclaimResp {
+    pub reclaimed: bool,
+    pub reason: String,
+    pub stale_age_seconds: i64,
 }
 
 async fn join_room(
@@ -175,7 +195,7 @@ async fn join_room(
                 .await
             {
                 Ok(claims) if claims.room_id == room_id && claims.user_name == user_name => {
-                    Some(token.to_string())
+                    Some(session_owner(&claims))
                 }
                 _ => None,
             }
@@ -187,7 +207,12 @@ async fn join_room(
     };
     let join_owner =
         owner_hint.unwrap_or_else(|| format!("join:{}", uuid::Uuid::new_v4().simple()));
-    let acquired = state
+    let stale_limit_seconds = if role == UserRole::Host {
+        HOST_STALE_SECONDS
+    } else {
+        MEMBER_STALE_SECONDS
+    };
+    let mut acquired = state
         .presence_service
         .acquire_identity(
             &mut redis,
@@ -195,8 +220,81 @@ async fn join_room(
             &user_name,
             &join_owner,
             JOIN_LOCK_TTL_SECONDS,
+            now_ts(),
         )
         .await?;
+    if !acquired {
+        if let Some(current) = state
+            .presence_service
+            .get_state(&mut redis, &room_id, &user_name)
+            .await?
+        {
+            let stale_age_seconds = if current.heartbeat_ts <= 0 {
+                stale_limit_seconds + 1
+            } else {
+                now_ts().saturating_sub(current.heartbeat_ts)
+            };
+
+            let livekit_active = match state
+                .livekit_service
+                .is_identity_active(&room_id, &user_name)
+                .await
+            {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    warn!(
+                        request_id,
+                        route = "/rooms/join",
+                        room_id,
+                        user_name,
+                        error = e.to_string(),
+                        result = "livekit_probe_failed",
+                        "identity activity probe failed; fallback to stale age"
+                    );
+                    None
+                }
+            };
+            let should_reclaim =
+                matches!(livekit_active, Some(false)) || stale_age_seconds > stale_limit_seconds;
+            if should_reclaim {
+                warn!(
+                    request_id,
+                    route = "/rooms/join",
+                    room_id,
+                    user_name,
+                    current_owner = current.owner,
+                    stale_age_seconds,
+                    stale_limit_seconds,
+                    livekit_active = match livekit_active {
+                        Some(true) => "active",
+                        Some(false) => "inactive",
+                        None => "unknown",
+                    },
+                    result = "reclaiming_stale_lock",
+                    "identity lock reclaiming before retry"
+                );
+                state
+                    .presence_service
+                    .force_delete(&mut redis, &room_id, &user_name)
+                    .await?;
+                let _ = state
+                    .session_service
+                    .revoke(&mut redis, &current.owner)
+                    .await;
+                acquired = state
+                    .presence_service
+                    .acquire_identity(
+                        &mut redis,
+                        &room_id,
+                        &user_name,
+                        &join_owner,
+                        JOIN_LOCK_TTL_SECONDS,
+                        now_ts(),
+                    )
+                    .await?;
+            }
+        }
+    }
     if !acquired {
         warn!(
             request_id,
@@ -249,20 +347,19 @@ async fn join_room(
             return Err(e);
         }
     };
+    let app_claims = SessionClaims {
+        user_name: user_name.clone(),
+        room_id: room_id.clone(),
+        role: match role {
+            UserRole::Host => "host".to_string(),
+            UserRole::Member => "member".to_string(),
+        },
+        jti: Some(uuid::Uuid::new_v4().simple().to_string()),
+    };
+    let app_owner = session_owner(&app_claims);
     let app_session_token = match state
         .session_service
-        .issue(
-            &mut redis,
-            SessionClaims {
-                user_name: user_name.clone(),
-                room_id: room_id.clone(),
-                role: match role {
-                    UserRole::Host => "host".to_string(),
-                    UserRole::Member => "member".to_string(),
-                },
-            },
-            state.config.session_ttl_seconds,
-        )
+        .issue(&mut redis, app_claims, state.config.session_ttl_seconds)
         .await
     {
         Ok(t) => t,
@@ -282,8 +379,9 @@ async fn join_room(
             &room_id,
             &user_name,
             &join_owner,
-            &app_session_token,
+            &app_owner,
             state.config.session_ttl_seconds,
+            now_ts(),
         )
         .await
     {
@@ -332,6 +430,7 @@ async fn join_room(
                     user_name: user_name.clone(),
                     room_id: room_id.clone(),
                     role: "host".to_string(),
+                    jti: None,
                 },
                 state.config.host_session_ttl_seconds,
             )
@@ -345,7 +444,7 @@ async fn join_room(
                     .await;
                 let _ = state
                     .presence_service
-                    .release_if_owner(&mut redis, &room_id, &user_name, &app_session_token)
+                    .release_if_owner(&mut redis, &room_id, &user_name, &app_owner)
                     .await;
                 return Err(e);
             }
@@ -414,8 +513,9 @@ async fn reconnect_room(
             &mut redis,
             &claims.room_id,
             &claims.user_name,
-            app_session_token,
+            &session_owner(&claims),
             state.config.session_ttl_seconds,
+            now_ts(),
         )
         .await?;
     if !lock_ok {
@@ -475,7 +575,7 @@ async fn leave_room(
             &mut redis,
             &claims.room_id,
             &claims.user_name,
-            app_session_token,
+            &session_owner(&claims),
         )
         .await?;
     state
@@ -506,9 +606,144 @@ async fn leave_room(
     Ok(Json(LeaveResp { released }))
 }
 
+async fn force_reclaim_host_lock(
+    State(state): State<AppState>,
+    Extension(principal): Extension<ControlPrincipal>,
+    headers: HeaderMap,
+    Json(req): Json<ForceReclaimReq>,
+) -> AppResult<Json<ForceReclaimResp>> {
+    let request_id = request_meta::request_id(&headers);
+    let room_id = validation::room_id(&req.room_id)?;
+    let host_identity = validation::user_name(&req.host_identity)?;
+
+    match principal {
+        ControlPrincipal::Admin => {}
+        ControlPrincipal::Host(claims) => {
+            if claims.role != "host"
+                || claims.room_id != room_id
+                || claims.user_name != host_identity
+            {
+                return Err(AppError::Unauthorized(
+                    "host session scope mismatch".to_string(),
+                ));
+            }
+        }
+    }
+
+    let mut redis = state.redis.clone();
+    let current = state
+        .presence_service
+        .get_state(&mut redis, &room_id, &host_identity)
+        .await?;
+    let Some(current) = current else {
+        info!(
+            request_id,
+            route = "/rooms/host/force-reclaim",
+            room_id,
+            host_identity,
+            result = "ok",
+            "no stale presence lock to reclaim"
+        );
+        return Ok(Json(ForceReclaimResp {
+            reclaimed: true,
+            reason: "no_lock".to_string(),
+            stale_age_seconds: 0,
+        }));
+    };
+
+    let now = now_ts();
+    let stale_age_seconds = if current.heartbeat_ts <= 0 {
+        HOST_STALE_SECONDS + 1
+    } else {
+        now.saturating_sub(current.heartbeat_ts)
+    };
+    let livekit_active = match state
+        .livekit_service
+        .is_identity_active(&room_id, &host_identity)
+        .await
+    {
+        Ok(v) => Some(v),
+        Err(e) => {
+            warn!(
+                request_id,
+                route = "/rooms/host/force-reclaim",
+                room_id,
+                host_identity,
+                error = e.to_string(),
+                result = "livekit_probe_failed",
+                "force reclaim livekit probe failed; fallback to stale age"
+            );
+            None
+        }
+    };
+    let deny_reclaim = matches!(livekit_active, Some(true))
+        || (livekit_active.is_none() && stale_age_seconds <= HOST_STALE_SECONDS);
+    if deny_reclaim {
+        warn!(
+            request_id,
+            route = "/rooms/host/force-reclaim",
+            room_id,
+            host_identity,
+            current_owner = current.owner,
+            stale_age_seconds,
+            livekit_active = match livekit_active {
+                Some(true) => "active",
+                Some(false) => "inactive",
+                None => "unknown",
+            },
+            result = "denied",
+            "presence lock still active"
+        );
+        return Err(AppError::Unauthorized(
+            "identity already in use".to_string(),
+        ));
+    }
+
+    state
+        .presence_service
+        .force_delete(&mut redis, &room_id, &host_identity)
+        .await?;
+    let _ = state
+        .session_service
+        .revoke(&mut redis, &current.owner)
+        .await;
+
+    info!(
+        request_id,
+        route = "/rooms/host/force-reclaim",
+        room_id,
+        host_identity,
+        stale_age_seconds,
+        result = "ok",
+        "stale presence lock reclaimed"
+    );
+
+    Ok(Json(ForceReclaimResp {
+        reclaimed: true,
+        reason: "stale_reclaimed".to_string(),
+        stale_age_seconds,
+    }))
+}
+
 fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {
     headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
+}
+
+fn session_owner(claims: &SessionClaims) -> String {
+    claims
+        .jti
+        .as_deref()
+        .filter(|v| !v.is_empty())
+        .unwrap_or(&claims.user_name)
+        .to_string()
+}
+
+fn now_ts() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
