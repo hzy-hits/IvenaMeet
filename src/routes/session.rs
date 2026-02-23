@@ -8,7 +8,7 @@ use axum::{
     routing::post,
 };
 use serde::Serialize;
-use tracing::info;
+use tracing::{info, warn};
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/sessions/refresh", post(refresh_session))
@@ -28,13 +28,40 @@ async fn refresh_session(
     let token = bearer_from_headers(&headers)
         .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
     let mut redis = state.redis.clone();
-    let (new_token, _claims) = state
+    let (new_token, claims) = state
         .session_service
         .refresh(&mut redis, token, state.config.session_ttl_seconds)
         .await?;
+    let rotated = state
+        .presence_service
+        .rotate_owner(
+            &mut redis,
+            &claims.room_id,
+            &claims.user_name,
+            token,
+            &new_token,
+            state.config.session_ttl_seconds,
+        )
+        .await?;
+    if !rotated {
+        let _ = state.session_service.revoke(&mut redis, &new_token).await;
+        warn!(
+            request_id,
+            route = "/sessions/refresh",
+            room_id = claims.room_id,
+            user_name = claims.user_name,
+            result = "denied",
+            "identity lock not owned by current session"
+        );
+        return Err(AppError::Unauthorized(
+            "identity already in use".to_string(),
+        ));
+    }
     info!(
         request_id,
         route = "/sessions/refresh",
+        room_id = claims.room_id,
+        user_name = claims.user_name,
         result = "ok",
         "session refreshed"
     );

@@ -989,6 +989,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "dotenvy",
+ "futures-util",
  "google-authenticator",
  "image 0.25.6",
  "livekit-api",
@@ -999,6 +1000,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -2024,6 +2026,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

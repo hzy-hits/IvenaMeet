@@ -3,7 +3,12 @@ use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::state::AppState;
 use crate::validation;
-use axum::{Json, Router, extract::{Extension, State}, http::HeaderMap, routing::post};
+use axum::{
+    Json, Router,
+    extract::{Extension, State},
+    http::HeaderMap,
+    routing::post,
+};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -16,6 +21,7 @@ pub fn router() -> Router<AppState> {
 struct CreateInviteResp {
     invite_code: String,
     invite_ticket: String,
+    invite_max_uses: u64,
     invite_url: String,
     expires_at: chrono::DateTime<Utc>,
 }
@@ -97,6 +103,7 @@ async fn create_invite(
     Ok(Json(CreateInviteResp {
         invite_code: issued.invite_code,
         invite_ticket: issued.invite_ticket,
+        invite_max_uses: issued.max_uses,
         invite_url,
         expires_at,
     }))

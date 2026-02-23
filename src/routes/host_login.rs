@@ -137,28 +137,10 @@ async fn login_with_totp(
             &mut redis,
             "host_login_totp",
             &ip,
-            state.config.rate_limit_invite_redeem,
+            state.config.rate_limit_host_login_totp,
             state.config.rate_limit_window_seconds,
         )
         .await?;
-
-    let room = state
-        .storage_service
-        .get_room_active(room_id.clone())
-        .await?
-        .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
-    if room.host_identity != host_identity {
-        warn!(
-            request_id,
-            route = "/host/login/totp",
-            room_id,
-            host_identity,
-            ip,
-            result = "denied",
-            "host identity mismatch"
-        );
-        return Err(AppError::Unauthorized("host identity mismatch".to_string()));
-    }
 
     let secret = state
         .host_auth_service
@@ -179,6 +161,15 @@ async fn login_with_totp(
         );
         return Err(AppError::Unauthorized("invalid totp code".to_string()));
     }
+
+    state
+        .storage_service
+        .ensure_room_for_host(
+            room_id.clone(),
+            host_identity.clone(),
+            state.config.room_ttl_seconds,
+        )
+        .await?;
 
     let host_session_token = state
         .host_session_service

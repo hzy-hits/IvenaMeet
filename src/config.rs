@@ -13,6 +13,7 @@ pub struct Config {
     pub livekit_api_secret: String,
     pub token_ttl_seconds: u64,
     pub invite_ttl_seconds: u64,
+    pub invite_max_uses: u64,
     pub redeem_ttl_seconds: u64,
     pub room_ttl_seconds: u64,
     pub broadcast_issue_ttl_seconds: u64,
@@ -29,6 +30,7 @@ pub struct Config {
     pub rate_limit_window_seconds: u64,
     pub rate_limit_room_join: u64,
     pub rate_limit_invite_redeem: u64,
+    pub rate_limit_host_login_totp: u64,
     pub rate_limit_broadcast_start: u64,
     pub avatar_upload_limit_per_minute: u64,
     pub avatar_upload_limit_per_day: u64,
@@ -49,6 +51,7 @@ impl Config {
             livekit_api_secret: env_required("LIVEKIT_API_SECRET")?,
             token_ttl_seconds: parse_env_u64("TOKEN_TTL_SECONDS", 4 * 3600)?,
             invite_ttl_seconds: parse_env_u64("INVITE_TTL_SECONDS", 24 * 3600)?,
+            invite_max_uses: parse_env_u64("INVITE_MAX_USES", 10)?,
             redeem_ttl_seconds: parse_env_u64("REDEEM_TTL_SECONDS", 300)?,
             room_ttl_seconds: parse_env_u64("ROOM_TTL_SECONDS", 4 * 3600)?,
             broadcast_issue_ttl_seconds: parse_env_u64("BROADCAST_ISSUE_TTL_SECONDS", 120)?,
@@ -65,10 +68,17 @@ impl Config {
             rate_limit_window_seconds: parse_env_u64("RATE_LIMIT_WINDOW_SECONDS", 60)?,
             rate_limit_room_join: parse_env_u64("RATE_LIMIT_ROOM_JOIN", 20)?,
             rate_limit_invite_redeem: parse_env_u64("RATE_LIMIT_INVITE_REDEEM", 12)?,
+            rate_limit_host_login_totp: parse_env_u64("RATE_LIMIT_HOST_LOGIN_TOTP", 12)?,
             rate_limit_broadcast_start: parse_env_u64("RATE_LIMIT_BROADCAST_START", 3)?,
-            avatar_upload_limit_per_minute: parse_env_u64("RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE", 2)?,
+            avatar_upload_limit_per_minute: parse_env_u64(
+                "RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE",
+                2,
+            )?,
             avatar_upload_limit_per_day: parse_env_u64("RATE_LIMIT_AVATAR_UPLOAD_PER_DAY", 100)?,
-            avatar_storage_quota_bytes: parse_env_u64("AVATAR_STORAGE_QUOTA_BYTES", 500 * 1024 * 1024)?,
+            avatar_storage_quota_bytes: parse_env_u64(
+                "AVATAR_STORAGE_QUOTA_BYTES",
+                500 * 1024 * 1024,
+            )?,
             trusted_proxy_ips: parse_env_ip_list("TRUSTED_PROXY_IPS")?,
         })
     }

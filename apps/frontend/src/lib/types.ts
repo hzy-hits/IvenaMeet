@@ -38,6 +38,10 @@ export interface ReconnectResp {
   role: Role;
 }
 
+export interface LeaveResp {
+  released: boolean;
+}
+
 export interface RedeemInviteReq {
   room_id: string;
   user_name: string;
@@ -47,6 +51,7 @@ export interface RedeemInviteReq {
 
 export interface RedeemInviteResp {
   redeem_token: string;
+  ticket_remaining_uses: number;
   expires_in_seconds: number;
 }
 
@@ -58,6 +63,7 @@ export interface CreateInviteReq {
 export interface CreateInviteResp {
   invite_code: string;
   invite_ticket: string;
+  invite_max_uses: number;
   invite_url: string;
   expires_at: string;
 }
@@ -123,8 +129,11 @@ export interface MessageItem {
   nickname: string;
   avatar_url?: string | null;
   role: Role;
+  client_id?: string | null;
   text: string;
   created_at: number;
+  pending?: boolean;
+  failed?: boolean;
 }
 
 export interface ListMessagesResp {
@@ -133,6 +142,19 @@ export interface ListMessagesResp {
 
 export interface CreateMessageReq {
   text: string;
+  client_id?: string;
+}
+
+export interface RealtimeChatPayload {
+  type: "chat.message";
+  room_id: string;
+  client_id: string;
+  user_name: string;
+  nickname: string;
+  avatar_url?: string | null;
+  role: Role;
+  text: string;
+  created_at: number;
 }
 
 export interface UploadAvatarResp {

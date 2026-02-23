@@ -73,7 +73,9 @@ async fn issue_broadcast_start(
                 result = "denied",
                 "host token scope mismatch"
             );
-            return Err(AppError::Unauthorized("host token scope mismatch".to_string()));
+            return Err(AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
         }
     }
 
@@ -142,7 +144,9 @@ async fn start_broadcast(
                 result = "denied",
                 "host token scope mismatch"
             );
-            return Err(AppError::Unauthorized("host token scope mismatch".to_string()));
+            return Err(AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
         }
     }
     let participant_name = req

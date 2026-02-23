@@ -5,6 +5,7 @@ export const DEFAULT_USER_NAME = import.meta.env.VITE_DEFAULT_USER_NAME ?? "gues
 export const DEFAULT_ROLE = (import.meta.env.VITE_DEFAULT_ROLE ?? "member") as "host" | "member";
 export const LOG_MAX_LINES = Number(import.meta.env.VITE_LOG_MAX_LINES ?? "250");
 export const CHAT_HISTORY_LIMIT = Number(import.meta.env.VITE_CHAT_HISTORY_LIMIT ?? "80");
+export const CHAT_SYNC_POLL_MS = Number(import.meta.env.VITE_CHAT_SYNC_POLL_MS ?? "3000");
 export const SESSION_REFRESH_POLL_MS = Number(import.meta.env.VITE_SESSION_REFRESH_POLL_MS ?? "30000");
 export const SESSION_REFRESH_BEFORE_SECONDS = Number(
   import.meta.env.VITE_SESSION_REFRESH_BEFORE_SECONDS ?? "120",

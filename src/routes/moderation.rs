@@ -3,7 +3,12 @@ use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::state::AppState;
 use crate::validation;
-use axum::{Json, Router, extract::{Extension, State}, http::HeaderMap, routing::post};
+use axum::{
+    Json, Router,
+    extract::{Extension, State},
+    http::HeaderMap,
+    routing::post,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -56,7 +61,9 @@ async fn mute_member(
                 result = "denied",
                 "host token scope mismatch"
             );
-            return Err(AppError::Unauthorized("host token scope mismatch".to_string()));
+            return Err(AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
         }
     }
 
@@ -121,7 +128,9 @@ async fn mute_all_members(
                 result = "denied",
                 "host token scope mismatch"
             );
-            return Err(AppError::Unauthorized("host token scope mismatch".to_string()));
+            return Err(AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
         }
     }
 

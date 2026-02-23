@@ -24,7 +24,7 @@ import {
   SESSION_REFRESH_BEFORE_SECONDS,
   SESSION_REFRESH_POLL_MS,
 } from "../lib/env";
-import type { JoinResp, MemberItem, MessageItem, Role } from "../lib/types";
+import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 
 type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
 
@@ -45,6 +45,8 @@ type Props = {
   members: MemberItem[];
   messages: MessageItem[];
   setMessages: Dispatch<SetStateAction<MessageItem[]>>;
+  lastRealtimeChat: RealtimeChatPayload | null;
+  realtimeChatSender: ((payload: RealtimeChatPayload) => Promise<void>) | null;
   logs: string[];
   pushLog: (s: string) => void;
 };
@@ -112,6 +114,100 @@ function deriveObsWhipEndpoint(whipUrl: string, streamKey: string): string {
   return `${base}/${key}`;
 }
 
+function createClientId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID().replace(/-/g, "");
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeMessage(message: MessageItem): MessageItem {
+  return {
+    ...message,
+    pending: message.pending ?? false,
+    failed: message.failed ?? false,
+  };
+}
+
+function mergeMessages(base: MessageItem[], incoming: MessageItem[]): MessageItem[] {
+  if (!incoming.length) return base;
+  const next = [...base];
+  const byId = new Map<number, number>();
+  const byClientId = new Map<string, number>();
+  for (let i = 0; i < next.length; i += 1) {
+    byId.set(next[i].id, i);
+    const existingClientId = next[i].client_id ?? "";
+    if (existingClientId) byClientId.set(existingClientId, i);
+  }
+
+  let changed = false;
+  for (const item of incoming) {
+    const normalized = normalizeMessage(item);
+    const incomingClientId = normalized.client_id ?? "";
+    const idxByClient = incomingClientId ? byClientId.get(incomingClientId) : undefined;
+    const idxById = byId.get(normalized.id);
+    const targetIdx = idxByClient ?? idxById;
+    if (targetIdx === undefined) {
+      next.push(normalized);
+      const newIdx = next.length - 1;
+      byId.set(normalized.id, newIdx);
+      if (incomingClientId) byClientId.set(incomingClientId, newIdx);
+      changed = true;
+      continue;
+    }
+
+    const prev = next[targetIdx];
+    const merged: MessageItem = {
+      ...prev,
+      ...normalized,
+      pending: normalized.pending ?? false,
+      failed: normalized.failed ?? false,
+    };
+    if (JSON.stringify(prev) !== JSON.stringify(merged)) {
+      next[targetIdx] = merged;
+      byId.set(merged.id, targetIdx);
+      const mergedClientId = merged.client_id ?? "";
+      if (mergedClientId) byClientId.set(mergedClientId, targetIdx);
+      changed = true;
+    }
+  }
+  if (!changed) return base;
+  return next.sort((a, b) => {
+    if (a.created_at !== b.created_at) return a.created_at - b.created_at;
+    if (a.id === b.id) return 0;
+    if (a.id < 0 && b.id > 0) return -1;
+    if (a.id > 0 && b.id < 0) return 1;
+    return a.id - b.id;
+  });
+}
+
+function markMessageFailed(base: MessageItem[], clientId: string): MessageItem[] {
+  let changed = false;
+  const out = base.map((m) => {
+    if (m.client_id !== clientId) return m;
+    changed = true;
+    return { ...m, pending: false, failed: true };
+  });
+  return changed ? out : base;
+}
+
+function toRealtimeMessage(payload: RealtimeChatPayload): MessageItem {
+  const syntheticId = -Math.floor(Date.now() * 1000 + Math.random() * 1000);
+  return {
+    id: syntheticId,
+    room_id: payload.room_id,
+    user_name: payload.user_name,
+    nickname: payload.nickname,
+    avatar_url: payload.avatar_url ?? null,
+    role: payload.role,
+    client_id: payload.client_id,
+    text: payload.text,
+    created_at: payload.created_at,
+    pending: true,
+    failed: false,
+  };
+}
+
 export function Sidebar(props: Props) {
   const {
     requireInvite,
@@ -130,6 +226,8 @@ export function Sidebar(props: Props) {
     members,
     messages,
     setMessages,
+    lastRealtimeChat,
+    realtimeChatSender,
     logs,
     pushLog,
   } = props;
@@ -166,11 +264,13 @@ export function Sidebar(props: Props) {
   }>({ kind: "idle", text: "未上传，使用默认头像" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialReconnectChecked = useRef(false);
+  const lastMessageIdRef = useRef(0);
+  const historySyncErrorLoggedRef = useRef(false);
   const shouldReconnectOnBoot = useRef(
     Boolean(localStorage.getItem(LS_KEYS.joined) && localStorage.getItem(LS_KEYS.appSessionToken)),
   );
   const inviteMode = Boolean(inviteTicket);
-  const effectiveRole: Role = inviteMode ? "member" : hostEntryUnlocked ? "host" : role;
+  const effectiveRole: Role = hostEntryUnlocked ? "host" : inviteMode ? "member" : role;
   const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
   const isHost = useMemo(
     () => (joined?.role ?? effectiveRole) === "host",
@@ -212,6 +312,59 @@ export function Sidebar(props: Props) {
       .then((res) => setMessages(res.items))
       .catch((e) => pushLog(`history error: ${String(e)}`));
   }, [joined, roomId, api, setMessages, pushLog]);
+
+  useEffect(() => {
+    let maxId = 0;
+    for (const item of messages) {
+      if (item.id > maxId) maxId = item.id;
+    }
+    lastMessageIdRef.current = maxId;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!joined || !appSessionToken) return;
+    let stopped = false;
+    let closeStream: (() => void) | null = null;
+    let retryDelayMs = 1000;
+
+    const connect = () => {
+      if (stopped) return;
+      const afterId = lastMessageIdRef.current > 0 ? lastMessageIdRef.current : undefined;
+      closeStream = api.streamMessages(
+        roomId,
+        afterId,
+        (item) => {
+          historySyncErrorLoggedRef.current = false;
+          setMessages((prev) => mergeMessages(prev, [{ ...item, pending: false, failed: false }]));
+        },
+        (error) => {
+          if (stopped) return;
+          if (!historySyncErrorLoggedRef.current) {
+            historySyncErrorLoggedRef.current = true;
+            pushLog(`chat stream error: ${error.message}`);
+          }
+          if (closeStream) {
+            closeStream();
+            closeStream = null;
+          }
+          window.setTimeout(connect, retryDelayMs);
+          retryDelayMs = Math.min(retryDelayMs * 2, 10000);
+        },
+      );
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      if (closeStream) closeStream();
+    };
+  }, [joined, appSessionToken, roomId, api, setMessages, pushLog]);
+
+  useEffect(() => {
+    if (!joined || !lastRealtimeChat) return;
+    if (lastRealtimeChat.room_id !== roomId.trim()) return;
+    setMessages((prev) => mergeMessages(prev, [toRealtimeMessage(lastRealtimeChat)]));
+  }, [joined, lastRealtimeChat, roomId, setMessages]);
 
   useEffect(() => {
     if (initialReconnectChecked.current) return;
@@ -292,6 +445,16 @@ export function Sidebar(props: Props) {
   }, [joined, isHost, hostSessionExpireAt, api, setAppSessionToken, setHostSessionToken, setJoined, setMessages, pushLog]);
 
   const leaveRoom = async () => {
+    const shouldNotifyLeave = Boolean(joined && appSessionToken);
+    if (shouldNotifyLeave) {
+      try {
+        const res = await api.leaveRoom();
+        pushLog(res.released ? "left room (presence released)" : "left room (presence already cleared)");
+      } catch (e) {
+        pushLog(`leave notify failed: ${String(e)}`);
+      }
+    }
+
     setJoined(null);
     setAppSessionToken("");
     setHostSessionToken("");
@@ -397,7 +560,8 @@ export function Sidebar(props: Props) {
       host_identity: userName.trim(),
     });
 
-    const msg = `房间链接：${payload.invite_url}\n邀请码：${payload.invite_code}\n有效期：24小时`;
+    const expiresAt = new Date(payload.expires_at).toLocaleString();
+    const msg = `房间链接：${payload.invite_url}\n邀请码：${payload.invite_code}\n可使用人数：${payload.invite_max_uses}\n有效期至：${expiresAt}`;
     await navigator.clipboard.writeText(msg);
 
     setInviteCode(payload.invite_code);
@@ -430,6 +594,7 @@ export function Sidebar(props: Props) {
     setStreamKey(started.stream_key);
     setShowBroadcastModal(true);
     pushLog("broadcast started");
+    pushLog("echo-safe tip: OBS 只推桌面+系统音，麦克风请走房间语音");
     showActionNotice("ok", "推流参数已生成");
   };
 
@@ -480,9 +645,37 @@ export function Sidebar(props: Props) {
   const sendChat = async () => {
     const text = chatText.trim();
     if (!text || !joined) return;
-    await api.createMessage(roomId.trim(), { text });
-    const next = await api.listMessages(roomId.trim(), CHAT_HISTORY_LIMIT);
-    setMessages(next.items);
+    const clientId = createClientId();
+    const payload: RealtimeChatPayload = {
+      type: "chat.message",
+      room_id: roomId.trim(),
+      client_id: clientId,
+      user_name: userName.trim(),
+      nickname: userName.trim(),
+      avatar_url: null,
+      role: joined.role,
+      text,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    setMessages((prev) => mergeMessages(prev, [toRealtimeMessage(payload)]));
+    if (realtimeChatSender) {
+      try {
+        await realtimeChatSender(payload);
+      } catch (e) {
+        pushLog(`realtime send error: ${String(e)}`);
+      }
+    }
+
+    try {
+      const created = await api.createMessage(roomId.trim(), { text, client_id: clientId });
+      setMessages((prev) =>
+        mergeMessages(prev, [{ ...created, pending: false, failed: false }]),
+      );
+    } catch (e) {
+      setMessages((prev) => markMessageFailed(prev, clientId));
+      throw e;
+    }
     setChatText("");
   };
 
@@ -735,7 +928,7 @@ export function Sidebar(props: Props) {
               <div className="flex h-[300px] min-h-0 flex-col">
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1">
                   {messages.map((m) => (
-                    <div key={m.id} className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
+                    <div key={m.client_id ?? m.id} className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
                       <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
                         <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
                           {m.nickname.slice(0, 1).toUpperCase()}
@@ -753,7 +946,10 @@ export function Sidebar(props: Props) {
                         ) : null}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs text-white/60">{m.nickname} ({m.role})</p>
+                        <p className="text-xs text-white/60">
+                          {m.nickname} ({m.role})
+                          {m.failed ? " · failed" : m.pending ? " · sending" : ""}
+                        </p>
                         <p className="text-sm break-words">{m.text}</p>
                       </div>
                     </div>
@@ -897,16 +1093,30 @@ export function Sidebar(props: Props) {
               )}
 
               {hostEntryUnlocked ? (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
-                  host mode
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                  <span>host mode</span>
+                  <button
+                    type="button"
+                    onClick={() => setHostEntryUnlocked(false)}
+                    className="rounded-lg bg-white/10 px-2 py-1 text-xs text-white/80"
+                  >
+                    切回成员
+                  </button>
                 </div>
               ) : !inviteMode ? (
                 <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
                   member mode
                 </div>
               ) : (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
-                  invite mode: member
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                  <span>invite mode: member</span>
+                  <button
+                    type="button"
+                    onClick={() => setHostEntryUnlocked(true)}
+                    className="rounded-lg bg-accent/90 px-2 py-1 text-xs font-semibold text-[#06211f]"
+                  >
+                    主持人入口
+                  </button>
                 </div>
               )}
 
@@ -992,6 +1202,10 @@ export function Sidebar(props: Props) {
             <p className="mt-3 text-xs text-white/70">
               OBS 推荐直接填 <span className="font-mono">obs_whip_endpoint</span>。如果使用该完整地址，
               不需要再单独填写 Bearer Token。
+            </p>
+            <p className="mt-2 text-xs text-white/70">
+              防回声建议：OBS 只保留“桌面/窗口 + 系统音频”，不要添加麦克风音源；
+              麦克风请使用本页面的语音按钮单独上麦。
             </p>
             <button
               onClick={() => setShowBroadcastModal(false)}

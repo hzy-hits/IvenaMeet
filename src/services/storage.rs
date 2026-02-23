@@ -24,6 +24,7 @@ pub struct ChatMessage {
     pub nickname: String,
     pub avatar_url: Option<String>,
     pub role: String,
+    pub client_id: Option<String>,
     pub text: String,
     pub created_at: i64,
 }
@@ -61,6 +62,7 @@ impl StorageService {
               room_id TEXT NOT NULL,
               user_name TEXT NOT NULL,
               role TEXT NOT NULL,
+              client_id TEXT,
               text TEXT NOT NULL,
               created_at INTEGER NOT NULL,
               FOREIGN KEY(user_name) REFERENCES users(user_name)
@@ -78,6 +80,7 @@ impl StorageService {
             "#,
         )
         .map_err(|e| AppError::Db(e.to_string()))?;
+        ensure_messages_client_id_column(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -155,6 +158,7 @@ impl StorageService {
         room_id: String,
         user_name: String,
         role: String,
+        client_id: Option<String>,
         text: String,
     ) -> AppResult<ChatMessage> {
         let conn = self.conn.clone();
@@ -162,8 +166,8 @@ impl StorageService {
             let now = now_ts();
             let db = conn.lock().map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
             db.execute(
-                "INSERT INTO messages (room_id, user_name, role, text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![room_id, user_name, role, text, now],
+                "INSERT INTO messages (room_id, user_name, role, client_id, text, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![room_id, user_name, role, client_id, text, now],
             )
             .map_err(|e| AppError::Db(e.to_string()))?;
             let id = db.last_insert_rowid();
@@ -171,7 +175,7 @@ impl StorageService {
             let mut stmt = db
                 .prepare(
                     r#"
-                    SELECT m.id, m.room_id, m.user_name, u.nickname, u.avatar_url, m.role, m.text, m.created_at
+                    SELECT m.id, m.room_id, m.user_name, u.nickname, u.avatar_url, m.role, m.client_id, m.text, m.created_at
                     FROM messages m
                     JOIN users u ON u.user_name = m.user_name
                     WHERE m.id = ?1
@@ -187,8 +191,9 @@ impl StorageService {
                     nickname: row.get(3)?,
                     avatar_url: row.get(4)?,
                     role: row.get(5)?,
-                    text: row.get(6)?,
-                    created_at: row.get(7)?,
+                    client_id: row.get(6)?,
+                    text: row.get(7)?,
+                    created_at: row.get(8)?,
                 })
             })
             .map_err(|e| AppError::Db(e.to_string()))
@@ -197,44 +202,86 @@ impl StorageService {
         .map_err(|e| AppError::Db(e.to_string()))?
     }
 
-    pub async fn list_messages(&self, room_id: String, limit: i64) -> AppResult<Vec<ChatMessage>> {
+    pub async fn list_messages(
+        &self,
+        room_id: String,
+        limit: i64,
+        after_id: Option<i64>,
+    ) -> AppResult<Vec<ChatMessage>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let db = conn.lock().map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
-            let mut stmt = db
-                .prepare(
-                    r#"
-                    SELECT m.id, m.room_id, m.user_name, u.nickname, u.avatar_url, m.role, m.text, m.created_at
-                    FROM messages m
-                    JOIN users u ON u.user_name = m.user_name
-                    WHERE m.room_id = ?1
-                    ORDER BY m.created_at DESC, m.id DESC
-                    LIMIT ?2
-                    "#,
-                )
-                .map_err(|e| AppError::Db(e.to_string()))?;
-
-            let rows = stmt
-                .query_map(params![room_id, limit], |row| {
-                    Ok(ChatMessage {
-                        id: row.get(0)?,
-                        room_id: row.get(1)?,
-                        user_name: row.get(2)?,
-                        nickname: row.get(3)?,
-                        avatar_url: row.get(4)?,
-                        role: row.get(5)?,
-                        text: row.get(6)?,
-                        created_at: row.get(7)?,
-                    })
-                })
-                .map_err(|e| AppError::Db(e.to_string()))?;
-
             let mut out = Vec::new();
-            for row in rows {
-                out.push(row.map_err(|e| AppError::Db(e.to_string()))?);
+            if let Some(after_id) = after_id {
+                let mut stmt = db
+                    .prepare(
+                        r#"
+                        SELECT m.id, m.room_id, m.user_name, u.nickname, u.avatar_url, m.role, m.client_id, m.text, m.created_at
+                        FROM messages m
+                        JOIN users u ON u.user_name = m.user_name
+                        WHERE m.room_id = ?1 AND m.id > ?2
+                        ORDER BY m.id ASC
+                        LIMIT ?3
+                        "#,
+                    )
+                    .map_err(|e| AppError::Db(e.to_string()))?;
+
+                let rows = stmt
+                    .query_map(params![room_id, after_id, limit], |row| {
+                        Ok(ChatMessage {
+                            id: row.get(0)?,
+                            room_id: row.get(1)?,
+                            user_name: row.get(2)?,
+                            nickname: row.get(3)?,
+                            avatar_url: row.get(4)?,
+                            role: row.get(5)?,
+                            client_id: row.get(6)?,
+                            text: row.get(7)?,
+                            created_at: row.get(8)?,
+                        })
+                    })
+                    .map_err(|e| AppError::Db(e.to_string()))?;
+
+                for row in rows {
+                    out.push(row.map_err(|e| AppError::Db(e.to_string()))?);
+                }
+                Ok(out)
+            } else {
+                let mut stmt = db
+                    .prepare(
+                        r#"
+                        SELECT m.id, m.room_id, m.user_name, u.nickname, u.avatar_url, m.role, m.client_id, m.text, m.created_at
+                        FROM messages m
+                        JOIN users u ON u.user_name = m.user_name
+                        WHERE m.room_id = ?1
+                        ORDER BY m.created_at DESC, m.id DESC
+                        LIMIT ?2
+                        "#,
+                    )
+                    .map_err(|e| AppError::Db(e.to_string()))?;
+
+                let rows = stmt
+                    .query_map(params![room_id, limit], |row| {
+                        Ok(ChatMessage {
+                            id: row.get(0)?,
+                            room_id: row.get(1)?,
+                            user_name: row.get(2)?,
+                            nickname: row.get(3)?,
+                            avatar_url: row.get(4)?,
+                            role: row.get(5)?,
+                            client_id: row.get(6)?,
+                            text: row.get(7)?,
+                            created_at: row.get(8)?,
+                        })
+                    })
+                    .map_err(|e| AppError::Db(e.to_string()))?;
+
+                for row in rows {
+                    out.push(row.map_err(|e| AppError::Db(e.to_string()))?);
+                }
+                out.reverse();
+                Ok(out)
             }
-            out.reverse();
-            Ok(out)
         })
         .await
         .map_err(|e| AppError::Db(e.to_string()))?
@@ -325,6 +372,26 @@ impl StorageService {
         .await
         .map_err(|e| AppError::Db(e.to_string()))?
     }
+}
+
+fn ensure_messages_client_id_column(conn: &Connection) -> AppResult<()> {
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(messages)")
+        .map_err(|e| AppError::Db(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| AppError::Db(e.to_string()))?;
+
+    for row in rows {
+        let name = row.map_err(|e| AppError::Db(e.to_string()))?;
+        if name == "client_id" {
+            return Ok(());
+        }
+    }
+
+    conn.execute("ALTER TABLE messages ADD COLUMN client_id TEXT", [])
+        .map_err(|e| AppError::Db(e.to_string()))?;
+    Ok(())
 }
 
 fn now_ts() -> i64 {

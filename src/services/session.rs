@@ -76,6 +76,17 @@ impl SessionService {
         Ok((new_token, claims))
     }
 
+    pub async fn revoke<C>(&self, conn: &mut C, token: &str) -> AppResult<()>
+    where
+        C: AsyncCommands + Send,
+    {
+        let _: i64 = conn
+            .del(self.key(token))
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        Ok(())
+    }
+
     fn key(&self, token: &str) -> String {
         format!("{}:{}", self.prefix, token)
     }

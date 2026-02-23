@@ -128,9 +128,10 @@ async fn upload_avatar(
         ));
     }
     let ext_owned = ext.to_string();
-    let webp_bytes = tokio::task::spawn_blocking(move || transcode_to_webp_square(&ext_owned, &bytes))
-        .await
-        .map_err(|e| AppError::Config(format!("avatar transcode task failed: {e}")))??;
+    let webp_bytes =
+        tokio::task::spawn_blocking(move || transcode_to_webp_square(&ext_owned, &bytes))
+            .await
+            .map_err(|e| AppError::Config(format!("avatar transcode task failed: {e}")))??;
 
     let dir = avatar_dir(&state.config.sqlite_path);
     fs::create_dir_all(&dir)
@@ -146,7 +147,10 @@ async fn upload_avatar(
         .and_then(avatar_file_name_from_url)
         .map(ToOwned::to_owned);
     let old_avatar_size = if let Some(old_name) = &old_avatar_file {
-        fs::metadata(dir.join(old_name)).await.map(|m| m.len()).unwrap_or(0)
+        fs::metadata(dir.join(old_name))
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0)
     } else {
         0
     };
@@ -160,7 +164,11 @@ async fn upload_avatar(
         ));
     }
 
-    let file_name = format!("{}_{}.webp", claims.user_name, uuid::Uuid::new_v4().simple());
+    let file_name = format!(
+        "{}_{}.webp",
+        claims.user_name,
+        uuid::Uuid::new_v4().simple()
+    );
     let file_path = dir.join(&file_name);
     fs::write(&file_path, webp_bytes)
         .await
@@ -219,7 +227,13 @@ async fn get_avatar(
         .await
         .map_err(|_| AppError::BadRequest("avatar not found".to_string()))?;
 
-    Ok(([(axum::http::header::CONTENT_TYPE, HeaderValue::from_static(mime))], bytes))
+    Ok((
+        [(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static(mime),
+        )],
+        bytes,
+    ))
 }
 
 fn decode_avatar_data_url(input: &str) -> AppResult<(&'static str, Vec<u8>)> {
@@ -271,7 +285,9 @@ fn transcode_to_webp_square(ext: &str, bytes: &[u8]) -> AppResult<Vec<u8>> {
         .map_err(|_| AppError::BadRequest("failed to decode avatar image".to_string()))?;
     let (w, h) = decoded.dimensions();
     if (w as u64).saturating_mul(h as u64) > AVATAR_MAX_PIXELS {
-        return Err(AppError::BadRequest("avatar resolution is too large".to_string()));
+        return Err(AppError::BadRequest(
+            "avatar resolution is too large".to_string(),
+        ));
     }
 
     let resized = decoded

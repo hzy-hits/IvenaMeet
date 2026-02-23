@@ -41,5 +41,4 @@ impl HostAuthService {
     fn mfa_key(&self, host_identity: &str) -> String {
         format!("{}:mfa:{}", self.prefix, host_identity)
     }
-
 }

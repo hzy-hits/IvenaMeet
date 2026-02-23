@@ -26,9 +26,9 @@
 - `POST /sessions/refresh`
   - rotate/refresh `app_session_token` before expiry
 - `POST /auth/invite` (control)
-  - issue one-time invite link ticket + invite code
+  - issue invite link ticket + invite code (`INVITE_MAX_USES` controls redeem count)
 - `POST /invites/redeem`
-  - redeem `ticket + invite_code` to short-lived `redeem_token`
+  - redeem `ticket + invite_code` to short-lived one-time `redeem_token`
 - `POST /broadcast/issue` (control)
   - issue one-time short-lived broadcast start token
 - `POST /broadcast/start` (control)
@@ -56,6 +56,7 @@
 - Member join can require invite flow (`REQUIRE_INVITE=true`):
   - redeem link ticket + invite code first
   - pass returned `redeem_token` to `/rooms/join`
+  - same invite ticket can be redeemed by multiple members until max uses is reached
 - Chat write identity is bound to backend-issued `app_session_token` (client body cannot forge `user_name`).
 - Rate limits (Redis):
   - `room_join`
@@ -181,6 +182,7 @@ npm run dev -- --host 0.0.0.0 --port 8090
 
 - `TOKEN_TTL_SECONDS` default `14400`
 - `INVITE_TTL_SECONDS` default `86400`
+- `INVITE_MAX_USES` default `10`
 - `REDEEM_TTL_SECONDS` default `300`
 - `ROOM_TTL_SECONDS` default `14400`
 - `BROADCAST_ISSUE_TTL_SECONDS` default `120`
@@ -192,6 +194,7 @@ npm run dev -- --host 0.0.0.0 --port 8090
 - `RATE_LIMIT_WINDOW_SECONDS` default `60`
 - `RATE_LIMIT_ROOM_JOIN` default `20`
 - `RATE_LIMIT_INVITE_REDEEM` default `12`
+- `RATE_LIMIT_HOST_LOGIN_TOTP` default `12`
 - `RATE_LIMIT_BROADCAST_START` default `3`
 - `RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE` default `2`
 - `RATE_LIMIT_AVATAR_UPLOAD_PER_DAY` default `20`
@@ -227,11 +230,19 @@ mkdir -p /opt/livekit/control-plane/logs
 1. Bootstrap host once (`make bootstrap-host`) to enroll MFA and bind room.
 2. Host logs in with TOTP (`/host/login/totp`) and gets `host_session_token`.
 3. Host joins room (`/rooms/join role=host`, bearer `host_session_token`).
-4. Host issues invite (`/auth/invite`) -> `invite_ticket + invite_code + invite_url`.
-5. Member redeems invite (`/invites/redeem`) -> `redeem_token`.
+4. Host issues invite (`/auth/invite`) -> `invite_ticket + invite_code + invite_url + invite_max_uses`.
+5. Member redeems invite (`/invites/redeem`) -> one-time `redeem_token` (+ remaining uses).
 6. Member joins (`/rooms/join` with `redeem_token`).
 7. Host issues broadcast token (`/broadcast/issue`).
 8. Host starts broadcast (`/broadcast/start` with `start_token`).
+
+### Echo-safe host setup (recommended)
+
+- Keep voice and content audio on separate paths:
+  - Host microphone: browser LiveKit mic
+  - Content audio: OBS WHIP ingress (`host__ingress`)
+- Browser screen share is video-only in this project (no system audio).
+- When using OBS, do not add microphone source in OBS; otherwise host voice may loop/duplicate.
 
 ## Reverse proxy (recommended)
 

@@ -44,11 +44,11 @@
 
 - `POST /auth/invite`（管理员）
   - 请求：`{ room_id, host_identity }`
-  - 返回：`{ invite_code, invite_ticket, invite_url, expires_at }`
+  - 返回：`{ invite_code, invite_ticket, invite_max_uses, invite_url, expires_at }`
 
 - `POST /invites/redeem`
   - 请求：`{ room_id, user_name, invite_ticket, invite_code }`
-  - 返回：`{ redeem_token, expires_in_seconds }`
+  - 返回：`{ redeem_token, ticket_remaining_uses, expires_in_seconds }`
 
 ### 1.5 推流流程
 
@@ -70,8 +70,9 @@
   - 请求：`{ user_name, nickname, avatar_url? }`
   - 返回：`{ user_name, nickname, avatar_url }`
 
-- `GET /rooms/:room_id/messages?limit=...`
+- `GET /rooms/:room_id/messages?limit=...&after_id=...`
   - 返回：`{ items: MessageItem[] }`
+  - 说明：`after_id` 可选，传入后仅返回比该 id 更新的消息（增量拉取）
 
 - `POST /rooms/:room_id/messages`
   - 鉴权：`Authorization: Bearer <app_session_token>`

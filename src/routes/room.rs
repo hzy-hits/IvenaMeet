@@ -14,9 +14,12 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tracing::{info, warn};
 
+const JOIN_LOCK_TTL_SECONDS: u64 = 30;
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/rooms/join", post(join_room))
+        .route("/rooms/leave", post(leave_room))
         .route("/rooms/reconnect", post(reconnect_room))
 }
 
@@ -50,6 +53,11 @@ pub struct ReconnectResp {
     pub role: String,
 }
 
+#[derive(Serialize)]
+pub struct LeaveResp {
+    pub released: bool,
+}
+
 async fn join_room(
     State(state): State<AppState>,
     peer: ConnectInfo<SocketAddr>,
@@ -67,12 +75,11 @@ async fn join_room(
     };
 
     if role == UserRole::Host {
-        let token = bearer_from_headers(&headers)
-            .ok_or_else(|| {
-                AppError::Unauthorized(
-                    "host join requires admin token or host session token".to_string(),
-                )
-            })?;
+        let token = bearer_from_headers(&headers).ok_or_else(|| {
+            AppError::Unauthorized(
+                "host join requires admin token or host session token".to_string(),
+            )
+        })?;
         if token != state.config.admin_token {
             let mut redis = state.redis.clone();
             let claims = state
@@ -119,6 +126,20 @@ async fn join_room(
             .get_room_active(room_id.clone())
             .await?
             .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
+        if user_name == room.host_identity {
+            warn!(
+                request_id,
+                route = "/rooms/join",
+                room_id,
+                user_name,
+                role = "member",
+                result = "denied",
+                "member attempted to use host identity"
+            );
+            return Err(AppError::Unauthorized(
+                "member cannot use host identity".to_string(),
+            ));
+        }
         if state.config.require_invite {
             let redeem_token = req
                 .redeem_token
@@ -145,6 +166,56 @@ async fn join_room(
         )
         .await?;
 
+    let owner_hint = if role == UserRole::Member {
+        if let Some(token) = bearer_from_headers(&headers) {
+            let mut redis_for_hint = state.redis.clone();
+            match state
+                .session_service
+                .verify(&mut redis_for_hint, token)
+                .await
+            {
+                Ok(claims) if claims.room_id == room_id && claims.user_name == user_name => {
+                    Some(token.to_string())
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let join_owner =
+        owner_hint.unwrap_or_else(|| format!("join:{}", uuid::Uuid::new_v4().simple()));
+    let acquired = state
+        .presence_service
+        .acquire_identity(
+            &mut redis,
+            &room_id,
+            &user_name,
+            &join_owner,
+            JOIN_LOCK_TTL_SECONDS,
+        )
+        .await?;
+    if !acquired {
+        warn!(
+            request_id,
+            route = "/rooms/join",
+            room_id,
+            user_name,
+            ip,
+            role = match role {
+                UserRole::Host => "host",
+                UserRole::Member => "member",
+            },
+            result = "denied",
+            "identity already in use"
+        );
+        return Err(AppError::Unauthorized(
+            "identity already in use".to_string(),
+        ));
+    }
+
     let nickname = req
         .nickname
         .as_deref()
@@ -153,15 +224,32 @@ async fn join_room(
         .unwrap_or_else(|| user_name.clone());
     let avatar_url = validation::avatar_url(req.avatar_url)?;
 
-    state
+    if let Err(e) = state
         .storage_service
         .upsert_user(user_name.clone(), nickname, avatar_url)
-        .await?;
+        .await
+    {
+        let _ = state
+            .presence_service
+            .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+            .await;
+        return Err(e);
+    }
 
-    let token = state
+    let token = match state
         .livekit_service
-        .issue_room_token(&user_name, &room_id, role)?;
-    let app_session_token = state
+        .issue_room_token(&user_name, &room_id, role)
+    {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = state
+                .presence_service
+                .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+                .await;
+            return Err(e);
+        }
+    };
+    let app_session_token = match state
         .session_service
         .issue(
             &mut redis,
@@ -175,22 +263,94 @@ async fn join_room(
             },
             state.config.session_ttl_seconds,
         )
-        .await?;
-    let host_session_token = if role == UserRole::Host {
-        Some(
-            state
-                .host_session_service
-                .issue(
-                    &mut redis,
-                    SessionClaims {
-                        user_name: user_name.clone(),
-                        room_id: room_id.clone(),
-                        role: "host".to_string(),
-                    },
-                    state.config.host_session_ttl_seconds,
-                )
-                .await?,
+        .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = state
+                .presence_service
+                .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+                .await;
+            return Err(e);
+        }
+    };
+
+    let promoted = match state
+        .presence_service
+        .promote_owner(
+            &mut redis,
+            &room_id,
+            &user_name,
+            &join_owner,
+            &app_session_token,
+            state.config.session_ttl_seconds,
         )
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = state
+                .session_service
+                .revoke(&mut redis, &app_session_token)
+                .await;
+            let _ = state
+                .presence_service
+                .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+                .await;
+            return Err(e);
+        }
+    };
+    if !promoted {
+        let _ = state
+            .session_service
+            .revoke(&mut redis, &app_session_token)
+            .await;
+        let _ = state
+            .presence_service
+            .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+            .await;
+        warn!(
+            request_id,
+            route = "/rooms/join",
+            room_id,
+            user_name,
+            ip,
+            result = "denied",
+            "identity lock lost before session bind"
+        );
+        return Err(AppError::Unauthorized(
+            "identity lock lost; retry join".to_string(),
+        ));
+    }
+
+    let host_session_token = if role == UserRole::Host {
+        let issued = match state
+            .host_session_service
+            .issue(
+                &mut redis,
+                SessionClaims {
+                    user_name: user_name.clone(),
+                    room_id: room_id.clone(),
+                    role: "host".to_string(),
+                },
+                state.config.host_session_ttl_seconds,
+            )
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = state
+                    .session_service
+                    .revoke(&mut redis, &app_session_token)
+                    .await;
+                let _ = state
+                    .presence_service
+                    .release_if_owner(&mut redis, &room_id, &user_name, &app_session_token)
+                    .await;
+                return Err(e);
+            }
+        };
+        Some(issued)
     } else {
         None
     };
@@ -248,6 +408,30 @@ async fn reconnect_room(
         .await?
         .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
 
+    let lock_ok = state
+        .presence_service
+        .touch_owner(
+            &mut redis,
+            &claims.room_id,
+            &claims.user_name,
+            app_session_token,
+            state.config.session_ttl_seconds,
+        )
+        .await?;
+    if !lock_ok {
+        warn!(
+            request_id,
+            route = "/rooms/reconnect",
+            room_id = claims.room_id,
+            user_name = claims.user_name,
+            result = "denied",
+            "identity lock not owned by session"
+        );
+        return Err(AppError::Unauthorized(
+            "identity already in use".to_string(),
+        ));
+    }
+
     let role = UserRole::from_str(&claims.role)
         .ok_or_else(|| AppError::Unauthorized("session role invalid".to_string()))?;
     let token = state
@@ -269,6 +453,57 @@ async fn reconnect_room(
         expires_in_seconds: state.config.token_ttl_seconds,
         role: claims.role,
     }))
+}
+
+async fn leave_room(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<LeaveResp>> {
+    let request_id = request_meta::request_id(&headers);
+    let app_session_token = bearer_from_headers(&headers)
+        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
+
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, app_session_token)
+        .await?;
+
+    let released = state
+        .presence_service
+        .release_if_owner(
+            &mut redis,
+            &claims.room_id,
+            &claims.user_name,
+            app_session_token,
+        )
+        .await?;
+    state
+        .session_service
+        .revoke(&mut redis, app_session_token)
+        .await?;
+
+    if released {
+        info!(
+            request_id,
+            route = "/rooms/leave",
+            room_id = claims.room_id,
+            user_name = claims.user_name,
+            result = "ok",
+            "leave room"
+        );
+    } else {
+        warn!(
+            request_id,
+            route = "/rooms/leave",
+            room_id = claims.room_id,
+            user_name = claims.user_name,
+            result = "ok",
+            "leave room: lock not owned or already expired"
+        );
+    }
+
+    Ok(Json(LeaveResp { released }))
 }
 
 fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {

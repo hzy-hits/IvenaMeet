@@ -7,6 +7,8 @@ const USER_NAME_MAX: usize = 32;
 const NICKNAME_MIN: usize = 2;
 const NICKNAME_MAX: usize = 32;
 const MESSAGE_MAX: usize = 500;
+const CLIENT_ID_MIN: usize = 8;
+const CLIENT_ID_MAX: usize = 64;
 const AVATAR_URL_MAX: usize = 512;
 
 pub fn room_id(input: &str) -> AppResult<String> {
@@ -70,6 +72,31 @@ pub fn message_text(input: &str) -> AppResult<String> {
     Ok(v.to_string())
 }
 
+pub fn client_id(input: Option<String>) -> AppResult<Option<String>> {
+    let Some(raw) = input else {
+        return Ok(None);
+    };
+    let v = raw.trim();
+    if v.is_empty() {
+        return Ok(None);
+    }
+    let len = v.chars().count();
+    if !(CLIENT_ID_MIN..=CLIENT_ID_MAX).contains(&len) {
+        return Err(AppError::BadRequest(
+            "client_id must be 8-64 chars".to_string(),
+        ));
+    }
+    if !v
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(AppError::BadRequest(
+            "client_id only allows [a-zA-Z0-9_-]".to_string(),
+        ));
+    }
+    Ok(Some(v.to_string()))
+}
+
 pub fn avatar_url(input: Option<String>) -> AppResult<Option<String>> {
     let Some(raw) = input else {
         return Ok(None);
@@ -110,6 +137,8 @@ mod tests {
         assert!(message_text("hello").is_ok());
         assert!(message_text("").is_err());
         assert!(message_text(&"a".repeat(501)).is_err());
+        assert!(client_id(Some("abc".to_string())).is_err());
+        assert!(client_id(Some("client_123456".to_string())).is_ok());
     }
 
     #[test]

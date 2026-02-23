@@ -82,7 +82,6 @@ impl LiveKitService {
                 "camera".to_string(),
                 "microphone".to_string(),
                 "screen_share".to_string(),
-                "screen_share_audio".to_string(),
             ],
             UserRole::Member => vec!["microphone".to_string()],
         };
@@ -227,7 +226,12 @@ impl LiveKitService {
                                 continue;
                             }
                             client
-                                .mute_published_track(room_id, &participant.identity, &track.sid, muted)
+                                .mute_published_track(
+                                    room_id,
+                                    &participant.identity,
+                                    &track.sid,
+                                    muted,
+                                )
                                 .await
                                 .map_err(|e| AppError::LiveKit(e.to_string()))?;
                             changed += 1;

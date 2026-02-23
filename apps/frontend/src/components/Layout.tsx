@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { JoinResp, MemberItem, MessageItem, Role } from "../lib/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 import {
   API_BASE_URL,
   DEFAULT_ROOM_ID,
@@ -51,7 +51,16 @@ export function Layout() {
   });
   const [members, setMembers] = useState<MemberItem[]>([]);
   const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [lastRealtimeChat, setLastRealtimeChat] = useState<RealtimeChatPayload | null>(null);
+  const [realtimeChatSender, setRealtimeChatSender] = useState<((payload: RealtimeChatPayload) => Promise<void>) | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+
+  const handleRealtimeChatSenderReady = useCallback(
+    (sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => {
+      setRealtimeChatSender(() => sender);
+    },
+    [],
+  );
 
   const api = useMemo(
     () =>
@@ -62,9 +71,9 @@ export function Layout() {
     [hostSessionToken, appSessionToken],
   );
 
-  const pushLog = (line: string) => {
+  const pushLog = useCallback((line: string) => {
     setLogs((prev) => [...prev.slice(-(LOG_MAX_LINES - 1)), `[${new Date().toLocaleTimeString()}] ${line}`]);
-  };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(LS_KEYS.roomId, roomId);
@@ -109,6 +118,8 @@ export function Layout() {
             members={members}
             messages={messages}
             setMessages={setMessages}
+            lastRealtimeChat={lastRealtimeChat}
+            realtimeChatSender={realtimeChatSender}
             logs={logs}
             pushLog={pushLog}
           />
@@ -119,6 +130,8 @@ export function Layout() {
             userName={userName}
             role={joined?.role ?? role}
             onMembersChange={setMembers}
+            onRealtimeChatMessage={setLastRealtimeChat}
+            onRealtimeChatSenderReady={handleRealtimeChatSenderReady}
             onLog={pushLog}
           />
         </div>

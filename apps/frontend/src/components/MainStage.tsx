@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AudioTrack,
   LiveKitRoom,
-  RoomAudioRenderer,
   VideoTrack,
   useLocalParticipant,
   useParticipants,
+  useRoomContext,
   useTracks,
 } from "@livekit/components-react";
 import type { TrackReference, TrackReferenceOrPlaceholder } from "@livekit/components-core";
-import { Track } from "livekit-client";
+import {
+  RoomEvent,
+  Track,
+  type AudioCaptureOptions,
+  type ScreenShareCaptureOptions,
+} from "livekit-client";
 import {
   Camera,
   CameraOff,
@@ -17,7 +23,7 @@ import {
   Monitor,
   MonitorOff,
 } from "lucide-react";
-import type { JoinResp, MemberItem, Role } from "../lib/types";
+import type { JoinResp, MemberItem, RealtimeChatPayload, Role } from "../lib/types";
 
 type Props = {
   joined: JoinResp | null;
@@ -25,8 +31,40 @@ type Props = {
   userName: string;
   role: Role;
   onMembersChange: (members: MemberItem[]) => void;
+  onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
+  onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
   onLog: (msg: string) => void;
 };
+
+function isIngressIdentity(identity: string): boolean {
+  return identity.endsWith("__ingress");
+}
+
+const MIC_CAPTURE_OPTIONS: AudioCaptureOptions = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+};
+
+const SCREEN_SHARE_CAPTURE_OPTIONS: ScreenShareCaptureOptions = {
+  audio: false,
+  systemAudio: "exclude",
+};
+
+const CHAT_TOPIC = "chat.message.v1";
+
+function parseRealtimeChatPayload(payload: Uint8Array): RealtimeChatPayload | null {
+  try {
+    const raw = new TextDecoder().decode(payload);
+    const parsed = JSON.parse(raw) as RealtimeChatPayload;
+    if (parsed?.type !== "chat.message") return null;
+    if (!parsed.room_id || !parsed.client_id || !parsed.user_name || !parsed.text) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function pickTrackRef(tracks: TrackReferenceOrPlaceholder[]): TrackReference | undefined {
   return tracks.find((t): t is TrackReference => !!t.publication);
@@ -41,9 +79,22 @@ function participantMicEnabled(trackPublications: Map<string, unknown>): boolean
   return false;
 }
 
-function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (members: MemberItem[]) => void }) {
+function StageScene({
+  role,
+  roomId,
+  onMembersChange,
+  onRealtimeChatMessage,
+  onRealtimeChatSenderReady,
+}: {
+  role: Role;
+  roomId: string;
+  onMembersChange: (members: MemberItem[]) => void;
+  onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
+  onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
+}) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
+  const room = useRoomContext();
   const [stageNotice, setStageNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const showStageNotice = (kind: "ok" | "error", text: string) => {
@@ -53,8 +104,14 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
 
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: false }]);
+  const audioTracks = useTracks([
+    { source: Track.Source.Microphone, withPlaceholder: false },
+    { source: Track.Source.ScreenShareAudio, withPlaceholder: false },
+    { source: Track.Source.Unknown, withPlaceholder: false },
+  ]);
 
   const heroTrack = pickTrackRef(screenTracks) ?? pickTrackRef(cameraTracks);
+  const hasIngressParticipant = participants.some((p) => isIngressIdentity(p.identity));
 
   useEffect(() => {
     // Enter room with mic muted by default; user can enable from control bar.
@@ -65,14 +122,42 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
 
   useEffect(() => {
     onMembersChange(
-      participants.map((p) => ({
-        identity: p.identity,
-        isLocal: p.isLocal,
-        speaking: p.isSpeaking,
-        micEnabled: participantMicEnabled(p.trackPublications as unknown as Map<string, unknown>),
-      })),
+      participants
+        .filter((p) => !isIngressIdentity(p.identity))
+        .map((p) => ({
+          identity: p.identity,
+          isLocal: p.isLocal,
+          speaking: p.isSpeaking,
+          micEnabled: participantMicEnabled(p.trackPublications as unknown as Map<string, unknown>),
+        })),
     );
   }, [participants, onMembersChange]);
+
+  useEffect(() => {
+    const onData = (payload: Uint8Array, _participant?: unknown, _kind?: unknown, topic?: string) => {
+      if (topic && topic !== CHAT_TOPIC) return;
+      const parsed = parseRealtimeChatPayload(payload);
+      if (!parsed || parsed.room_id !== roomId) return;
+      onRealtimeChatMessage(parsed);
+    };
+
+    room.on(RoomEvent.DataReceived, onData);
+    return () => {
+      room.off(RoomEvent.DataReceived, onData);
+    };
+  }, [room, roomId, onRealtimeChatMessage]);
+
+  useEffect(() => {
+    if (!localParticipant) {
+      onRealtimeChatSenderReady(null);
+      return;
+    }
+    onRealtimeChatSenderReady(async (payload) => {
+      const bytes = new TextEncoder().encode(JSON.stringify(payload));
+      await localParticipant.publishData(bytes, { reliable: true, topic: CHAT_TOPIC });
+    });
+    return () => onRealtimeChatSenderReady(null);
+  }, [localParticipant, onRealtimeChatSenderReady]);
 
   const micOn = !!localParticipant?.isMicrophoneEnabled;
   const camOn = !!localParticipant?.isCameraEnabled;
@@ -80,7 +165,7 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
 
   const toggleMic = async () => {
     try {
-      await localParticipant?.setMicrophoneEnabled(!micOn);
+      await localParticipant?.setMicrophoneEnabled(!micOn, MIC_CAPTURE_OPTIONS);
       showStageNotice("ok", !micOn ? "麦克风已开启" : "麦克风已关闭");
     } catch (e) {
       showStageNotice("error", `麦克风操作失败：${e instanceof Error ? e.message : String(e)}`);
@@ -101,13 +186,17 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
       showStageNotice("error", "仅主持人可共享屏幕");
       return;
     }
+    if (hasIngressParticipant && !shareOn) {
+      showStageNotice("error", "OBS 推流中，请勿再开启浏览器共享，避免回声");
+      return;
+    }
     if (!navigator.mediaDevices || !("getDisplayMedia" in navigator.mediaDevices)) {
       showStageNotice("error", "当前设备/浏览器不支持屏幕共享");
       return;
     }
     try {
-      await localParticipant?.setScreenShareEnabled(!shareOn);
-      showStageNotice("ok", !shareOn ? "已开始共享屏幕" : "已停止共享屏幕");
+      await localParticipant?.setScreenShareEnabled(!shareOn, SCREEN_SHARE_CAPTURE_OPTIONS);
+      showStageNotice("ok", !shareOn ? "已开始共享屏幕（不含系统音）" : "已停止共享屏幕");
     } catch (e) {
       showStageNotice("error", `共享屏幕失败：${e instanceof Error ? e.message : String(e)}`);
     }
@@ -175,12 +264,33 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
         </div>
       ) : null}
 
-      <RoomAudioRenderer />
+      {audioTracks.map((trackRef) => {
+        if (!("publication" in trackRef) || !trackRef.publication) return null;
+        const identity = trackRef.participant.identity;
+        // Host suppresses ingress playback locally to avoid speaker->mic recapture.
+        const muteForLocalEchoControl = role === "host" && isIngressIdentity(identity);
+        return (
+          <AudioTrack
+            key={`${identity}:${trackRef.publication.trackSid}`}
+            trackRef={trackRef}
+            muted={muteForLocalEchoControl}
+          />
+        );
+      })}
     </div>
   );
 }
 
-export function MainStage({ joined, roomId, userName, role, onMembersChange, onLog }: Props) {
+export function MainStage({
+  joined,
+  roomId,
+  userName,
+  role,
+  onMembersChange,
+  onRealtimeChatMessage,
+  onRealtimeChatSenderReady,
+  onLog,
+}: Props) {
   const onLogRef = useRef(onLog);
   const roomIdRef = useRef(roomId);
   const userNameRef = useRef(userName);
@@ -233,7 +343,13 @@ export function MainStage({ joined, roomId, userName, role, onMembersChange, onL
         onDisconnected={handleDisconnected}
         onError={handleError}
       >
-        <StageScene role={role} onMembersChange={onMembersChange} />
+        <StageScene
+          role={role}
+          roomId={roomId}
+          onMembersChange={onMembersChange}
+          onRealtimeChatMessage={onRealtimeChatMessage}
+          onRealtimeChatSenderReady={onRealtimeChatSenderReady}
+        />
       </LiveKitRoom>
     </main>
   );

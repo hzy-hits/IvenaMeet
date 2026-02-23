@@ -9,7 +9,9 @@ import type {
   IssueBroadcastResp,
   JoinReq,
   JoinResp,
+  LeaveResp,
   ListMessagesResp,
+  MessageItem,
   MuteAllReq,
   MuteMemberReq,
   MuteResp,
@@ -28,9 +30,35 @@ type TokenGetters = {
   getAppSessionToken: () => string;
 };
 
+type CloseStream = () => void;
+
 function toError(e: unknown): never {
   const ax = e as AxiosError<{ error?: string }>;
   throw new Error(ax.response?.data?.error || ax.message || "request failed");
+}
+
+function resolveApiUrl(baseURL: string, path: string): string {
+  const base = baseURL.replace(/\/+$/, "");
+  return `${base}${path}`;
+}
+
+function parseSseFrame(frame: string): { event: string; data: string } | null {
+  const lines = frame.split("\n");
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+    if (!trimmed || trimmed.startsWith(":")) continue;
+    if (trimmed.startsWith("event:")) {
+      event = trimmed.slice(6).trim();
+      continue;
+    }
+    if (trimmed.startsWith("data:")) {
+      dataLines.push(trimmed.slice(5).trimStart());
+    }
+  }
+  if (!dataLines.length) return null;
+  return { event, data: dataLines.join("\n") };
 }
 
 export function createApi(baseURL: string, getters: TokenGetters) {
@@ -65,6 +93,15 @@ export function createApi(baseURL: string, getters: TokenGetters) {
     async reconnectRoom(): Promise<ReconnectResp> {
       try {
         const { data } = await withAppSession.post<ReconnectResp>("/rooms/reconnect", {});
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async leaveRoom(): Promise<LeaveResp> {
+      try {
+        const { data } = await withAppSession.post<LeaveResp>("/rooms/leave", {});
         return data;
       } catch (e) {
         toError(e);
@@ -160,10 +197,12 @@ export function createApi(baseURL: string, getters: TokenGetters) {
       }
     },
 
-    async listMessages(roomId: string, limit = 80): Promise<ListMessagesResp> {
+    async listMessages(roomId: string, limit = 80, afterId?: number): Promise<ListMessagesResp> {
       try {
+        const params: { limit: number; after_id?: number } = { limit };
+        if (afterId && afterId > 0) params.after_id = afterId;
         const { data } = await raw.get<ListMessagesResp>(`/rooms/${encodeURIComponent(roomId)}/messages`, {
-          params: { limit },
+          params,
         });
         return data;
       } catch (e) {
@@ -171,9 +210,9 @@ export function createApi(baseURL: string, getters: TokenGetters) {
       }
     },
 
-    async createMessage(roomId: string, payload: CreateMessageReq) {
+    async createMessage(roomId: string, payload: CreateMessageReq): Promise<MessageItem> {
       try {
-        const { data } = await withAppSession.post(
+        const { data } = await withAppSession.post<MessageItem>(
           `/rooms/${encodeURIComponent(roomId)}/messages`,
           payload,
         );
@@ -181,6 +220,71 @@ export function createApi(baseURL: string, getters: TokenGetters) {
       } catch (e) {
         toError(e);
       }
+    },
+
+    streamMessages(
+      roomId: string,
+      afterId: number | undefined,
+      onMessage: (item: MessageItem) => void,
+      onError: (error: Error) => void,
+    ): CloseStream {
+      const controller = new AbortController();
+      const token = getters.getAppSessionToken();
+      const params = new URLSearchParams();
+      if (afterId && afterId > 0) params.set("after_id", String(afterId));
+      const query = params.toString();
+      const path = `/rooms/${encodeURIComponent(roomId)}/messages/stream${query ? `?${query}` : ""}`;
+      const url = resolveApiUrl(baseURL, path);
+
+      void (async () => {
+        try {
+          const res = await fetch(url, {
+            method: "GET",
+            headers: {
+              Accept: "text/event-stream",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            signal: controller.signal,
+          });
+          if (!res.ok || !res.body) {
+            const detail = await res.text().catch(() => "");
+            throw new Error(detail || `stream failed (${res.status})`);
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
+
+            while (true) {
+              const idx = buffer.indexOf("\n\n");
+              if (idx < 0) break;
+              const frame = buffer.slice(0, idx);
+              buffer = buffer.slice(idx + 2);
+              const parsed = parseSseFrame(frame);
+              if (!parsed || parsed.event !== "message") continue;
+              try {
+                onMessage(JSON.parse(parsed.data) as MessageItem);
+              } catch {
+                onError(new Error("invalid message stream payload"));
+              }
+            }
+          }
+
+          if (!controller.signal.aborted) {
+            onError(new Error("message stream closed"));
+          }
+        } catch (e) {
+          if (controller.signal.aborted) return;
+          onError(e instanceof Error ? e : new Error(String(e)));
+        }
+      })();
+
+      return () => controller.abort();
     },
 
     async uploadAvatar(dataUrl: string, appTokenOverride?: string): Promise<UploadAvatarResp> {

@@ -16,6 +16,7 @@ This file is the single reference for runtime config in this repo.
 | `LIVEKIT_API_SECRET` | required | LiveKit API secret | Strong random secret |
 | `TOKEN_TTL_SECONDS` | `14400` | LiveKit room token TTL | `14400` (4h) |
 | `INVITE_TTL_SECONDS` | `86400` | Invite ticket TTL | `86400` (24h) |
+| `INVITE_MAX_USES` | `10` | Max successful redeem count per invite ticket | `5-20` (e.g. `10`) |
 | `REDEEM_TTL_SECONDS` | `300` | Redeem token TTL | `300` (5m) |
 | `ROOM_TTL_SECONDS` | `14400` | Room active lifetime | `14400` (4h) |
 | `BROADCAST_ISSUE_TTL_SECONDS` | `120` | Broadcast start token TTL | `60-180` |
@@ -32,6 +33,7 @@ This file is the single reference for runtime config in this repo.
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate limit window | `60` |
 | `RATE_LIMIT_ROOM_JOIN` | `20` | Max room joins per window per IP | `10-20` |
 | `RATE_LIMIT_INVITE_REDEEM` | `12` | Max invite redeem/login attempts per window per IP | `8-12` |
+| `RATE_LIMIT_HOST_LOGIN_TOTP` | `12` | Max host TOTP login attempts per window per IP | `6-12` |
 | `RATE_LIMIT_BROADCAST_START` | `3` | Max broadcast starts per window per IP | `3` |
 | `TRUSTED_PROXY_IPS` | `127.0.0.1,192.168.1.20` (example) | Only these peer IPs may provide trusted forwarded IP headers | List only your reverse proxies |
 | `RUST_LOG` | `info` | Log level/filter | `info` or `warn` for production |
@@ -47,6 +49,7 @@ This file is the single reference for runtime config in this repo.
 | `VITE_DEFAULT_ROLE` | `member` | Initial role in UI | `member` |
 | `VITE_LOG_MAX_LINES` | `250` | Max in-memory log lines in sidebar | `200-500` |
 | `VITE_CHAT_HISTORY_LIMIT` | `80` | Message history fetch count | `50-100` |
+| `VITE_CHAT_SYNC_POLL_MS` | `3000` | Chat incremental sync polling interval | `2000-5000` |
 | `VITE_SESSION_REFRESH_POLL_MS` | `30000` | Session refresh polling interval | `30000` |
 | `VITE_SESSION_REFRESH_BEFORE_SECONDS` | `120` | How early to refresh before expiry | `60-120` |
 | `VITE_INVITE_COPY_HINT_MS` | `1800` | "copied" success hint duration | `1200-2000` |

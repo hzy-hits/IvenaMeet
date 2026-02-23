@@ -1,10 +1,11 @@
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::services::{
-    HostAuthService, InviteService, LiveKitService, RateLimitService, SessionService,
-    StorageService,
+    HostAuthService, InviteService, LiveKitService, PresenceService, RateLimitService,
+    SessionService, StorageService, storage::ChatMessage,
 };
 use redis::aio::ConnectionManager;
+use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -14,9 +15,11 @@ pub struct AppState {
     pub session_service: SessionService,
     pub host_session_service: SessionService,
     pub host_auth_service: HostAuthService,
+    pub presence_service: PresenceService,
     pub rate_limit_service: RateLimitService,
     pub livekit_service: LiveKitService,
     pub storage_service: StorageService,
+    pub chat_bus: broadcast::Sender<ChatMessage>,
 }
 
 impl AppState {
@@ -28,12 +31,17 @@ impl AppState {
             .await
             .map_err(|e| AppError::Redis(e.to_string()))?;
 
-        let invite_service =
-            InviteService::new(config.invite_prefix.clone(), config.invite_ttl_seconds);
+        let invite_service = InviteService::new(
+            config.invite_prefix.clone(),
+            config.invite_ttl_seconds,
+            config.invite_max_uses,
+        );
         let session_service = SessionService::new(config.session_prefix.clone());
         let host_session_service = SessionService::new(config.host_session_prefix.clone());
         let host_auth_service = HostAuthService::new(config.host_auth_prefix.clone());
+        let presence_service = PresenceService::new("presence".to_string());
         let rate_limit_service = RateLimitService::new();
+        let (chat_bus, _) = broadcast::channel(1024);
         let livekit_service = LiveKitService::new(
             config.livekit_host.clone(),
             config.livekit_public_ws_url.clone(),
@@ -50,9 +58,11 @@ impl AppState {
             session_service,
             host_session_service,
             host_auth_service,
+            presence_service,
             rate_limit_service,
             livekit_service,
             storage_service,
+            chat_bus,
         })
     }
 }

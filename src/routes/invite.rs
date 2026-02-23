@@ -27,6 +27,7 @@ struct RedeemInviteReq {
 #[derive(Serialize)]
 struct RedeemInviteResp {
     redeem_token: String,
+    ticket_remaining_uses: u64,
     expires_in_seconds: u64,
 }
 
@@ -66,7 +67,7 @@ async fn redeem_invite(
         .await?
         .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
 
-    let redeem_token = state
+    let redeemed = state
         .invite_service
         .redeem_ticket(
             &mut redis,
@@ -89,7 +90,8 @@ async fn redeem_invite(
     );
 
     Ok(Json(RedeemInviteResp {
-        redeem_token,
+        redeem_token: redeemed.redeem_token,
+        ticket_remaining_uses: redeemed.remaining_uses,
         expires_in_seconds: state.config.redeem_ttl_seconds,
     }))
 }

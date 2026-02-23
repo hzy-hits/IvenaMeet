@@ -42,8 +42,14 @@ pub async fn require_control(
         .await
         .map_err(|_| AppError::Unauthorized("invalid control token".to_string()))?;
     if claims.role != "host" {
-        warn!(user_name = claims.user_name, room_id = claims.room_id, "control auth failed: non-host role");
-        return Err(AppError::Unauthorized("control token is not host role".to_string()));
+        warn!(
+            user_name = claims.user_name,
+            room_id = claims.room_id,
+            "control auth failed: non-host role"
+        );
+        return Err(AppError::Unauthorized(
+            "control token is not host role".to_string(),
+        ));
     }
 
     req.extensions_mut().insert(ControlPrincipal::Host(claims));
