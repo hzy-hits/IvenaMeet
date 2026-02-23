@@ -117,17 +117,20 @@ impl LiveKitService {
             audio: proto::IngressAudioOptions {
                 name: "audio".to_string(),
                 source: 0,
-                encoding_options: None,
+                encoding_options: Some(proto::ingress_audio_options::EncodingOptions::Preset(
+                    proto::IngressAudioEncodingPreset::OpusStereo96kbps as i32,
+                )),
             },
             video: proto::IngressVideoOptions {
                 name: "video".to_string(),
                 source: 0,
-                encoding_options: None,
+                encoding_options: Some(proto::ingress_video_options::EncodingOptions::Preset(
+                    proto::IngressVideoEncodingPreset::H2641080p30fps3LayersHighMotion as i32,
+                )),
             },
-            // Keep WHIP in bypass mode when source is already H264/Opus.
-            // This avoids the ingress transcoding path and its extra failure surface.
-            bypass_transcoding: true,
-            enable_transcoding: Some(false),
+            // Enable server-side simulcast layers (1080/720/360-ish) for adaptive subscribers.
+            bypass_transcoding: false,
+            enable_transcoding: Some(true),
             ..Default::default()
         };
         let mut last_err = None;

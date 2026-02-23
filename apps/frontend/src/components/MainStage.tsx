@@ -30,9 +30,11 @@ type Props = {
   roomId: string;
   userName: string;
   role: Role;
+  compact?: boolean;
   onMembersChange: (members: MemberItem[]) => void;
   onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
   onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
+  onVisualMediaChange?: (hasVisualMedia: boolean) => void;
   onLog: (msg: string) => void;
 };
 
@@ -85,12 +87,14 @@ function StageScene({
   onMembersChange,
   onRealtimeChatMessage,
   onRealtimeChatSenderReady,
+  onVisualMediaChange,
 }: {
   role: Role;
   roomId: string;
   onMembersChange: (members: MemberItem[]) => void;
   onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
   onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
+  onVisualMediaChange?: (hasVisualMedia: boolean) => void;
 }) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
@@ -110,8 +114,18 @@ function StageScene({
     { source: Track.Source.Unknown, withPlaceholder: false },
   ]);
 
-  const heroTrack = pickTrackRef(screenTracks) ?? pickTrackRef(cameraTracks);
+  const screenTrack = pickTrackRef(screenTracks);
+  const cameraTrack = pickTrackRef(cameraTracks);
+  const heroTrack = screenTrack ?? cameraTrack;
+  const hasStageMedia = Boolean(
+    screenTrack || (cameraTrack && isIngressIdentity(cameraTrack.participant.identity)),
+  );
   const hasIngressParticipant = participants.some((p) => isIngressIdentity(p.identity));
+  const activeParticipantCount = participants.filter((p) => !isIngressIdentity(p.identity)).length;
+
+  useEffect(() => {
+    onVisualMediaChange?.(hasStageMedia);
+  }, [hasStageMedia, onVisualMediaChange]);
 
   useEffect(() => {
     // Enter room with mic muted by default; user can enable from control bar.
@@ -203,7 +217,7 @@ function StageScene({
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-bg">
+    <div className="relative h-full w-full overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(78,205,196,0.14),rgba(8,17,24,0.96)_42%)]">
       <div className="absolute inset-0">
         {heroTrack ? (
           <VideoTrack
@@ -213,11 +227,42 @@ function StageScene({
         ) : (
           <div className="grid h-full place-items-center text-center text-white/45">
             <div>
-              <p className="text-lg font-semibold">Main Stage</p>
-              <p className="text-sm">Waiting for screen share / OBS ingress track...</p>
+              <p className="text-lg font-semibold tracking-wide text-white/80">Main Stage</p>
+              <p className="mt-1 text-sm text-white/55">Waiting for screen share / OBS ingress track...</p>
             </div>
           </div>
         )}
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,14,0.32),rgba(5,10,14,0)_30%,rgba(5,10,14,0.36))]" />
+
+      <div className="absolute left-4 right-4 top-4 z-20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1 backdrop-blur">
+          <span className={`h-2 w-2 rounded-full ${hasStageMedia ? "bg-accent" : "bg-white/45"}`} />
+          <span className="text-white/80">
+            {hasStageMedia ? "video stage online" : "voice lounge"}
+          </span>
+        </div>
+        <div className="inline-flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-white/75">
+            members {activeParticipantCount}
+          </span>
+          <span
+            className={`rounded-full border px-2.5 py-1 ${
+              hasIngressParticipant
+                ? "border-accent/45 bg-accent/10 text-accent"
+                : "border-white/15 bg-black/35 text-white/75"
+            }`}
+          >
+            {hasIngressParticipant ? "obs ingress" : "browser feed"}
+          </span>
+          <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-white/75">
+            mic {micOn ? "on" : "off"}
+          </span>
+          <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-white/75">
+            share {shareOn ? "on" : "off"}
+          </span>
+        </div>
       </div>
 
       <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-white/10 bg-card/80 p-2 backdrop-blur-md">
@@ -254,7 +299,7 @@ function StageScene({
 
       {stageNotice ? (
         <div
-          className={`absolute left-1/2 top-5 z-20 -translate-x-1/2 rounded-xl border px-3 py-2 text-xs ${
+          className={`absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-xl border px-3 py-2 text-xs ${
             stageNotice.kind === "ok"
               ? "border-ok/40 bg-ok/10 text-ok"
               : "border-red-300/40 bg-red-500/20 text-red-100"
@@ -286,9 +331,11 @@ export function MainStage({
   roomId,
   userName,
   role,
+  compact = false,
   onMembersChange,
   onRealtimeChatMessage,
   onRealtimeChatSenderReady,
+  onVisualMediaChange,
   onLog,
 }: Props) {
   const onLogRef = useRef(onLog);
@@ -307,6 +354,10 @@ export function MainStage({
     userNameRef.current = userName;
   }, [userName]);
 
+  useEffect(() => {
+    if (!joined) onVisualMediaChange?.(false);
+  }, [joined, onVisualMediaChange]);
+
   const handleConnected = useCallback(() => {
     onLogRef.current(`livekit connected: ${roomIdRef.current} as ${userNameRef.current}`);
   }, []);
@@ -321,7 +372,7 @@ export function MainStage({
 
   if (!joined) {
     return (
-      <main className="grid min-h-[calc(100vh-1.5rem)] place-items-center rounded-2xl bg-bg">
+      <main className="grid h-full min-h-0 place-items-center rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))]">
         <div className="text-center">
           <p className="text-xl font-semibold">Ivena Meet</p>
           <p className="mt-2 text-sm text-white/55">Join a room from the Command Center to enter Main Stage.</p>
@@ -331,12 +382,17 @@ export function MainStage({
   }
 
   return (
-    <main className="relative min-h-[calc(100vh-1.5rem)] rounded-2xl bg-bg p-2 lg:p-3">
+    <main
+      className={`relative h-full min-h-0 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))] p-2 shadow-[0_20px_70px_rgba(0,0,0,0.38)] backdrop-blur-md lg:p-3 ${
+        compact ? "xl:min-h-[420px]" : ""
+      }`}
+    >
       <LiveKitRoom
         key={joined.token}
         token={joined.token}
         serverUrl={joined.lk_url}
         connect
+        options={{ adaptiveStream: true, dynacast: true }}
         audio={false}
         video={false}
         onConnected={handleConnected}
@@ -349,6 +405,7 @@ export function MainStage({
           onMembersChange={onMembersChange}
           onRealtimeChatMessage={onRealtimeChatMessage}
           onRealtimeChatSenderReady={onRealtimeChatSenderReady}
+          onVisualMediaChange={onVisualMediaChange}
         />
       </LiveKitRoom>
     </main>

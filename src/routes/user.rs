@@ -16,7 +16,9 @@ use std::path::{Path as StdPath, PathBuf};
 use tokio::fs;
 use tracing::info;
 
-const AVATAR_BODY_MAX_BYTES: usize = 2 * 1024 * 1024;
+// data URL (base64) adds ~33% overhead over raw image bytes; keep raw limit at 2MB
+// but allow a larger request body so valid images are not rejected as payload-too-large.
+const AVATAR_BODY_MAX_BYTES: usize = 4 * 1024 * 1024;
 const AVATAR_IMAGE_MAX_BYTES: usize = 2 * 1024 * 1024;
 const AVATAR_TARGET_SIZE: u32 = 256;
 const AVATAR_MAX_PIXELS: u64 = 16_000_000;

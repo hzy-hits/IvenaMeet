@@ -11,9 +11,12 @@ import {
   Mic,
   MicOff,
   ShieldCheck,
+  SlidersHorizontal,
   Radio,
   Send,
+  Terminal,
   Ticket,
+  Users,
   UserPlus,
 } from "lucide-react";
 import {
@@ -50,6 +53,8 @@ type Props = {
   realtimeChatSender: ((payload: RealtimeChatPayload) => Promise<void>) | null;
   logs: string[];
   pushLog: (s: string) => void;
+  chatPriorityMode?: boolean;
+  hideDesktopChat?: boolean;
 };
 
 const LS_KEYS = {
@@ -57,6 +62,32 @@ const LS_KEYS = {
   appSessionToken: "ivena.meet.app_session_token",
   hostSessionToken: "ivena.meet.host_session_token",
 } as const;
+const AVATAR_CACHE_PREFIX = "ivena.meet.avatar.";
+
+function avatarCacheKey(userName: string): string {
+  return `${AVATAR_CACHE_PREFIX}${userName.trim().toLowerCase()}`;
+}
+
+function loadCachedAvatar(userName: string): string {
+  const key = avatarCacheKey(userName);
+  if (!key || key === AVATAR_CACHE_PREFIX) return "";
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveCachedAvatar(userName: string, avatarUrl: string): void {
+  const name = userName.trim();
+  const url = avatarUrl.trim();
+  if (!name || !url) return;
+  try {
+    localStorage.setItem(avatarCacheKey(name), url);
+  } catch {
+    // Ignore storage quota/privacy mode failures.
+  }
+}
 
 function parseInviteFromQuery() {
   const q = new URLSearchParams(window.location.search);
@@ -74,7 +105,9 @@ function resolveAvatarSrc(raw: string | null | undefined): string {
   const base = API_BASE_URL.replace(/\/+$/, "");
   if (raw.startsWith("/api/")) {
     if (base.startsWith("http://") || base.startsWith("https://")) {
-      return `${base}${raw.slice(4)}`;
+      // If base already includes /api, avoid duplicating it; otherwise keep raw path intact.
+      if (base.endsWith("/api")) return `${base}${raw.slice(4)}`;
+      return `${base}${raw}`;
     }
     return raw;
   }
@@ -218,6 +251,20 @@ function toRealtimeMessage(payload: RealtimeChatPayload): MessageItem {
   };
 }
 
+function formatChatTime(epochSeconds: number): string {
+  if (!epochSeconds) return "";
+  return new Date(epochSeconds * 1000).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function messageTailKey(items: MessageItem[]): string {
+  if (!items.length) return "empty";
+  const m = items[items.length - 1];
+  return `${m.id}:${m.client_id ?? ""}:${m.created_at}:${m.pending ? "1" : "0"}:${m.failed ? "1" : "0"}`;
+}
+
 export function Sidebar(props: Props) {
   const {
     requireInvite,
@@ -240,6 +287,8 @@ export function Sidebar(props: Props) {
     realtimeChatSender,
     logs,
     pushLog,
+    chatPriorityMode = false,
+    hideDesktopChat = false,
   } = props;
 
   const [inviteCode, setInviteCode] = useState("");
@@ -265,9 +314,10 @@ export function Sidebar(props: Props) {
   const [openMembers, setOpenMembers] = useState(true);
   const [openChat, setOpenChat] = useState(true);
   const [openLogs, setOpenLogs] = useState(false);
+  const [consolePane, setConsolePane] = useState<"control" | "members" | "ops">("control");
   const [hostEntryUnlocked, setHostEntryUnlocked] = useState(false);
 
-  const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const [avatarPreview, setAvatarPreview] = useState<string>(() => loadCachedAvatar(userName));
   const avatarUploadDataRef = useRef<string>("");
   const avatarPreviewBlobRef = useRef<string>("");
   const [avatarStatus, setAvatarStatus] = useState<{
@@ -275,13 +325,18 @@ export function Sidebar(props: Props) {
     text: string;
   }>({ kind: "idle", text: "未上传，使用默认头像" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatAutoScrollRef = useRef(true);
+  const lastChatTailKeyRef = useRef("empty");
   const initialReconnectChecked = useRef(false);
   const lastMessageIdRef = useRef(0);
   const historySyncErrorLoggedRef = useRef(false);
   const heartbeatErrorLoggedRef = useRef(false);
+  const [pendingChatHints, setPendingChatHints] = useState(0);
   const shouldReconnectOnBoot = useRef(
     Boolean(localStorage.getItem(LS_KEYS.joined) && localStorage.getItem(LS_KEYS.appSessionToken)),
   );
+  const lastChatPriorityModeRef = useRef(chatPriorityMode);
   const inviteMode = Boolean(inviteTicket);
   const effectiveRole: Role = hostEntryUnlocked ? "host" : inviteMode ? "member" : role;
   const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
@@ -306,6 +361,21 @@ export function Sidebar(props: Props) {
   }, [effectiveRole, showReclaimCta]);
 
   useEffect(() => {
+    const was = lastChatPriorityModeRef.current;
+    if (chatPriorityMode && !was) {
+      setOpenChat(true);
+      setOpenMembers(false);
+      setOpenLogs(false);
+    }
+    lastChatPriorityModeRef.current = chatPriorityMode;
+  }, [chatPriorityMode]);
+
+  useEffect(() => {
+    if (consolePane === "members") setOpenMembers(true);
+    if (consolePane === "ops") setOpenLogs(true);
+  }, [consolePane]);
+
+  useEffect(() => {
     return () => {
       if (avatarPreviewBlobRef.current) {
         URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -313,6 +383,11 @@ export function Sidebar(props: Props) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (avatarPreviewBlobRef.current) return;
+    setAvatarPreview(loadCachedAvatar(userName));
+  }, [userName]);
 
   useEffect(() => {
     const parsed = parseInviteFromQuery();
@@ -333,12 +408,81 @@ export function Sidebar(props: Props) {
   }, [joined, roomId, api, setMessages, pushLog]);
 
   useEffect(() => {
+    const name = userName.trim();
+    if (!name) return;
+    const latestAvatar = [...messages]
+      .reverse()
+      .find((m) => m.user_name === name && !!m.avatar_url)?.avatar_url;
+    if (!latestAvatar) return;
+    saveCachedAvatar(name, latestAvatar);
+    if (!avatarPreviewBlobRef.current && avatarPreview !== latestAvatar) {
+      setAvatarPreview(latestAvatar);
+    }
+  }, [messages, userName, avatarPreview]);
+
+  useEffect(() => {
     let maxId = 0;
     for (const item of messages) {
       if (item.id > maxId) maxId = item.id;
     }
     lastMessageIdRef.current = maxId;
   }, [messages]);
+
+  useEffect(() => {
+    if (!openChat) return;
+    const box = chatScrollRef.current;
+    if (!box) return;
+
+    const nextTail = messageTailKey(messages);
+    if (nextTail === lastChatTailKeyRef.current) return;
+    lastChatTailKeyRef.current = nextTail;
+
+    const distanceToBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+    const isNearBottom = distanceToBottom <= 56;
+
+    if (chatAutoScrollRef.current || isNearBottom) {
+      const doScroll = () => {
+        const target = chatScrollRef.current;
+        if (!target) return;
+        target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
+      };
+      if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
+        window.requestAnimationFrame(doScroll);
+      } else {
+        doScroll();
+      }
+      chatAutoScrollRef.current = true;
+      setPendingChatHints(0);
+      return;
+    }
+
+    setPendingChatHints((n) => Math.min(n + 1, 99));
+  }, [messages, openChat]);
+
+  const scrollChatToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const box = chatScrollRef.current;
+    if (!box) return;
+    box.scrollTo({ top: box.scrollHeight, behavior });
+    chatAutoScrollRef.current = true;
+    setPendingChatHints(0);
+  };
+
+  const onChatScroll = () => {
+    const box = chatScrollRef.current;
+    if (!box) return;
+    const distanceToBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+    const isNearBottom = distanceToBottom <= 56;
+    chatAutoScrollRef.current = isNearBottom;
+    if (isNearBottom && pendingChatHints) {
+      setPendingChatHints(0);
+    }
+  };
+
+  useEffect(() => {
+    if (!openChat) return;
+    if (!joined) return;
+    scrollChatToBottom("auto");
+  }, [openChat, joined, roomId]);
 
   useEffect(() => {
     if (!joined || !appSessionToken) return;
@@ -498,6 +642,9 @@ export function Sidebar(props: Props) {
     setHostSessionExpireAt(0);
     setSessionExpireAt(0);
     setShowReclaimCta(false);
+    setPendingChatHints(0);
+    chatAutoScrollRef.current = true;
+    lastChatTailKeyRef.current = "empty";
     avatarUploadDataRef.current = "";
     if (avatarPreviewBlobRef.current) {
       URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -600,6 +747,7 @@ export function Sidebar(props: Props) {
           const uploaded = await api.uploadAvatar(avatarUploadDataRef.current, res.app_session_token);
           setAvatarStatus({ kind: "ok", text: "头像上传成功" });
           setAvatarPreview(uploaded.avatar_url);
+          saveCachedAvatar(userName.trim(), uploaded.avatar_url);
           avatarUploadDataRef.current = "";
           if (avatarPreviewBlobRef.current) {
             URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -739,6 +887,8 @@ export function Sidebar(props: Props) {
   const sendChat = async () => {
     const text = chatText.trim();
     if (!text || !joined) return;
+    chatAutoScrollRef.current = true;
+    setPendingChatHints(0);
     const clientId = createClientId();
     const payload: RealtimeChatPayload = {
       type: "chat.message",
@@ -778,14 +928,14 @@ export function Sidebar(props: Props) {
   const onAvatarFileChange = (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setAvatarPreview("");
+      setAvatarPreview(loadCachedAvatar(userName));
       avatarUploadDataRef.current = "";
       setAvatarStatus({ kind: "error", text: "上传失败：仅支持图片，已使用默认头像" });
       pushLog("avatar upload failed: only image files are allowed, using default avatar");
       return;
     }
     if (file.size > AVATAR_MAX_BYTES) {
-      setAvatarPreview("");
+      setAvatarPreview(loadCachedAvatar(userName));
       avatarUploadDataRef.current = "";
       setAvatarStatus({ kind: "error", text: "上传失败：图片超过 2MB，已使用默认头像" });
       pushLog("avatar upload failed: file must be <= 2MB, using default avatar");
@@ -802,7 +952,7 @@ export function Sidebar(props: Props) {
     void fileToDataUrl(file)
       .then((data) => {
       if (!data.startsWith("data:image/")) {
-        setAvatarPreview("");
+        setAvatarPreview(loadCachedAvatar(userName));
         avatarUploadDataRef.current = "";
         setAvatarStatus({ kind: "error", text: "上传失败：图片编码异常，已使用默认头像" });
         pushLog("avatar upload failed: invalid data url");
@@ -814,6 +964,7 @@ export function Sidebar(props: Props) {
           .uploadAvatar(data, appSessionToken)
           .then(async (uploaded) => {
             setAvatarPreview(uploaded.avatar_url);
+            saveCachedAvatar(userName.trim(), uploaded.avatar_url);
             avatarUploadDataRef.current = "";
             if (avatarPreviewBlobRef.current) {
               URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -837,7 +988,7 @@ export function Sidebar(props: Props) {
       }
     })
       .catch(() => {
-      setAvatarPreview("");
+      setAvatarPreview(loadCachedAvatar(userName));
       avatarUploadDataRef.current = "";
       setAvatarStatus({ kind: "error", text: "上传失败：读取图片失败，已使用默认头像" });
       pushLog("avatar upload failed: file read error");
@@ -857,7 +1008,7 @@ export function Sidebar(props: Props) {
 
   return (
     <>
-      <aside className="flex h-[calc(100vh-1.5rem)] min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-2xl bg-card p-3 lg:p-4">
+      <aside className="flex h-full min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,35,48,0.92),rgba(10,20,28,0.88))] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-md lg:p-4">
         <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -877,7 +1028,46 @@ export function Sidebar(props: Props) {
           </div>
         </section>
 
-        {joined ? (
+        <section className="rounded-2xl border border-white/10 bg-black/25 p-2.5">
+          <p className="px-1 text-[10px] uppercase tracking-[0.16em] text-white/45">Navigator</p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setConsolePane("control")}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs ${
+                consolePane === "control"
+                  ? "border border-accent/45 bg-accent/12 text-accent"
+                  : "border border-white/10 bg-white/5 text-white/70"
+              }`}
+            >
+              <SlidersHorizontal size={12} /> 控制
+            </button>
+            <button
+              type="button"
+              onClick={() => setConsolePane("members")}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs ${
+                consolePane === "members"
+                  ? "border border-accent/45 bg-accent/12 text-accent"
+                  : "border border-white/10 bg-white/5 text-white/70"
+              }`}
+            >
+              <Users size={12} /> 成员
+            </button>
+            <button
+              type="button"
+              onClick={() => setConsolePane("ops")}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs ${
+                consolePane === "ops"
+                  ? "border border-accent/45 bg-accent/12 text-accent"
+                  : "border border-white/10 bg-white/5 text-white/70"
+              }`}
+            >
+              <Terminal size={12} /> 系统
+            </button>
+          </div>
+        </section>
+
+        {joined && consolePane === "control" ? (
           <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
             <h3 className="mb-2 text-sm font-semibold">Profile</h3>
             <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
@@ -931,7 +1121,7 @@ export function Sidebar(props: Props) {
           </section>
         ) : null}
 
-        {isHost ? (
+        {isHost && consolePane === "control" ? (
           <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
             <h3 className="mb-2 text-sm font-semibold">主持工具</h3>
             <div className="grid grid-cols-2 gap-2">
@@ -974,6 +1164,7 @@ export function Sidebar(props: Props) {
           </section>
         ) : null}
 
+        {consolePane === "members" ? (
         <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
           <button
             onClick={() => setOpenMembers((v) => !v)}
@@ -1011,60 +1202,128 @@ export function Sidebar(props: Props) {
             </div>
           ) : null}
         </section>
+        ) : null}
 
-        <section className="min-h-0 flex-1 space-y-3">
-          <div className="min-h-0 rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
+        <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
+          <div
+            className={`min-h-0 rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md ${
+              hideDesktopChat ? "xl:hidden" : ""
+            }`}
+          >
             <button
               onClick={() => setOpenChat((v) => !v)}
               className="mb-2 flex w-full items-center justify-between text-left text-sm font-semibold"
             >
-              <span className="inline-flex items-center gap-2"><MessageCircle size={14} /> Chat</span>
+              <span className="inline-flex items-center gap-2">
+                <MessageCircle size={14} /> Chat
+                {chatPriorityMode ? (
+                  <span className="rounded-full border border-accent/45 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                    Focus
+                  </span>
+                ) : null}
+              </span>
               {openChat ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
             {openChat ? (
-              <div className="flex h-[300px] min-h-0 flex-col">
-                <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1">
-                  {messages.map((m) => (
-                    <div key={m.client_id ?? m.id} className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
-                      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
-                        <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
-                          {m.nickname.slice(0, 1).toUpperCase()}
-                        </div>
-                        {m.avatar_url ? (
-                          <img
-                            src={resolveAvatarSrc(m.avatar_url)}
-                            alt={m.nickname}
-                            className="absolute inset-0 h-full w-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : null}
+              <div
+                className={`flex min-h-0 flex-col ${
+                  chatPriorityMode ? "h-[56vh] lg:h-[64vh]" : "h-[340px]"
+                }`}
+              >
+                <div className="relative min-h-0 flex-1">
+                  <div
+                    ref={chatScrollRef}
+                    onScroll={onChatScroll}
+                    className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
+                  >
+                    {!messages.length ? (
+                      <div className="grid h-full place-items-center rounded-xl border border-dashed border-white/15 bg-black/20 px-3 text-sm text-white/50">
+                        暂无消息，发送第一条开始聊天
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-white/60">
-                          {m.nickname} ({m.role})
-                          {m.failed ? " · failed" : m.pending ? " · sending" : ""}
-                        </p>
-                        <p className="text-sm break-words">{m.text}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ) : (
+                      messages.map((m) => {
+                        const isMine = m.user_name === userName.trim();
+                        return (
+                          <div
+                            key={m.client_id ?? m.id}
+                            className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`flex max-w-[90%] items-end gap-2 ${
+                                isMine ? "flex-row-reverse" : ""
+                              }`}
+                            >
+                              <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
+                                <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
+                                  {m.nickname.slice(0, 1).toUpperCase()}
+                                </div>
+                                {m.avatar_url ? (
+                                  <img
+                                    src={resolveAvatarSrc(m.avatar_url)}
+                                    alt={m.nickname}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.onerror = null;
+                                      e.currentTarget.style.display = "none";
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                              <div
+                                className={`min-w-0 rounded-2xl border px-3 py-2 ${
+                                  isMine
+                                    ? "border-accent/50 bg-accent/15"
+                                    : "border-white/10 bg-black/20"
+                                }`}
+                              >
+                                <div className="mb-1 flex items-center gap-2 text-[11px] text-white/65">
+                                  <span className="max-w-[8rem] truncate font-medium text-white/80">
+                                    {m.nickname}
+                                  </span>
+                                  <span className="rounded bg-white/10 px-1.5 py-0.5 uppercase tracking-wide">
+                                    {m.role}
+                                  </span>
+                                  <span>{formatChatTime(m.created_at)}</span>
+                                  {m.failed ? (
+                                    <span className="text-red-300">发送失败</span>
+                                  ) : m.pending ? (
+                                    <span className="text-accent">发送中</span>
+                                  ) : null}
+                                </div>
+                                <p className="whitespace-pre-wrap break-words text-sm leading-5">
+                                  {m.text}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  {pendingChatHints > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => scrollChatToBottom("smooth")}
+                      className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-accent/50 bg-card/90 px-3 py-1 text-xs font-medium text-accent shadow-[0_6px_20px_rgba(0,0,0,0.35)] backdrop-blur-md"
+                    >
+                      {pendingChatHints > 1 ? `${pendingChatHints} 条新消息` : "1 条新消息"}，点击查看
+                    </button>
+                  ) : null}
                 </div>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-1.5">
                   <input
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
-                    placeholder="type message"
+                    placeholder="输入消息，按 Enter 发送"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") run(sendChat);
                     }}
-                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                    className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-white/45"
                   />
                   <button
                     onClick={() => run(sendChat)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent leading-none text-[#06211f]"
+                    disabled={!chatText.trim()}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent leading-none text-[#06211f] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Send size={16} />
                   </button>
@@ -1073,7 +1332,7 @@ export function Sidebar(props: Props) {
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+          <div className={`rounded-2xl border border-white/10 bg-black/30 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
             <button
               onClick={() => setOpenLogs((v) => !v)}
               className="mb-2 flex w-full items-center justify-between text-left text-sm font-semibold"
