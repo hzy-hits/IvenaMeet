@@ -17,6 +17,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import {
+  API_BASE_URL,
   AVATAR_MAX_BYTES,
   CHAT_HISTORY_LIMIT,
   INVITE_COPY_HINT_MS,
@@ -37,6 +38,7 @@ type Props = {
   role: Role;
   setRole: (v: Role) => void;
   joined: JoinResp | null;
+  appSessionToken: string;
   setJoined: (v: JoinResp | null) => void;
   setAppSessionToken: (v: string) => void;
   setHostSessionToken: (v: string) => void;
@@ -61,6 +63,55 @@ function parseInviteFromQuery() {
   };
 }
 
+function resolveAvatarSrc(raw: string | null | undefined): string {
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) {
+    return raw;
+  }
+  const base = API_BASE_URL.replace(/\/+$/, "");
+  if (raw.startsWith("/api/")) {
+    if (base.startsWith("http://") || base.startsWith("https://")) {
+      return `${base}${raw.slice(4)}`;
+    }
+    return raw;
+  }
+  if (raw.startsWith("/")) {
+    if (base.startsWith("http://") || base.startsWith("https://")) {
+      return `${base}${raw}`;
+    }
+    return raw;
+  }
+  if (base.startsWith("http://") || base.startsWith("https://")) {
+    return `${base}/${raw.replace(/^\/+/, "")}`;
+  }
+  return raw;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("file read error"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function deriveWhipUrl(whipUrl: string, lkUrl?: string): string {
+  const direct = whipUrl.trim();
+  if (direct) return direct;
+  const base = (lkUrl ?? "").trim().replace(/\/+$/, "");
+  if (base.startsWith("wss://")) return `https://${base.slice(6)}/w/`;
+  if (base.startsWith("ws://")) return `http://${base.slice(5)}/w/`;
+  return "";
+}
+
+function deriveObsWhipEndpoint(whipUrl: string, streamKey: string): string {
+  const base = whipUrl.trim().replace(/\/+$/, "");
+  const key = streamKey.trim();
+  if (!base || !key) return "";
+  return `${base}/${key}`;
+}
+
 export function Sidebar(props: Props) {
   const {
     requireInvite,
@@ -72,6 +123,7 @@ export function Sidebar(props: Props) {
     role,
     setRole,
     joined,
+    appSessionToken,
     setJoined,
     setAppSessionToken,
     setHostSessionToken,
@@ -106,12 +158,17 @@ export function Sidebar(props: Props) {
   const [hostEntryUnlocked, setHostEntryUnlocked] = useState(false);
 
   const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const avatarUploadDataRef = useRef<string>("");
+  const avatarPreviewBlobRef = useRef<string>("");
   const [avatarStatus, setAvatarStatus] = useState<{
     kind: "idle" | "ok" | "error";
     text: string;
   }>({ kind: "idle", text: "未上传，使用默认头像" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialReconnectChecked = useRef(false);
+  const shouldReconnectOnBoot = useRef(
+    Boolean(localStorage.getItem(LS_KEYS.joined) && localStorage.getItem(LS_KEYS.appSessionToken)),
+  );
   const inviteMode = Boolean(inviteTicket);
   const effectiveRole: Role = inviteMode ? "member" : hostEntryUnlocked ? "host" : role;
   const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
@@ -119,11 +176,24 @@ export function Sidebar(props: Props) {
     () => (joined?.role ?? effectiveRole) === "host",
     [joined?.role, effectiveRole],
   );
+  const obsWhipEndpoint = useMemo(
+    () => deriveObsWhipEndpoint(whipUrl, streamKey),
+    [whipUrl, streamKey],
+  );
 
   const showActionNotice = (kind: "ok" | "error", text: string) => {
     setActionNotice({ kind, text });
     window.setTimeout(() => setActionNotice(null), 2600);
   };
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewBlobRef.current) {
+        URL.revokeObjectURL(avatarPreviewBlobRef.current);
+        avatarPreviewBlobRef.current = "";
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const parsed = parseInviteFromQuery();
@@ -145,13 +215,20 @@ export function Sidebar(props: Props) {
 
   useEffect(() => {
     if (initialReconnectChecked.current) return;
-    initialReconnectChecked.current = true;
+    if (!shouldReconnectOnBoot.current) {
+      initialReconnectChecked.current = true;
+      return;
+    }
     if (!joined) return;
+    initialReconnectChecked.current = true;
+    const restored = joined;
+    // Avoid duplicate room connect with stale token before reconnect returns.
+    setJoined(null);
 
     void api
       .reconnectRoom()
       .then((res) => {
-        setJoined({ ...joined, ...res });
+        setJoined({ ...restored, ...res });
         pushLog("session restored after refresh");
       })
       .catch((e) => {
@@ -221,6 +298,11 @@ export function Sidebar(props: Props) {
     setHostTotpCode("");
     setHostSessionExpireAt(0);
     setSessionExpireAt(0);
+    avatarUploadDataRef.current = "";
+    if (avatarPreviewBlobRef.current) {
+      URL.revokeObjectURL(avatarPreviewBlobRef.current);
+      avatarPreviewBlobRef.current = "";
+    }
     setMessages([]);
     localStorage.removeItem(LS_KEYS.joined);
     localStorage.removeItem(LS_KEYS.appSessionToken);
@@ -283,6 +365,27 @@ export function Sidebar(props: Props) {
       }
       setSessionExpireAt(Math.floor(Date.now() / 1000) + res.app_session_expires_in_seconds);
       pushLog(`joined: ${userName} (${res.role})`);
+      if (avatarUploadDataRef.current) {
+        try {
+          const uploaded = await api.uploadAvatar(avatarUploadDataRef.current, res.app_session_token);
+          setAvatarStatus({ kind: "ok", text: "头像上传成功" });
+          setAvatarPreview(uploaded.avatar_url);
+          avatarUploadDataRef.current = "";
+          if (avatarPreviewBlobRef.current) {
+            URL.revokeObjectURL(avatarPreviewBlobRef.current);
+            avatarPreviewBlobRef.current = "";
+          }
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.user_name === userName.trim() ? { ...m, avatar_url: uploaded.avatar_url } : m,
+            ),
+          );
+          pushLog(`avatar uploaded: ${uploaded.avatar_url}`);
+        } catch (e) {
+          setAvatarStatus({ kind: "error", text: "头像上传失败，已使用默认头像" });
+          pushLog(`avatar upload failed: ${String(e)}`);
+        }
+      }
     } finally {
       setJoining(false);
     }
@@ -323,7 +426,7 @@ export function Sidebar(props: Props) {
     });
 
     setIngressId(started.ingress_id);
-    setWhipUrl(started.whip_url);
+    setWhipUrl(deriveWhipUrl(started.whip_url, joined?.lk_url));
     setStreamKey(started.stream_key);
     setShowBroadcastModal(true);
     pushLog("broadcast started");
@@ -344,6 +447,16 @@ export function Sidebar(props: Props) {
       muted,
     });
     pushLog(`${muted ? "mute all" : "unmute all"} applied (${res.affected_tracks})`);
+    if (res.affected_tracks === 0) {
+      showActionNotice(
+        "error",
+        muted
+          ? "未命中可静音麦克风（可能成员未开麦或未发布麦克风）"
+          : "未命中可解除的麦克风（可能当前都未被服务端静音）",
+      );
+    } else {
+      showActionNotice("ok", `${muted ? "全员静音" : "解除全员静音"}已应用（${res.affected_tracks}）`);
+    }
   };
 
   const muteOne = async (targetIdentity: string, muted: boolean) => {
@@ -354,6 +467,14 @@ export function Sidebar(props: Props) {
       muted,
     });
     pushLog(`${muted ? "mute" : "unmute"} ${targetIdentity} (${res.affected_tracks})`);
+    if (res.affected_tracks === 0) {
+      showActionNotice("error", `未命中 ${targetIdentity} 的麦克风轨道`);
+    } else {
+      showActionNotice(
+        "ok",
+        `${muted ? "已静音" : "已解除静音"} ${targetIdentity}（${res.affected_tracks}）`,
+      );
+    }
   };
 
   const sendChat = async () => {
@@ -371,20 +492,69 @@ export function Sidebar(props: Props) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       setAvatarPreview("");
+      avatarUploadDataRef.current = "";
       setAvatarStatus({ kind: "error", text: "上传失败：仅支持图片，已使用默认头像" });
       pushLog("avatar upload failed: only image files are allowed, using default avatar");
       return;
     }
     if (file.size > AVATAR_MAX_BYTES) {
       setAvatarPreview("");
+      avatarUploadDataRef.current = "";
       setAvatarStatus({ kind: "error", text: "上传失败：图片超过 2MB，已使用默认头像" });
       pushLog("avatar upload failed: file must be <= 2MB, using default avatar");
       return;
     }
-    const url = URL.createObjectURL(file);
-    setAvatarPreview(url);
-    setAvatarStatus({ kind: "ok", text: "头像已选择（当前为本地预览）" });
-    pushLog("avatar selected");
+    if (avatarPreviewBlobRef.current) {
+      URL.revokeObjectURL(avatarPreviewBlobRef.current);
+      avatarPreviewBlobRef.current = "";
+    }
+    const objectUrl = URL.createObjectURL(file);
+    avatarPreviewBlobRef.current = objectUrl;
+    setAvatarPreview(objectUrl);
+
+    void fileToDataUrl(file)
+      .then((data) => {
+      if (!data.startsWith("data:image/")) {
+        setAvatarPreview("");
+        avatarUploadDataRef.current = "";
+        setAvatarStatus({ kind: "error", text: "上传失败：图片编码异常，已使用默认头像" });
+        pushLog("avatar upload failed: invalid data url");
+        return;
+      }
+      avatarUploadDataRef.current = data;
+      if (joined && appSessionToken) {
+        void api
+          .uploadAvatar(data, appSessionToken)
+          .then(async (uploaded) => {
+            setAvatarPreview(uploaded.avatar_url);
+            avatarUploadDataRef.current = "";
+            if (avatarPreviewBlobRef.current) {
+              URL.revokeObjectURL(avatarPreviewBlobRef.current);
+              avatarPreviewBlobRef.current = "";
+            }
+            setAvatarStatus({ kind: "ok", text: "头像上传成功" });
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.user_name === userName.trim() ? { ...m, avatar_url: uploaded.avatar_url } : m,
+              ),
+            );
+            pushLog(`avatar uploaded: ${uploaded.avatar_url}`);
+          })
+          .catch((e) => {
+            setAvatarStatus({ kind: "error", text: "头像上传失败，已使用默认头像" });
+            pushLog(`avatar upload failed: ${String(e)}`);
+          });
+      } else {
+        setAvatarStatus({ kind: "ok", text: "头像已选择，加入后自动上传" });
+        pushLog("avatar selected");
+      }
+    })
+      .catch(() => {
+      setAvatarPreview("");
+      avatarUploadDataRef.current = "";
+      setAvatarStatus({ kind: "error", text: "上传失败：读取图片失败，已使用默认头像" });
+      pushLog("avatar upload failed: file read error");
+    });
   };
 
   const run = (fn: () => Promise<void>) => {
@@ -416,6 +586,48 @@ export function Sidebar(props: Props) {
             ) : null}
           </div>
         </section>
+
+        {joined ? (
+          <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
+            <h3 className="mb-2 text-sm font-semibold">Profile</h3>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+              <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="grid h-full w-full place-items-center text-white/60">
+                    <Image size={14} />
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onPickAvatar}
+                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+              >
+                <ImagePlus size={16} /> 上传头像
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
+                className="hidden"
+              />
+            </div>
+            <p
+              className={`mt-2 font-mono text-[11px] ${
+                avatarStatus.kind === "ok"
+                  ? "text-ok"
+                  : avatarStatus.kind === "error"
+                    ? "text-red-300"
+                    : "text-white/50"
+              }`}
+            >
+              {avatarStatus.text}
+            </p>
+          </section>
+        ) : null}
 
         {actionNotice ? (
           <section
@@ -523,9 +735,27 @@ export function Sidebar(props: Props) {
               <div className="flex h-[300px] min-h-0 flex-col">
                 <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1">
                   {messages.map((m) => (
-                    <div key={m.id} className="rounded-xl border border-white/10 bg-black/20 p-2">
-                      <p className="text-xs text-white/60">{m.nickname} ({m.role})</p>
-                      <p className="text-sm break-words">{m.text}</p>
+                    <div key={m.id} className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
+                      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
+                        <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
+                          {m.nickname.slice(0, 1).toUpperCase()}
+                        </div>
+                        {m.avatar_url ? (
+                          <img
+                            src={resolveAvatarSrc(m.avatar_url)}
+                            alt={m.nickname}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-white/60">{m.nickname} ({m.role})</p>
+                        <p className="text-sm break-words">{m.text}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -643,7 +873,7 @@ export function Sidebar(props: Props) {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp"
                       onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
                       className="hidden"
                     />
@@ -660,7 +890,11 @@ export function Sidebar(props: Props) {
                     {avatarStatus.text}
                   </p>
                 </>
-              ) : null}
+              ) : (
+                <p className="font-mono text-[11px] text-white/50">
+                  主持人请先成功加入房间，再在侧边栏上传头像。
+                </p>
+              )}
 
               {hostEntryUnlocked ? (
                 <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
@@ -739,6 +973,10 @@ export function Sidebar(props: Props) {
             <h3 className="mb-3 text-lg font-semibold">WHIP Broadcast Credentials</h3>
             <div className="font-mono space-y-2 text-xs">
               <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+                <p className="mb-1 text-white/60">obs_whip_endpoint</p>
+                <p className="break-all">{obsWhipEndpoint || "-"}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/30 p-2">
                 <p className="mb-1 text-white/60">whip_url</p>
                 <p className="break-all">{whipUrl || "-"}</p>
               </div>
@@ -751,6 +989,10 @@ export function Sidebar(props: Props) {
                 <p className="break-all">{ingressId || "-"}</p>
               </div>
             </div>
+            <p className="mt-3 text-xs text-white/70">
+              OBS 推荐直接填 <span className="font-mono">obs_whip_endpoint</span>。如果使用该完整地址，
+              不需要再单独填写 Bearer Token。
+            </p>
             <button
               onClick={() => setShowBroadcastModal(false)}
               className="mt-3 w-full rounded-xl bg-accent px-3 py-2 font-semibold text-[#06211f]"

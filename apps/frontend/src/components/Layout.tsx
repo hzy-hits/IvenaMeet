@@ -102,6 +102,7 @@ export function Layout() {
             role={role}
             setRole={setRole}
             joined={joined}
+            appSessionToken={appSessionToken}
             setJoined={setJoined}
             setAppSessionToken={setAppSessionToken}
             setHostSessionToken={setHostSessionToken}

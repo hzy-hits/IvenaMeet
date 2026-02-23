@@ -30,6 +30,9 @@ pub struct Config {
     pub rate_limit_room_join: u64,
     pub rate_limit_invite_redeem: u64,
     pub rate_limit_broadcast_start: u64,
+    pub avatar_upload_limit_per_minute: u64,
+    pub avatar_upload_limit_per_day: u64,
+    pub avatar_storage_quota_bytes: u64,
     pub trusted_proxy_ips: Vec<IpAddr>,
 }
 
@@ -63,6 +66,9 @@ impl Config {
             rate_limit_room_join: parse_env_u64("RATE_LIMIT_ROOM_JOIN", 20)?,
             rate_limit_invite_redeem: parse_env_u64("RATE_LIMIT_INVITE_REDEEM", 12)?,
             rate_limit_broadcast_start: parse_env_u64("RATE_LIMIT_BROADCAST_START", 3)?,
+            avatar_upload_limit_per_minute: parse_env_u64("RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE", 2)?,
+            avatar_upload_limit_per_day: parse_env_u64("RATE_LIMIT_AVATAR_UPLOAD_PER_DAY", 100)?,
+            avatar_storage_quota_bytes: parse_env_u64("AVATAR_STORAGE_QUOTA_BYTES", 500 * 1024 * 1024)?,
             trusted_proxy_ips: parse_env_ip_list("TRUSTED_PROXY_IPS")?,
         })
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -181,6 +181,34 @@ function StageScene({ role, onMembersChange }: { role: Role; onMembersChange: (m
 }
 
 export function MainStage({ joined, roomId, userName, role, onMembersChange, onLog }: Props) {
+  const onLogRef = useRef(onLog);
+  const roomIdRef = useRef(roomId);
+  const userNameRef = useRef(userName);
+
+  useEffect(() => {
+    onLogRef.current = onLog;
+  }, [onLog]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  useEffect(() => {
+    userNameRef.current = userName;
+  }, [userName]);
+
+  const handleConnected = useCallback(() => {
+    onLogRef.current(`livekit connected: ${roomIdRef.current} as ${userNameRef.current}`);
+  }, []);
+
+  const handleDisconnected = useCallback(() => {
+    onLogRef.current("livekit disconnected");
+  }, []);
+
+  const handleError = useCallback((e: Error) => {
+    onLogRef.current(`livekit error: ${e?.message ?? String(e)}`);
+  }, []);
+
   if (!joined) {
     return (
       <main className="grid min-h-[calc(100vh-1.5rem)] place-items-center rounded-2xl bg-bg">
@@ -199,11 +227,11 @@ export function MainStage({ joined, roomId, userName, role, onMembersChange, onL
         token={joined.token}
         serverUrl={joined.lk_url}
         connect
-        audio
+        audio={false}
         video={false}
-        onConnected={() => onLog(`livekit connected: ${roomId} as ${userName}`)}
-        onDisconnected={() => onLog("livekit disconnected")}
-        onError={(e) => onLog(`livekit error: ${e?.message ?? String(e)}`)}
+        onConnected={handleConnected}
+        onDisconnected={handleDisconnected}
+        onError={handleError}
       >
         <StageScene role={role} onMembersChange={onMembersChange} />
       </LiveKitRoom>

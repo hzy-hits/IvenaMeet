@@ -83,9 +83,10 @@ pub fn avatar_url(input: Option<String>) -> AppResult<Option<String>> {
             "avatar_url max length is 512".to_string(),
         ));
     }
-    if !v.starts_with("https://") {
+    if !v.starts_with("https://") && !v.starts_with("/api/avatars/") && !v.starts_with("/avatars/")
+    {
         return Err(AppError::BadRequest(
-            "avatar_url must use https://".to_string(),
+            "avatar_url must use https://, /api/avatars/, or /avatars/".to_string(),
         ));
     }
     Ok(Some(v.to_string()))
@@ -115,6 +116,8 @@ mod tests {
     fn avatar_rules() {
         assert_eq!(avatar_url(None).unwrap(), None);
         assert!(avatar_url(Some("https://x.y/a.png".to_string())).is_ok());
+        assert!(avatar_url(Some("/api/avatars/a.webp".to_string())).is_ok());
+        assert!(avatar_url(Some("/avatars/a.webp".to_string())).is_ok());
         assert!(avatar_url(Some("http://x.y".to_string())).is_err());
     }
 }

@@ -1,4 +1,4 @@
-.PHONY: bootstrap-host
+.PHONY: bootstrap-host cleanup-orphan-avatars
 
 bootstrap-host:
 	@if [ -z "$$ADMIN_TOKEN" ] || [ -z "$$ROOM_ID" ] || [ -z "$$HOST_IDENTITY" ]; then \
@@ -6,3 +6,6 @@ bootstrap-host:
 		exit 2; \
 	fi
 	@./scripts/bootstrap-host.sh
+
+cleanup-orphan-avatars:
+	@./scripts/cleanup-orphan-avatars.sh

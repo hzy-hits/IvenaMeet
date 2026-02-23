@@ -28,7 +28,7 @@ pub fn build_router(state: AppState) -> Router {
         routes::room::router()
     };
 
-    Router::new()
+    let api_routes = Router::new()
         .merge(routes::health::router())
         .merge(routes::invite::router())
         .merge(host_public_routes)
@@ -37,7 +37,11 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::chat::router())
         .merge(routes::user::router())
         .merge(control_routes)
-        .merge(admin_only_routes)
+        .merge(admin_only_routes);
+
+    Router::new()
+        .merge(api_routes.clone())
+        .nest("/api", api_routes)
         .layer(middleware::from_fn(http_trace::log))
         .layer(middleware::from_fn(request_id::inject))
         .with_state(state)

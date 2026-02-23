@@ -193,7 +193,34 @@ npm run dev -- --host 0.0.0.0 --port 8090
 - `RATE_LIMIT_ROOM_JOIN` default `20`
 - `RATE_LIMIT_INVITE_REDEEM` default `12`
 - `RATE_LIMIT_BROADCAST_START` default `3`
+- `RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE` default `2`
+- `RATE_LIMIT_AVATAR_UPLOAD_PER_DAY` default `20`
+- `AVATAR_STORAGE_QUOTA_BYTES` default `524288000` (500MB)
 - `TRUSTED_PROXY_IPS` default empty (example: `127.0.0.1,192.168.1.20`)
+
+## Avatar hardening
+
+- Upload endpoint: `POST /users/avatar/upload` (requires `app_session_token`)
+- Request body hard limit: 2MB
+- Allowed types: png / jpg / webp (data URL + magic-byte check)
+- Server transcode: always resize/crop to `256x256` and store as `.webp`
+- Per-user limits: 2/minute, 100/day
+- Storage quota: reject new uploads when avatar dir exceeds configured bytes
+- Keep-one policy: new upload replaces old avatar file for that user
+
+Nightly orphan cleanup:
+
+```bash
+cd /opt/livekit/control-plane
+make cleanup-orphan-avatars
+```
+
+Install nightly cron (03:15 local time):
+
+```bash
+mkdir -p /opt/livekit/control-plane/logs
+(crontab -l 2>/dev/null; cat /opt/livekit/control-plane/deploy/cron/cleanup-orphan-avatars.cron) | crontab -
+```
 
 ## End-to-end flow (invite + secure start)
 

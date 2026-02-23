@@ -20,6 +20,7 @@ import type {
   StartBroadcastReq,
   StartBroadcastResp,
   StopBroadcastReq,
+  UploadAvatarResp,
 } from "./types";
 
 type TokenGetters = {
@@ -175,6 +176,22 @@ export function createApi(baseURL: string, getters: TokenGetters) {
         const { data } = await withAppSession.post(
           `/rooms/${encodeURIComponent(roomId)}/messages`,
           payload,
+        );
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async uploadAvatar(dataUrl: string, appTokenOverride?: string): Promise<UploadAvatarResp> {
+      try {
+        const headers = appTokenOverride
+          ? { Authorization: `Bearer ${appTokenOverride}` }
+          : undefined;
+        const { data } = await raw.post<UploadAvatarResp>(
+          "/users/avatar/upload",
+          { data_url: dataUrl },
+          { headers },
         );
         return data;
       } catch (e) {

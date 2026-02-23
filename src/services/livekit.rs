@@ -125,6 +125,10 @@ impl LiveKitService {
                 source: 0,
                 encoding_options: None,
             },
+            // Keep WHIP in bypass mode when source is already H264/Opus.
+            // This avoids the ingress transcoding path and its extra failure surface.
+            bypass_transcoding: true,
+            enable_transcoding: Some(false),
             ..Default::default()
         };
         let mut last_err = None;
@@ -135,8 +139,13 @@ impl LiveKitService {
                 .await
             {
                 Ok(ingress) => {
+                    let whip_url = if ingress.url.trim().is_empty() {
+                        fallback_whip_url_from_public_ws(&self.public_ws_url)
+                    } else {
+                        ingress.url
+                    };
                     return Ok(CreatedIngress {
-                        whip_url: ingress.url,
+                        whip_url,
                         stream_key: ingress.stream_key,
                         ingress_id: ingress.ingress_id,
                     });
@@ -232,5 +241,33 @@ impl LiveKitService {
         Err(AppError::LiveKit(
             last_err.unwrap_or_else(|| "mute all failed".to_string()),
         ))
+    }
+}
+
+fn fallback_whip_url_from_public_ws(public_ws_url: &str) -> String {
+    let ws = public_ws_url.trim().trim_end_matches('/');
+    if let Some(rest) = ws.strip_prefix("wss://") {
+        return format!("https://{rest}/w/");
+    }
+    if let Some(rest) = ws.strip_prefix("ws://") {
+        return format!("http://{rest}/w/");
+    }
+    format!("{ws}/w/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fallback_whip_url_from_public_ws;
+
+    #[test]
+    fn fallback_whip_url_from_ws_url() {
+        assert_eq!(
+            fallback_whip_url_from_public_ws("wss://livekit.ivena.top:44443"),
+            "https://livekit.ivena.top:44443/w/"
+        );
+        assert_eq!(
+            fallback_whip_url_from_public_ws("ws://127.0.0.1:7880"),
+            "http://127.0.0.1:7880/w/"
+        );
     }
 }

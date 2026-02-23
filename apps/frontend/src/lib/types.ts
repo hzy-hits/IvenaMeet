@@ -135,6 +135,10 @@ export interface CreateMessageReq {
   text: string;
 }
 
+export interface UploadAvatarResp {
+  avatar_url: string;
+}
+
 export interface MemberItem {
   identity: string;
   isLocal: boolean;

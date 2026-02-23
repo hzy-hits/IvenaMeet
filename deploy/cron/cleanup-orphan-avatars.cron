@@ -1,0 +1,2 @@
+# Run nightly at 03:15 local time
+15 3 * * * cd /opt/livekit/control-plane && /usr/bin/env bash ./scripts/cleanup-orphan-avatars.sh >> /opt/livekit/control-plane/logs/avatar-cleanup.log 2>&1

@@ -6,3 +6,6 @@
 /.env
 /apps/frontend/.env
 /deploy/env/frontend.env
+/data/avatars/
+/data/*.db-shm
+/data/*.db-wal

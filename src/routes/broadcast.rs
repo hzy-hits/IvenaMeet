@@ -190,9 +190,12 @@ async fn start_broadcast(
         .consume_broadcast_start(&mut redis, start_token, &room_id, &participant_identity)
         .await?;
 
+    // Keep WHIP ingress identity separate from the host's interactive identity.
+    // Reusing the exact same identity can trigger participant replacement churn in LiveKit.
+    let ingress_identity = format!("{participant_identity}__ingress");
     let ingress = state
         .livekit_service
-        .create_whip_ingress(&room_id, &participant_identity, &participant_name)
+        .create_whip_ingress(&room_id, &ingress_identity, &participant_name)
         .await?;
 
     info!(
@@ -200,6 +203,7 @@ async fn start_broadcast(
         route = "/broadcast/start",
         room_id,
         participant_identity,
+        ingress_identity,
         ip,
         ingress_id = ingress.ingress_id,
         result = "ok",

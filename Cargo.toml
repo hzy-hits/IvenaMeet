@@ -19,6 +19,8 @@ thiserror = "2.0"
 dotenvy = "0.15"
 rusqlite = { version = "0.32", features = ["bundled"] }
 google-authenticator = { version = "0.4", features = ["with-qrcode"] }
+base64 = "0.21"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 [patch.crates-io]
 livekit-api = { path = "vendor/livekit-api" }
