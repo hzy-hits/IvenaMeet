@@ -15,20 +15,25 @@
 
 - `POST /rooms/join`
   - `role=host|member`
-  - `host` join requires `Authorization: Bearer <ADMIN_TOKEN>`
+  - `host` join supports `Authorization: Bearer <host_session_token>` (or `ADMIN_TOKEN` for bootstrap)
   - room lifetime enforced (`ROOM_TTL_SECONDS`, default 4h)
   - returns short-lived `app_session_token` for app-level write APIs
+- `POST /host/login/totp`
+  - host login by `room_id + host_identity + totp_code`
+  - returns short-lived `host_session_token`
+- `POST /host/sessions/refresh`
+  - rotate/refresh `host_session_token` before expiry
 - `POST /sessions/refresh`
   - rotate/refresh `app_session_token` before expiry
-- `POST /auth/invite` (admin)
+- `POST /auth/invite` (control)
   - issue one-time invite link ticket + invite code
 - `POST /invites/redeem`
   - redeem `ticket + invite_code` to short-lived `redeem_token`
-- `POST /broadcast/issue` (admin)
+- `POST /broadcast/issue` (control)
   - issue one-time short-lived broadcast start token
-- `POST /broadcast/start` (admin)
+- `POST /broadcast/start` (control)
   - requires `start_token` and host binding check
-- `POST /broadcast/stop` (admin)
+- `POST /broadcast/stop` (control)
 - `POST /users/upsert`
 - `GET /rooms/:room_id/messages`
 - `POST /rooms/:room_id/messages`
@@ -37,9 +42,13 @@
 
 ## Security model
 
-- Admin routes require `Authorization: Bearer <ADMIN_TOKEN>`.
+- Control routes require `Authorization: Bearer <host_session_token>`:
+  - `/auth/invite`
+  - `/broadcast/*`
+  - `/moderation/*`
+- Admin token is reserved for management/bootstrap APIs (e.g. `/host/mfa/enroll`).
 - `broadcast/start` is protected by:
-  - admin auth
+  - control auth
   - room active check
   - host identity binding
   - one-time `start_token`
@@ -71,6 +80,41 @@ cp .env.example .env
 cargo run
 ```
 
+## Systemd (auto start backend + frontend)
+
+Service templates are under `deploy/systemd/`:
+- `ivena-meet-control-plane.service`
+- `ivena-meet-frontend.service`
+
+Install and enable:
+
+```bash
+cd /opt/livekit/control-plane
+sudo ./deploy/systemd/install.sh
+```
+
+Then complete runtime files and build:
+
+```bash
+cp /opt/livekit/control-plane/deploy/env/frontend.env.example /opt/livekit/control-plane/deploy/env/frontend.env
+# edit /opt/livekit/control-plane/.env
+```
+
+One-command deploy (build + restart services):
+
+```bash
+/opt/livekit/control-plane/deploy/systemd/deploy.sh
+```
+
+Check status/logs:
+
+```bash
+systemctl status ivena-meet-control-plane.service --no-pager
+systemctl status ivena-meet-frontend.service --no-pager
+journalctl -u ivena-meet-control-plane.service -f
+journalctl -u ivena-meet-frontend.service -f
+```
+
 ## Bootstrap a host (one command)
 
 Add a new host and bind it to a room in one step:
@@ -94,7 +138,7 @@ npm install
 npm run dev -- --host 0.0.0.0 --port 8090
 ```
 
-## Bearer admin token usage
+## Bearer admin token usage (bootstrap/management only)
 
 `Bearer ADMIN_TOKEN` is passed in the HTTP header:
 
@@ -148,12 +192,14 @@ npm run dev -- --host 0.0.0.0 --port 8090
 
 ## End-to-end flow (invite + secure start)
 
-1. Host joins room (`role=host`, with admin bearer) -> room becomes active for 4h.
-2. Admin issues invite (`/auth/invite`) -> receives `invite_ticket + invite_code + invite_url`.
-3. Member redeems invite (`/invites/redeem`) -> receives `redeem_token`.
-4. Member joins (`/rooms/join` with `redeem_token`).
-5. Admin issues broadcast token (`/broadcast/issue`).
-6. Admin starts broadcast (`/broadcast/start` with `start_token`).
+1. Bootstrap host once (`make bootstrap-host`) to enroll MFA and bind room.
+2. Host logs in with TOTP (`/host/login/totp`) and gets `host_session_token`.
+3. Host joins room (`/rooms/join role=host`, bearer `host_session_token`).
+4. Host issues invite (`/auth/invite`) -> `invite_ticket + invite_code + invite_url`.
+5. Member redeems invite (`/invites/redeem`) -> `redeem_token`.
+6. Member joins (`/rooms/join` with `redeem_token`).
+7. Host issues broadcast token (`/broadcast/issue`).
+8. Host starts broadcast (`/broadcast/start` with `start_token`).
 
 ## Reverse proxy (recommended)
 
@@ -161,29 +207,44 @@ npm run dev -- --host 0.0.0.0 --port 8090
 - `meet.ivena.top/api` -> `192.168.1.108:3000` (control-plane)
 - `livekit.ivena.top` -> LiveKit server (WSS)
 
+Nginx Proxy Manager mapping:
+- Proxy host A (`meet.ivena.top`):
+  - forward to `http://192.168.1.108:8090`
+  - add advanced location `/api` -> `http://192.168.1.108:3000`
+- Proxy host B (`livekit.ivena.top`):
+  - forward to `http://192.168.1.108:7880`
+  - enable SSL + WebSocket
+- Add NPM internal IP to backend `TRUSTED_PROXY_IPS`.
+
 ## Minimal curl
 
 ```bash
-export ADMIN_TOKEN='replace-with-strong-random-token'
+# 1) bootstrap once (admin)
+ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='host-1' make bootstrap-host
 
-# 1) host join (create/refresh room)
+# 2) host login with TOTP
+curl -sS -X POST http://127.0.0.1:3000/host/login/totp \
+  -H 'content-type: application/json' \
+  -d '{"room_id":"test","host_identity":"host-1","totp_code":"123456"}'
+
+# 3) host join with host_session_token
 curl -sS -X POST http://127.0.0.1:3000/rooms/join \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
+  -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","user_name":"host-1","role":"host"}'
 
-# 2) issue invite
+# 4) issue invite
 curl -sS -X POST http://127.0.0.1:3000/auth/invite \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
+  -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","host_identity":"host-1"}'
 
-# 3) redeem invite
+# 5) redeem invite
 curl -sS -X POST http://127.0.0.1:3000/invites/redeem \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","user_name":"alice","invite_ticket":"<ticket>","invite_code":"<code>"}'
 
-# 4) member join with redeem_token
+# 6) member join with redeem_token
 curl -sS -X POST http://127.0.0.1:3000/rooms/join \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","user_name":"alice","role":"member","redeem_token":"<redeem_token>"}'
@@ -200,15 +261,15 @@ curl -sS -X POST http://127.0.0.1:3000/sessions/refresh \
   -H 'content-type: application/json' \
   -d '{}'
 
-# 5) issue short broadcast start token
+# 7) issue short broadcast start token
 curl -sS -X POST http://127.0.0.1:3000/broadcast/issue \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
+  -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","host_identity":"host-1"}'
 
-# 6) start broadcast with one-time token
+# 8) start broadcast with one-time token
 curl -sS -X POST http://127.0.0.1:3000/broadcast/start \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
+  -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","participant_identity":"host-1","start_token":"<start_token>"}'
 ```

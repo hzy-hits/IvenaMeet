@@ -1,0 +1,23 @@
+[Unit]
+Description=Ivena Meet Control Plane (Rust)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ivena
+Group=ivena
+WorkingDirectory=/opt/livekit/control-plane
+EnvironmentFile=/opt/livekit/control-plane/.env
+ExecStart=/opt/livekit/control-plane/target/release/ivena-meet-control-plane
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/opt/livekit/control-plane /tmp
+
+[Install]
+WantedBy=multi-user.target

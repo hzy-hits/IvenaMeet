@@ -3,3 +3,6 @@
 /apps/frontend/dist
 /apps/frontend/.vite
 /apps/frontend/*.tsbuildinfo
+/.env
+/apps/frontend/.env
+/deploy/env/frontend.env

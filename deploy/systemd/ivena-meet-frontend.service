@@ -1,0 +1,23 @@
+[Unit]
+Description=Ivena Meet Frontend (static server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ivena
+Group=ivena
+WorkingDirectory=/opt/livekit/control-plane/apps/frontend
+EnvironmentFile=/opt/livekit/control-plane/deploy/env/frontend.env
+ExecStart=/usr/bin/python3 -m http.server ${FRONTEND_PORT} --bind 0.0.0.0 --directory /opt/livekit/control-plane/apps/frontend/dist
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/opt/livekit/control-plane /tmp
+
+[Install]
+WantedBy=multi-user.target
