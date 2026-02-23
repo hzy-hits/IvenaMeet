@@ -1,8 +1,9 @@
 use crate::error::AppResult;
+use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::state::AppState;
 use crate::validation;
-use axum::{Json, Router, extract::State, http::HeaderMap, routing::post};
+use axum::{Json, Router, extract::{Extension, State}, http::HeaderMap, routing::post};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -27,12 +28,31 @@ struct CreateInviteReq {
 
 async fn create_invite(
     State(state): State<AppState>,
+    Extension(principal): Extension<ControlPrincipal>,
     headers: HeaderMap,
     Json(req): Json<CreateInviteReq>,
 ) -> AppResult<Json<CreateInviteResp>> {
     let request_id = request_meta::request_id(&headers);
     let room_id = validation::room_id(&req.room_id)?;
     let host_identity = validation::user_name(&req.host_identity)?;
+
+    if let ControlPrincipal::Host(claims) = principal {
+        if claims.room_id != room_id || claims.user_name != host_identity {
+            warn!(
+                request_id,
+                route = "/auth/invite",
+                room_id,
+                host_identity,
+                token_room_id = claims.room_id,
+                token_user_name = claims.user_name,
+                result = "denied",
+                "host token scope mismatch"
+            );
+            return Err(crate::error::AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
+        }
+    }
 
     let room = state
         .storage_service

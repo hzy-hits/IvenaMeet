@@ -1,7 +1,10 @@
 use crate::error::{AppError, AppResult};
 use livekit_api::{
     access_token::{AccessToken, VideoGrants},
-    services::ingress::{CreateIngressOptions, IngressClient},
+    services::{
+        ingress::{CreateIngressOptions, IngressClient},
+        room::RoomClient,
+    },
 };
 use livekit_protocol as proto;
 use std::time::Duration;
@@ -137,5 +140,62 @@ impl LiveKitService {
             .await
             .map_err(|e| AppError::LiveKit(e.to_string()))?;
         Ok(())
+    }
+
+    pub async fn mute_participant_microphone(
+        &self,
+        room_id: &str,
+        participant_identity: &str,
+        muted: bool,
+    ) -> AppResult<u32> {
+        let client = RoomClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
+        let participant = client
+            .get_participant(room_id, participant_identity)
+            .await
+            .map_err(|e| AppError::LiveKit(e.to_string()))?;
+
+        let mut changed = 0_u32;
+        for track in participant.tracks {
+            if track.source != proto::TrackSource::Microphone as i32 {
+                continue;
+            }
+            client
+                .mute_published_track(room_id, participant_identity, &track.sid, muted)
+                .await
+                .map_err(|e| AppError::LiveKit(e.to_string()))?;
+            changed += 1;
+        }
+        Ok(changed)
+    }
+
+    pub async fn mute_all_microphones(
+        &self,
+        room_id: &str,
+        exclude_identity: Option<&str>,
+        muted: bool,
+    ) -> AppResult<u32> {
+        let client = RoomClient::with_api_key(&self.api_host, &self.api_key, &self.api_secret);
+        let participants = client
+            .list_participants(room_id)
+            .await
+            .map_err(|e| AppError::LiveKit(e.to_string()))?;
+
+        let mut changed = 0_u32;
+        for participant in participants {
+            if exclude_identity.is_some_and(|id| id == participant.identity) {
+                continue;
+            }
+            for track in participant.tracks {
+                if track.source != proto::TrackSource::Microphone as i32 {
+                    continue;
+                }
+                client
+                    .mute_published_track(room_id, &participant.identity, &track.sid, muted)
+                    .await
+                    .map_err(|e| AppError::LiveKit(e.to_string()))?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
     }
 }

@@ -36,6 +36,8 @@ pub struct JoinResp {
     pub role: String,
     pub app_session_token: String,
     pub app_session_expires_in_seconds: u64,
+    pub host_session_token: Option<String>,
+    pub host_session_expires_in_seconds: Option<u64>,
 }
 
 async fn join_room(
@@ -56,16 +58,42 @@ async fn join_room(
 
     if role == UserRole::Host {
         let token = bearer_from_headers(&headers)
-            .ok_or_else(|| AppError::Unauthorized("host join requires admin token".to_string()))?;
+            .ok_or_else(|| {
+                AppError::Unauthorized(
+                    "host join requires admin token or host session token".to_string(),
+                )
+            })?;
         if token != state.config.admin_token {
-            warn!(
-                request_id,
-                route = "/rooms/join",
-                room_id,
-                user_name,
-                "host join denied: invalid admin token"
-            );
-            return Err(AppError::Unauthorized("invalid admin token".to_string()));
+            let mut redis = state.redis.clone();
+            let claims = state
+                .host_session_service
+                .verify(&mut redis, token)
+                .await
+                .map_err(|_| {
+                    warn!(
+                        request_id,
+                        route = "/rooms/join",
+                        room_id,
+                        user_name,
+                        "host join denied: invalid host session token"
+                    );
+                    AppError::Unauthorized("invalid host session token".to_string())
+                })?;
+            if claims.role != "host" || claims.room_id != room_id || claims.user_name != user_name {
+                warn!(
+                    request_id,
+                    route = "/rooms/join",
+                    room_id,
+                    user_name,
+                    token_room_id = claims.room_id,
+                    token_user_name = claims.user_name,
+                    token_role = claims.role,
+                    "host join denied: host session scope mismatch"
+                );
+                return Err(AppError::Unauthorized(
+                    "host session scope mismatch".to_string(),
+                ));
+            }
         }
         state
             .storage_service
@@ -138,6 +166,24 @@ async fn join_room(
             state.config.session_ttl_seconds,
         )
         .await?;
+    let host_session_token = if role == UserRole::Host {
+        Some(
+            state
+                .host_session_service
+                .issue(
+                    &mut redis,
+                    SessionClaims {
+                        user_name: user_name.clone(),
+                        room_id: room_id.clone(),
+                        role: "host".to_string(),
+                    },
+                    state.config.host_session_ttl_seconds,
+                )
+                .await?,
+        )
+    } else {
+        None
+    };
 
     info!(
         request_id,
@@ -163,6 +209,12 @@ async fn join_room(
         },
         app_session_token,
         app_session_expires_in_seconds: state.config.session_ttl_seconds,
+        host_session_token,
+        host_session_expires_in_seconds: if role == UserRole::Host {
+            Some(state.config.host_session_ttl_seconds)
+        } else {
+            None
+        },
     }))
 }
 

@@ -1,18 +1,24 @@
 import { useMemo, useState } from "react";
 import type { JoinResp, MemberItem, MessageItem, Role } from "../lib/types";
-import { API_BASE_URL, REQUIRE_INVITE } from "../lib/env";
+import {
+  API_BASE_URL,
+  DEFAULT_ROOM_ID,
+  DEFAULT_ROLE,
+  DEFAULT_USER_NAME,
+  LOG_MAX_LINES,
+  REQUIRE_INVITE,
+} from "../lib/env";
 import { createApi } from "../lib/api";
 import { Sidebar } from "./Sidebar";
 import { MainStage } from "./MainStage";
 
 export function Layout() {
-  const [adminToken, setAdminToken] = useState("");
+  const [hostSessionToken, setHostSessionToken] = useState("");
   const [appSessionToken, setAppSessionToken] = useState("");
 
-  const [roomId, setRoomId] = useState("test");
-  const [userName, setUserName] = useState("guest_01");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [role, setRole] = useState<Role>("member");
+  const [roomId, setRoomId] = useState(DEFAULT_ROOM_ID);
+  const [userName, setUserName] = useState(DEFAULT_USER_NAME);
+  const [role, setRole] = useState<Role>(DEFAULT_ROLE);
 
   const [joined, setJoined] = useState<JoinResp | null>(null);
   const [members, setMembers] = useState<MemberItem[]>([]);
@@ -22,14 +28,14 @@ export function Layout() {
   const api = useMemo(
     () =>
       createApi(API_BASE_URL, {
-        getAdminToken: () => adminToken,
+        getControlToken: () => hostSessionToken,
         getAppSessionToken: () => appSessionToken,
       }),
-    [adminToken, appSessionToken],
+    [hostSessionToken, appSessionToken],
   );
 
   const pushLog = (line: string) => {
-    setLogs((prev) => [...prev.slice(-249), `[${new Date().toLocaleTimeString()}] ${line}`]);
+    setLogs((prev) => [...prev.slice(-(LOG_MAX_LINES - 1)), `[${new Date().toLocaleTimeString()}] ${line}`]);
   };
 
   return (
@@ -39,19 +45,16 @@ export function Layout() {
           <Sidebar
             requireInvite={REQUIRE_INVITE}
             api={api}
-            adminToken={adminToken}
-            setAdminToken={setAdminToken}
             roomId={roomId}
             setRoomId={setRoomId}
             userName={userName}
             setUserName={setUserName}
-            avatarUrl={avatarUrl}
-            setAvatarUrl={setAvatarUrl}
             role={role}
             setRole={setRole}
             joined={joined}
             setJoined={setJoined}
             setAppSessionToken={setAppSessionToken}
+            setHostSessionToken={setHostSessionToken}
             members={members}
             messages={messages}
             setMessages={setMessages}

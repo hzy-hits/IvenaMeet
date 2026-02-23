@@ -3,11 +3,16 @@ import type {
   CreateInviteReq,
   CreateInviteResp,
   CreateMessageReq,
+  HostLoginResp,
+  HostLoginTotpReq,
   IssueBroadcastReq,
   IssueBroadcastResp,
   JoinReq,
   JoinResp,
   ListMessagesResp,
+  MuteAllReq,
+  MuteMemberReq,
+  MuteResp,
   RedeemInviteReq,
   RedeemInviteResp,
   RefreshSessionResp,
@@ -17,7 +22,7 @@ import type {
 } from "./types";
 
 type TokenGetters = {
-  getAdminToken: () => string;
+  getControlToken: () => string;
   getAppSessionToken: () => string;
 };
 
@@ -29,9 +34,9 @@ function toError(e: unknown): never {
 export function createApi(baseURL: string, getters: TokenGetters) {
   const raw = axios.create({ baseURL, timeout: 12000 });
 
-  const withAdmin = axios.create({ baseURL, timeout: 12000 });
-  withAdmin.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-    const token = getters.getAdminToken();
+  const withControl = axios.create({ baseURL, timeout: 12000 });
+  withControl.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+    const token = getters.getControlToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   });
@@ -44,9 +49,29 @@ export function createApi(baseURL: string, getters: TokenGetters) {
   });
 
   return {
-    async join(payload: JoinReq): Promise<JoinResp> {
+    async join(payload: JoinReq, authToken?: string): Promise<JoinResp> {
       try {
-        const { data } = await raw.post<JoinResp>("/rooms/join", payload);
+        const { data } = await raw.post<JoinResp>("/rooms/join", payload, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        });
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async loginHostWithTotp(payload: HostLoginTotpReq): Promise<HostLoginResp> {
+      try {
+        const { data } = await raw.post<HostLoginResp>("/host/login/totp", payload);
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async refreshHostSession(): Promise<HostLoginResp> {
+      try {
+        const { data } = await withControl.post<HostLoginResp>("/host/sessions/refresh", {});
         return data;
       } catch (e) {
         toError(e);
@@ -73,7 +98,7 @@ export function createApi(baseURL: string, getters: TokenGetters) {
 
     async issueInvite(payload: CreateInviteReq): Promise<CreateInviteResp> {
       try {
-        const { data } = await withAdmin.post<CreateInviteResp>("/auth/invite", payload);
+        const { data } = await withControl.post<CreateInviteResp>("/auth/invite", payload);
         return data;
       } catch (e) {
         toError(e);
@@ -82,7 +107,7 @@ export function createApi(baseURL: string, getters: TokenGetters) {
 
     async issueBroadcast(payload: IssueBroadcastReq): Promise<IssueBroadcastResp> {
       try {
-        const { data } = await withAdmin.post<IssueBroadcastResp>("/broadcast/issue", payload);
+        const { data } = await withControl.post<IssueBroadcastResp>("/broadcast/issue", payload);
         return data;
       } catch (e) {
         toError(e);
@@ -91,7 +116,7 @@ export function createApi(baseURL: string, getters: TokenGetters) {
 
     async startBroadcast(payload: StartBroadcastReq): Promise<StartBroadcastResp> {
       try {
-        const { data } = await withAdmin.post<StartBroadcastResp>("/broadcast/start", payload);
+        const { data } = await withControl.post<StartBroadcastResp>("/broadcast/start", payload);
         return data;
       } catch (e) {
         toError(e);
@@ -100,7 +125,25 @@ export function createApi(baseURL: string, getters: TokenGetters) {
 
     async stopBroadcast(payload: StopBroadcastReq): Promise<void> {
       try {
-        await withAdmin.post("/broadcast/stop", payload);
+        await withControl.post("/broadcast/stop", payload);
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async muteMember(payload: MuteMemberReq): Promise<MuteResp> {
+      try {
+        const { data } = await withControl.post<MuteResp>("/moderation/mute", payload);
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async muteAll(payload: MuteAllReq): Promise<MuteResp> {
+      try {
+        const { data } = await withControl.post<MuteResp>("/moderation/mute-all", payload);
+        return data;
       } catch (e) {
         toError(e);
       }

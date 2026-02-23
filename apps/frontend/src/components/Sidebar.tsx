@@ -4,17 +4,25 @@ import {
   ChevronRight,
   CircleStop,
   Copy,
+  Image,
   ImagePlus,
   LogOut,
   MessageCircle,
   Mic,
   MicOff,
+  ShieldCheck,
   Radio,
   Send,
-  Shield,
   Ticket,
   UserPlus,
 } from "lucide-react";
+import {
+  AVATAR_MAX_BYTES,
+  CHAT_HISTORY_LIMIT,
+  INVITE_COPY_HINT_MS,
+  SESSION_REFRESH_BEFORE_SECONDS,
+  SESSION_REFRESH_POLL_MS,
+} from "../lib/env";
 import type { JoinResp, MemberItem, MessageItem, Role } from "../lib/types";
 
 type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
@@ -22,19 +30,16 @@ type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
 type Props = {
   requireInvite: boolean;
   api: ApiClient;
-  adminToken: string;
-  setAdminToken: (v: string) => void;
   roomId: string;
   setRoomId: (v: string) => void;
   userName: string;
   setUserName: (v: string) => void;
-  avatarUrl: string;
-  setAvatarUrl: (v: string) => void;
   role: Role;
   setRole: (v: Role) => void;
   joined: JoinResp | null;
   setJoined: (v: JoinResp | null) => void;
   setAppSessionToken: (v: string) => void;
+  setHostSessionToken: (v: string) => void;
   members: MemberItem[];
   messages: MessageItem[];
   setMessages: Dispatch<SetStateAction<MessageItem[]>>;
@@ -54,19 +59,16 @@ export function Sidebar(props: Props) {
   const {
     requireInvite,
     api,
-    adminToken,
-    setAdminToken,
     roomId,
     setRoomId,
     userName,
     setUserName,
-    avatarUrl,
-    setAvatarUrl,
     role,
     setRole,
     joined,
     setJoined,
     setAppSessionToken,
+    setHostSessionToken,
     members,
     messages,
     setMessages,
@@ -77,9 +79,11 @@ export function Sidebar(props: Props) {
   const [inviteCode, setInviteCode] = useState("");
   const [inviteTicket, setInviteTicket] = useState("");
   const [redeemToken, setRedeemToken] = useState("");
+  const [hostTotpCode, setHostTotpCode] = useState("");
   const [chatText, setChatText] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
   const [sessionExpireAt, setSessionExpireAt] = useState(0);
+  const [hostSessionExpireAt, setHostSessionExpireAt] = useState(0);
   const [ingressId, setIngressId] = useState("");
   const [whipUrl, setWhipUrl] = useState("");
   const [streamKey, setStreamKey] = useState("");
@@ -89,9 +93,21 @@ export function Sidebar(props: Props) {
   const [openMembers, setOpenMembers] = useState(true);
   const [openChat, setOpenChat] = useState(true);
   const [openLogs, setOpenLogs] = useState(false);
+  const [hostEntryUnlocked, setHostEntryUnlocked] = useState(false);
 
   const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const [avatarStatus, setAvatarStatus] = useState<{
+    kind: "idle" | "ok" | "error";
+    text: string;
+  }>({ kind: "idle", text: "未上传，使用默认头像" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inviteMode = Boolean(inviteTicket);
+  const effectiveRole: Role = inviteMode ? "member" : hostEntryUnlocked ? "host" : role;
+  const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
+  const isHost = useMemo(
+    () => (joined?.role ?? effectiveRole) === "host",
+    [joined?.role, effectiveRole],
+  );
 
   useEffect(() => {
     const parsed = parseInviteFromQuery();
@@ -99,13 +115,14 @@ export function Sidebar(props: Props) {
     if (parsed.ticket) {
       setInviteTicket(parsed.ticket);
       setRole("member");
+      setHostEntryUnlocked(false);
     }
   }, [setRoomId, setRole]);
 
   useEffect(() => {
     if (!joined) return;
     api
-      .listMessages(roomId, 80)
+      .listMessages(roomId, CHAT_HISTORY_LIMIT)
       .then((res) => setMessages(res.items))
       .catch((e) => pushLog(`history error: ${String(e)}`));
   }, [joined, roomId, api, setMessages, pushLog]);
@@ -114,7 +131,7 @@ export function Sidebar(props: Props) {
     if (!joined || !sessionExpireAt) return;
     const timer = window.setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
-      if (now >= sessionExpireAt - 120) {
+      if (now >= sessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
         void api
           .refreshSession()
           .then((res) => {
@@ -124,20 +141,43 @@ export function Sidebar(props: Props) {
           })
           .catch((e) => pushLog(`session refresh failed: ${String(e)}`));
       }
-    }, 30_000);
+    }, SESSION_REFRESH_POLL_MS);
     return () => window.clearInterval(timer);
   }, [joined, sessionExpireAt, api, setAppSessionToken, pushLog]);
 
-  const inviteMode = Boolean(inviteTicket);
-  const effectiveRole: Role = inviteMode ? "member" : role;
-  const isHost = useMemo(
-    () => (joined?.role ?? effectiveRole) === "host",
-    [joined?.role, effectiveRole],
-  );
+  useEffect(() => {
+    if (!joined || !isHost || !hostSessionExpireAt) return;
+    const timer = window.setInterval(() => {
+      const now = Math.floor(Date.now() / 1000);
+      if (now >= hostSessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
+        void api
+          .refreshHostSession()
+          .then((res) => {
+            setHostSessionToken(res.host_session_token);
+            setHostSessionExpireAt(now + res.expires_in_seconds);
+            pushLog("host session refreshed");
+          })
+          .catch((e) => {
+            setJoined(null);
+            setAppSessionToken("");
+            setHostSessionToken("");
+            setHostSessionExpireAt(0);
+            setHostTotpCode("");
+            setMessages([]);
+            pushLog(`host session refresh failed: ${String(e)}`);
+            pushLog("主持权限已过期，请重新输入 TOTP");
+          });
+      }
+    }, SESSION_REFRESH_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [joined, isHost, hostSessionExpireAt, api, setAppSessionToken, setHostSessionToken, setJoined, setMessages, pushLog]);
 
   const leaveRoom = async () => {
     setJoined(null);
     setAppSessionToken("");
+    setHostSessionToken("");
+    setHostTotpCode("");
+    setHostSessionExpireAt(0);
     setSessionExpireAt(0);
     setMessages([]);
     pushLog("left room");
@@ -155,6 +195,7 @@ export function Sidebar(props: Props) {
       }
 
       let token = redeemToken.trim();
+      let joinAuthToken: string | undefined;
       if ((requireInvite || inviteMode) && effectiveRole === "member" && !token) {
         if (!inviteCode.trim() || !inviteTicket.trim()) {
           throw new Error("invite_code and invite_ticket required");
@@ -169,18 +210,32 @@ export function Sidebar(props: Props) {
         setRedeemToken(token);
         pushLog("invite redeemed");
       }
+      if (effectiveRole === "host") {
+        const verified = await api.loginHostWithTotp({
+          room_id: roomId.trim(),
+          host_identity: userName.trim(),
+          totp_code: hostTotpCode.trim(),
+        });
+        setHostSessionToken(verified.host_session_token);
+        setHostSessionExpireAt(Math.floor(Date.now() / 1000) + verified.expires_in_seconds);
+        joinAuthToken = verified.host_session_token;
+        pushLog("host login verified");
+      }
 
       const res = await api.join({
         room_id: roomId.trim(),
         user_name: userName.trim(),
         role: effectiveRole,
         nickname: userName.trim(),
-        avatar_url: avatarUrl.trim() || undefined,
         redeem_token: token || undefined,
-      });
+      }, joinAuthToken);
 
       setJoined(res);
       setAppSessionToken(res.app_session_token);
+      setHostSessionToken(res.host_session_token ?? "");
+      if (res.host_session_token && res.host_session_expires_in_seconds) {
+        setHostSessionExpireAt(Math.floor(Date.now() / 1000) + res.host_session_expires_in_seconds);
+      }
       setSessionExpireAt(Math.floor(Date.now() / 1000) + res.app_session_expires_in_seconds);
       pushLog(`joined: ${userName} (${res.role})`);
     } finally {
@@ -200,8 +255,12 @@ export function Sidebar(props: Props) {
     setInviteCode(payload.invite_code);
     setInviteTicket(payload.invite_ticket);
     setInviteCopied(true);
-    window.setTimeout(() => setInviteCopied(false), 1800);
+    window.setTimeout(() => setInviteCopied(false), INVITE_COPY_HINT_MS);
+    const hostRoomUrl = `/?room=${encodeURIComponent(roomId.trim())}`;
+    window.history.replaceState({}, "", hostRoomUrl);
+    setRole("host");
     pushLog("invite issued and copied");
+    pushLog(`switched to host room url: ${hostRoomUrl}`);
   };
 
   const startBroadcast = async () => {
@@ -230,11 +289,30 @@ export function Sidebar(props: Props) {
     pushLog("broadcast stopped");
   };
 
+  const muteAll = async (muted: boolean) => {
+    const res = await api.muteAll({
+      room_id: roomId.trim(),
+      host_identity: userName.trim(),
+      muted,
+    });
+    pushLog(`${muted ? "mute all" : "unmute all"} applied (${res.affected_tracks})`);
+  };
+
+  const muteOne = async (targetIdentity: string, muted: boolean) => {
+    const res = await api.muteMember({
+      room_id: roomId.trim(),
+      host_identity: userName.trim(),
+      target_identity: targetIdentity,
+      muted,
+    });
+    pushLog(`${muted ? "mute" : "unmute"} ${targetIdentity} (${res.affected_tracks})`);
+  };
+
   const sendChat = async () => {
     const text = chatText.trim();
     if (!text || !joined) return;
     await api.createMessage(roomId.trim(), { text });
-    const next = await api.listMessages(roomId.trim(), 80);
+    const next = await api.listMessages(roomId.trim(), CHAT_HISTORY_LIMIT);
     setMessages(next.items);
     setChatText("");
   };
@@ -243,9 +321,22 @@ export function Sidebar(props: Props) {
 
   const onAvatarFileChange = (file?: File) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setAvatarPreview("");
+      setAvatarStatus({ kind: "error", text: "上传失败：仅支持图片，已使用默认头像" });
+      pushLog("avatar upload failed: only image files are allowed, using default avatar");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarPreview("");
+      setAvatarStatus({ kind: "error", text: "上传失败：图片超过 2MB，已使用默认头像" });
+      pushLog("avatar upload failed: file must be <= 2MB, using default avatar");
+      return;
+    }
     const url = URL.createObjectURL(file);
     setAvatarPreview(url);
-    pushLog("avatar selected (local preview only)");
+    setAvatarStatus({ kind: "ok", text: "头像已选择（当前为本地预览）" });
+    pushLog("avatar selected");
   };
 
   const run = (fn: () => Promise<void>) => {
@@ -259,7 +350,9 @@ export function Sidebar(props: Props) {
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold">Command Center</h2>
-              <p className="text-xs text-white/60">{roomId} · {joined?.role ?? effectiveRole}</p>
+              <p className="text-xs text-white/60">
+                {joined ? `房间: ${roomId} · 身份: ${joined.role}` : "未加入房间"}
+              </p>
             </div>
             {joined ? (
               <button
@@ -294,6 +387,18 @@ export function Sidebar(props: Props) {
               >
                 <CircleStop size={16} /> Stop Broadcast
               </button>
+              <button
+                onClick={() => run(() => muteAll(true))}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+              >
+                全员静音
+              </button>
+              <button
+                onClick={() => run(() => muteAll(false))}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+              >
+                解除全员静音
+              </button>
             </div>
             {inviteCopied ? (
               <div className="mt-2 inline-flex items-center gap-2 rounded-xl border border-ok/50 bg-ok/15 px-3 py-1 text-xs text-ok">
@@ -321,10 +426,20 @@ export function Sidebar(props: Props) {
                   }`}
                 >
                   <span className="truncate text-sm">{m.identity}{m.isLocal ? " (me)" : ""}</span>
-                  <span className="inline-flex items-center gap-1 text-xs text-white/60">
-                    {m.micEnabled ? <Mic size={12} /> : <MicOff size={12} />}
-                    {m.speaking ? "speaking" : "idle"}
-                  </span>
+                  <div className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 text-xs text-white/60">
+                      {m.micEnabled ? <Mic size={12} /> : <MicOff size={12} />}
+                      {m.speaking ? "speaking" : "idle"}
+                    </span>
+                    {isHost && !m.isLocal ? (
+                      <button
+                        onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
+                        className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
+                      >
+                        {m.micEnabled ? "静音" : "解除"}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -350,7 +465,7 @@ export function Sidebar(props: Props) {
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex items-center gap-2">
                   <input
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
@@ -362,7 +477,7 @@ export function Sidebar(props: Props) {
                   />
                   <button
                     onClick={() => run(sendChat)}
-                    className="inline-flex rounded-xl bg-accent px-3 py-2 text-[#06211f]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-[#06211f]"
                   >
                     <Send size={16} />
                   </button>
@@ -392,7 +507,37 @@ export function Sidebar(props: Props) {
         </section>
       </aside>
 
-      {!joined ? (
+      {showInviteGate ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-card/80 p-5 backdrop-blur-md">
+            <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
+            <p className="mt-1 text-sm text-white/60">
+              需要邀请链接才能进入房间。若你是主持人，请走主持人入口。
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setHostEntryUnlocked(true)}
+                className="rounded-xl bg-accent px-3 py-2 font-semibold text-[#06211f]"
+              >
+                主持人入口
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-xl bg-white/10 px-3 py-2 text-white"
+              >
+                我有邀请链接
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-white/50">
+              邀请模式请使用包含 room/ticket 参数的完整链接打开。
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {!joined && !showInviteGate ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-card/80 p-5 backdrop-blur-md">
             <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
@@ -412,42 +557,55 @@ export function Sidebar(props: Props) {
                 className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2"
               />
 
-              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
-                  {avatarPreview ? <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" /> : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={onPickAvatar}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
-                >
-                  <ImagePlus size={16} /> 上传头像
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
-                  className="hidden"
-                />
-              </div>
-              <input
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="avatar_url (optional https://...)"
-                className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2"
-              />
-              <p className="font-mono text-[11px] text-white/50">说明：当前后端只持久化 https 头像 URL；上传按钮用于本地预览。</p>
+              {effectiveRole === "member" ? (
+                <>
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                    <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-white/60">
+                          <Image size={14} />
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onPickAvatar}
+                      className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+                    >
+                      <ImagePlus size={16} /> 上传头像
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
+                      className="hidden"
+                    />
+                  </div>
+                  <p
+                    className={`font-mono text-[11px] ${
+                      avatarStatus.kind === "ok"
+                        ? "text-ok"
+                        : avatarStatus.kind === "error"
+                          ? "text-red-300"
+                          : "text-white/50"
+                    }`}
+                  >
+                    {avatarStatus.text}
+                  </p>
+                </>
+              ) : null}
 
-              {!inviteMode ? (
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as Role)}
-                  className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2"
-                >
-                  <option value="member">member</option>
-                  <option value="host">host</option>
-                </select>
+              {hostEntryUnlocked ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                  host mode
+                </div>
+              ) : !inviteMode ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                  member mode
+                </div>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
                   invite mode: member
@@ -475,17 +633,29 @@ export function Sidebar(props: Props) {
               ) : null}
 
               {effectiveRole === "host" ? (
-                <div className="relative">
-                  <Shield size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
-                  <input
-                    value={adminToken}
-                    onChange={(e) => setAdminToken(e.target.value)}
-                    type="password"
-                    placeholder="ADMIN_TOKEN"
-                    className="font-mono w-full rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs"
-                  />
+                <>
+                  <div className="relative">
+                    <ShieldCheck size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+                    <input
+                      value={hostTotpCode}
+                      onChange={(e) => setHostTotpCode(e.target.value)}
+                      type="password"
+                      placeholder="TOTP 动态码（6位）"
+                      className="font-mono w-full rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs"
+                    />
+                  </div>
+                  <p className="font-mono text-[11px] text-white/50">
+                    使用 TOTP 验证后签发 15 分钟主持会话，系统会自动续期。
+                  </p>
+                </>
+              ) : null}
+
+              {effectiveRole === "host" && hostSessionExpireAt > 0 ? (
+                <div className="rounded-xl border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-ok">
+                  主持人认证凭证已就绪
                 </div>
               ) : null}
+
             </div>
 
             <button

@@ -14,9 +14,16 @@ React + Vite frontend for the private LiveKit stage.
 
 ```bash
 cd /opt/livekit/control-plane/apps/frontend
+cp .env.example .env
 npm install
 npm run dev -- --host 0.0.0.0 --port 8090
 ```
+
+## Frontend config
+
+All frontend runtime config is centralized in:
+- `.env` (from `.env.example`)
+- `src/lib/env.ts`
 
 ## Required backend routes
 

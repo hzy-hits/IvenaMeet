@@ -71,6 +71,21 @@ cp .env.example .env
 cargo run
 ```
 
+## Bootstrap a host (one command)
+
+Add a new host and bind it to a room in one step:
+
+```bash
+cd /opt/livekit/control-plane
+ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='alice_host' make bootstrap-host
+```
+
+This command does two admin operations:
+- enroll host MFA (`/host/mfa/enroll`)
+- create/refresh host room binding (`/rooms/join role=host`)
+
+The output includes `otpauth_url` for Google Authenticator scanning.
+
 Run frontend:
 
 ```bash
@@ -98,6 +113,20 @@ npm run dev -- --host 0.0.0.0 --port 8090
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `ADMIN_TOKEN`
+
+## Config map (single places to edit)
+
+- Backend env + defaults:
+  - `.env` / `.env.example`
+  - `src/config.rs`
+- Frontend env + defaults:
+  - `apps/frontend/.env` / `apps/frontend/.env.example`
+  - `apps/frontend/src/lib/env.ts`
+- Host bootstrap helper:
+  - `scripts/bootstrap-host.sh`
+  - `Makefile` (`make bootstrap-host`)
+- Full dictionary:
+  - `docs/config-dictionary.md`
 
 ## Optional env
 

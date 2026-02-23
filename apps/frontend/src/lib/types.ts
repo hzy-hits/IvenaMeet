@@ -9,6 +9,17 @@ export interface JoinReq {
   avatar_url?: string;
 }
 
+export interface HostLoginTotpReq {
+  room_id: string;
+  host_identity: string;
+  totp_code: string;
+}
+
+export interface HostLoginResp {
+  host_session_token: string;
+  expires_in_seconds: number;
+}
+
 export interface JoinResp {
   lk_url: string;
   token: string;
@@ -16,6 +27,8 @@ export interface JoinResp {
   role: Role;
   app_session_token: string;
   app_session_expires_in_seconds: number;
+  host_session_token?: string;
+  host_session_expires_in_seconds?: number;
 }
 
 export interface RedeemInviteReq {
@@ -69,9 +82,31 @@ export interface StopBroadcastReq {
   ingress_id: string;
 }
 
+export interface MuteMemberReq {
+  room_id: string;
+  host_identity: string;
+  target_identity: string;
+  muted: boolean;
+}
+
+export interface MuteAllReq {
+  room_id: string;
+  host_identity: string;
+  muted: boolean;
+}
+
+export interface MuteResp {
+  affected_tracks: number;
+}
+
 export interface RefreshSessionResp {
   app_session_token: string;
   app_session_expires_in_seconds: number;
+}
+
+export interface RefreshHostSessionResp {
+  host_session_token: string;
+  expires_in_seconds: number;
 }
 
 export interface MessageItem {
