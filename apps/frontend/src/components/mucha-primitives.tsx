@@ -61,7 +61,7 @@ function MuchaAsset({ src, className = "", style }: { src: string, className?: s
             src={src}
             alt=""
             aria-hidden="true"
-            className={`pointer-events-none absolute mix-blend-multiply dark:mix-blend-screen dark:invert opacity-25 object-contain ${className}`}
+            className={`pointer-events-none absolute mix-blend-multiply dark:mix-blend-screen dark:invert opacity-25 ${className}`}
             style={style}
         />
     );
@@ -71,7 +71,7 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
     return (
         <MuchaAsset
             src="/assets/mucha/corner.png"
-            className={`w-8 h-8 ${className}`}
+            className={`w-8 h-8 object-contain ${className}`}
             style={style}
         />
     );
@@ -79,12 +79,16 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
 
 export function MuchaArch({ children, className = "" }: { children: ReactNode, className?: string }) {
     return (
-        <div className={`relative ${className}`}>
+        <div className={`relative overflow-hidden ${className}`}>
             <MuchaAsset
                 src="/assets/mucha/arch.png"
-                className="inset-x-0 top-0 h-16 w-full opacity-20 object-fill"
+                className="inset-x-0 top-0 h-40 w-full opacity-30 object-cover object-top"
+                style={{
+                    WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+                    maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+                }}
             />
-            <div className="relative z-10 pt-4">
+            <div className="relative z-10 pt-5">
                 {children}
             </div>
         </div>
