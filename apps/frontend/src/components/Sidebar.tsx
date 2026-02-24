@@ -239,7 +239,7 @@ export function Sidebar(props: Props) {
 
     return (
         <>
-            <aside className="paper-grain relative hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-panel border border-gold/30 bg-parchment p-3 shadow-mucha lg:flex lg:p-4">
+            <aside className="paper-grain mucha-surface mucha-contour relative hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-panel p-3 shadow-mucha lg:flex lg:p-4">
                 <section className="bg-parchment/80 p-4 flex flex-col shrink-0">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -251,7 +251,7 @@ export function Sidebar(props: Props) {
                         {joined ? (
                             <button
                                 onClick={() => run(leaveRoom)}
-                                className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                             >
                                 <LogOut size={16} /> Leave
                             </button>
@@ -268,8 +268,8 @@ export function Sidebar(props: Props) {
                                 type="button"
                                 onClick={() => setConsolePane("control")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
-                                    ? "border border-gold/55 bg-gold/12 text-gold"
-                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    ? "border border-gold/55 bg-ink/6 text-ink/70"
+                                    : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
                                 <SlidersHorizontal size={12} /> 控制
@@ -278,8 +278,8 @@ export function Sidebar(props: Props) {
                                 type="button"
                                 onClick={() => setConsolePane("members")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
-                                    ? "border border-gold/55 bg-gold/12 text-gold"
-                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    ? "border border-gold/55 bg-ink/6 text-ink/70"
+                                    : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
                                 <Users size={12} /> 成员
@@ -288,8 +288,8 @@ export function Sidebar(props: Props) {
                                 type="button"
                                 onClick={() => setConsolePane("ops")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
-                                    ? "border border-gold/55 bg-gold/12 text-gold"
-                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    ? "border border-gold/55 bg-ink/6 text-ink/70"
+                                    : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
                                 <Terminal size={12} /> 系统
@@ -298,10 +298,10 @@ export function Sidebar(props: Props) {
                     </section>
 
                     {joined && consolePane === "control" && !isHost ? (
-                        <section className="rounded-panel border border-gold/20 bg-canvas/60 p-3">
+                        <section className="rounded-panel border border-ink/8 bg-canvas/60 p-3">
                             <h3 className="mb-2 font-display text-sm font-semibold text-ink">Profile</h3>
-                            <div className="flex items-center gap-3 rounded-chip border border-gold/25 bg-parchment/50 px-3 py-2">
-                                <div className="h-10 w-10 overflow-hidden rounded-full border border-gold/30 bg-canvas/60">
+                            <div className="flex items-center gap-3 rounded-chip border border-ink/10 bg-parchment/50 px-3 py-2">
+                                <div className="h-10 w-10 overflow-hidden rounded-full border border-ink/10 bg-canvas/60">
                                     {avatarPreview ? (
                                         <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
                                     ) : (
@@ -313,7 +313,7 @@ export function Sidebar(props: Props) {
                                 <button
                                     type="button"
                                     onClick={onPickAvatar}
-                                    className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                    className="inline-flex items-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                                 >
                                     <ImagePlus size={16} /> 上传头像
                                 </button>
@@ -343,12 +343,12 @@ export function Sidebar(props: Props) {
                     ) : null}
 
                     {isHost && consolePane === "control" ? (
-                        <section className="rounded-panel border border-gold/20 bg-canvas/60 p-3">
+                        <section className="rounded-panel border border-ink/8 bg-canvas/60 p-3">
                             <h3 className="mb-2 font-display text-sm font-semibold text-ink">主持工具</h3>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => run(issueInvite)}
-                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
                                     <UserPlus size={16} /> 复制邀请
                                 </button>
@@ -366,13 +366,13 @@ export function Sidebar(props: Props) {
                                 </button>
                                 <button
                                     onClick={() => run(() => muteAll(true))}
-                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
                                     全员静音
                                 </button>
                                 <button
                                     onClick={() => run(() => muteAll(false))}
-                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
                                     解除全员静音
                                 </button>
@@ -400,7 +400,7 @@ export function Sidebar(props: Props) {
                                     {members.map((m) => (
                                         <div
                                             key={m.identity}
-                                            className={`animate-slide-in rounded-chip border border-gold/20 bg-canvas/50 px-3 py-2 ${m.speaking ? "ripple-active" : ""
+                                            className={`animate-slide-in rounded-chip border border-ink/8 mucha-panel px-3 py-2 ${m.speaking ? "ripple-active" : ""
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between gap-2">
@@ -414,7 +414,7 @@ export function Sidebar(props: Props) {
                                                 <div className="mt-2 grid grid-cols-3 gap-1">
                                                     <button
                                                         onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
-                                                        className="rounded-chip bg-canvas/60 border border-gold/20 px-2 py-1 text-[11px] text-ink/65 transition-colors ease-mucha hover:border-gold/40"
+                                                        className="rounded-chip bg-canvas/60 border border-ink/8 px-2 py-1 text-[11px] text-ink/65 transition-colors ease-mucha hover:border-ink/12"
                                                     >
                                                         {m.micEnabled ? "静音" : "解除"}
                                                     </button>
@@ -426,7 +426,7 @@ export function Sidebar(props: Props) {
                                                             关摄
                                                         </button>
                                                     ) : (
-                                                        <span className="rounded-chip border border-ink/12 bg-canvas/40 px-2 py-1 text-[11px] text-ink/40">
+                                                        <span className="rounded-chip border border-ink/12 mucha-panel px-2 py-1 text-[11px] text-ink/40">
                                                             摄像头未开
                                                         </span>
                                                     )}
@@ -438,7 +438,7 @@ export function Sidebar(props: Props) {
                                                             关屏
                                                         </button>
                                                     ) : (
-                                                        <span className="rounded-chip border border-ink/12 bg-canvas/40 px-2 py-1 text-[11px] text-ink/40">
+                                                        <span className="rounded-chip border border-ink/12 mucha-panel px-2 py-1 text-[11px] text-ink/40">
                                                             投屏未开
                                                         </span>
                                                     )}
@@ -453,7 +453,7 @@ export function Sidebar(props: Props) {
 
                     <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
                         <div
-                            className={`min-h-0 flex-1 flex flex-col rounded-panel border border-gold/15 bg-canvas/40 p-2 ${hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
+                            className={`min-h-0 flex-1 flex flex-col rounded-panel border border-ink/8 mucha-panel p-2 ${hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
                                 }`}
                         >
                             <button
@@ -463,7 +463,7 @@ export function Sidebar(props: Props) {
                                 <span className="inline-flex items-center gap-2">
                                     <MessageCircle size={14} /> Chat
                                     {chatPriorityMode ? (
-                                        <span className="rounded-chip border border-gold/45 bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold">
+                                        <span className="rounded-chip border border-ink/15 bg-ink/6 px-2 py-0.5 text-[10px] font-medium text-ink/70">
                                             Focus
                                         </span>
                                     ) : null}
@@ -481,7 +481,7 @@ export function Sidebar(props: Props) {
                                             className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
                                         >
                                             {!messages.length ? (
-                                                <div className="grid h-full place-items-center rounded-chip border border-dashed border-gold/25 bg-canvas/30 px-3 font-body text-sm text-ink/40">
+                                                <div className="grid h-full place-items-center rounded-chip border border-dashed border-ink/10 mucha-panel px-3 font-body text-sm text-ink/40">
                                                     暂无消息，发送第一条开始聊天
                                                 </div>
                                             ) : (
@@ -505,7 +505,7 @@ export function Sidebar(props: Props) {
                                             </button>
                                         ) : null}
                                     </div>
-                                    <div className="mt-2 flex items-center gap-2 rounded-chip border border-gold/25 bg-parchment/50 p-1.5">
+                                    <div className="mt-2 flex items-center gap-2 rounded-chip border border-ink/10 bg-parchment/50 p-1.5">
                                         <input
                                             value={chatText}
                                             onChange={(e) => setChatText(e.target.value)}
@@ -527,7 +527,7 @@ export function Sidebar(props: Props) {
                             ) : null}
                         </div>
 
-                        <div className={`rounded-panel border border-gold/15 bg-canvas/40 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                             <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Visual Theme</p>
                             <div className="grid grid-cols-4 gap-2">
                                 {(["system", "light", "twilight", "dark"] as ThemeMode[]).map((mode) => (
@@ -536,8 +536,8 @@ export function Sidebar(props: Props) {
                                         type="button"
                                         onClick={() => setThemeMode(mode)}
                                         className={`rounded-chip border px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide transition-colors ease-mucha ${themeMode === mode
-                                            ? "border-gold/55 bg-gold/15 text-gold"
-                                            : "border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                            ? "border-gold/55 bg-ink/8 text-ink/70"
+                                            : "border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                             }`}
                                     >
                                         {mode}
@@ -549,7 +549,7 @@ export function Sidebar(props: Props) {
                             </p>
                         </div>
 
-                        <div className={`rounded-panel border border-gold/15 bg-canvas/40 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                             <button
                                 onClick={() => setOpenLogs((v) => !v)}
                                 className="mb-2 flex w-full items-center justify-between text-left font-display text-sm font-semibold text-ink"
@@ -576,10 +576,10 @@ export function Sidebar(props: Props) {
                         <button
                             type="button"
                             onClick={openAvatarEditor}
-                            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-chip px-1 py-1 text-left transition-colors ease-mucha hover:bg-canvas/40"
+                            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-chip px-1 py-1 text-left transition-colors ease-mucha hover:mucha-panel"
                             title="修改头像"
                         >
-                            <div className="relative h-8 w-8 shrink-0 rounded-full bg-canvas/50 border border-gold/25 overflow-hidden">
+                            <div className="relative h-8 w-8 shrink-0 rounded-full mucha-panel border border-ink/10 overflow-hidden">
                                 {avatarPreview ? (
                                     <img src={resolveAvatarSrc(avatarPreview)} alt="me" className="h-full w-full object-cover" />
                                 ) : (
@@ -599,7 +599,7 @@ export function Sidebar(props: Props) {
                             </div>
                         </button>
 
-                        <div className="inline-flex items-center gap-1 rounded-chip border border-gold/20 bg-canvas/40 px-2 py-1 text-[10px] text-ink/45">
+                        <div className="inline-flex items-center gap-1 rounded-chip border border-ink/8 mucha-panel px-2 py-1 text-[10px] text-ink/45">
                             媒体控制在主舞台区域
                         </div>
                     </div>
@@ -612,7 +612,7 @@ export function Sidebar(props: Props) {
                     onClick={() => setAvatarEditorOpen(false)}
                 >
                     <section
-                        className="w-full max-w-sm rounded-panel border border-gold/25 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md"
+                        className="w-full max-w-sm rounded-panel border border-ink/10 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-2">
@@ -620,13 +620,13 @@ export function Sidebar(props: Props) {
                             <button
                                 type="button"
                                 onClick={() => setAvatarEditorOpen(false)}
-                                className="rounded-chip border border-gold/20 bg-canvas/50 px-2 py-1 text-xs text-ink/65 hover:border-gold/40"
+                                className="rounded-chip border border-ink/8 mucha-panel px-2 py-1 text-xs text-ink/65 hover:border-ink/12"
                             >
                                 Close
                             </button>
                         </div>
-                        <div className="mt-3 flex items-center gap-3 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-3">
-                            <div className="h-12 w-12 overflow-hidden rounded-full border border-gold/30 bg-canvas/50">
+                        <div className="mt-3 flex items-center gap-3 rounded-chip border border-ink/10 mucha-panel px-3 py-3">
+                            <div className="h-12 w-12 overflow-hidden rounded-full border border-ink/10 mucha-panel">
                                 {avatarPreview ? (
                                     <img src={resolveAvatarSrc(avatarPreview)} alt="avatar preview" className="h-full w-full object-cover" />
                                 ) : (
@@ -663,7 +663,7 @@ export function Sidebar(props: Props) {
 
             {showInviteGate ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
-                    <div className="w-full max-w-lg rounded-panel border border-gold/25 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
+                    <div className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
                         <p className="mt-1 text-sm text-ink/50">
                             需要邀请链接才能进入房间。若你是主持人，请走主持人入口。
@@ -679,7 +679,7 @@ export function Sidebar(props: Props) {
                             <button
                                 type="button"
                                 onClick={() => window.location.reload()}
-                                className="rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
+                                className="rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             >
                                 我有邀请链接
                             </button>
@@ -693,7 +693,7 @@ export function Sidebar(props: Props) {
 
             {!joined && !showInviteGate ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
-                    <div className="w-full max-w-lg rounded-panel border border-gold/25 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
+                    <div className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
                         <p className="mt-1 text-sm text-ink/50">先完成鉴权和房间配置，才能继续进入会话。</p>
 
@@ -702,19 +702,19 @@ export function Sidebar(props: Props) {
                                 value={roomId}
                                 onChange={(e) => setRoomId(e.target.value)}
                                 placeholder="room_id"
-                                className="w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
+                                className="w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             />
                             <input
                                 value={userName}
                                 onChange={(e) => setUserName(e.target.value)}
                                 placeholder="name"
-                                className="w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
+                                className="w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             />
 
                             {effectiveRole === "member" ? (
                                 <>
-                                    <div className="flex items-center gap-3 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2">
-                                        <div className="h-10 w-10 overflow-hidden rounded-full border border-gold/30 bg-canvas/50">
+                                    <div className="flex items-center gap-3 rounded-chip border border-ink/10 mucha-panel px-3 py-2">
+                                        <div className="h-10 w-10 overflow-hidden rounded-full border border-ink/10 mucha-panel">
                                             {avatarPreview ? (
                                                 <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
                                             ) : (
@@ -726,7 +726,7 @@ export function Sidebar(props: Props) {
                                         <button
                                             type="button"
                                             onClick={onPickAvatar}
-                                            className="inline-flex items-center gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65"
+                                            className="inline-flex items-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65"
                                         >
                                             <ImagePlus size={16} /> 上传头像
                                         </button>
@@ -749,22 +749,22 @@ export function Sidebar(props: Props) {
                             )}
 
                             {hostEntryUnlocked ? (
-                                <div className="flex items-center justify-between gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
+                                <div className="flex items-center justify-between gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
                                     <span>host mode</span>
                                     <button
                                         type="button"
                                         onClick={() => setHostEntryUnlocked(false)}
-                                        className="rounded-chip border border-gold/20 bg-canvas/50 px-2 py-1 text-xs text-ink/65"
+                                        className="rounded-chip border border-ink/8 mucha-panel px-2 py-1 text-xs text-ink/65"
                                     >
                                         切回成员
                                     </button>
                                 </div>
                             ) : !inviteMode ? (
-                                <div className="rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
+                                <div className="rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
                                     member mode
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
+                                <div className="flex items-center justify-between gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
                                     <span>invite mode: member</span>
                                     <button
                                         type="button"
@@ -784,14 +784,14 @@ export function Sidebar(props: Props) {
                                             value={inviteCode}
                                             onChange={(e) => setInviteCode(e.target.value)}
                                             placeholder="invite_code"
-                                            className="w-full rounded-chip border border-gold/25 bg-canvas/40 py-2 pl-9 pr-3 text-ink"
+                                            className="w-full rounded-chip border border-ink/10 mucha-panel py-2 pl-9 pr-3 text-ink"
                                         />
                                     </div>
                                     <input
                                         value={inviteTicket}
                                         onChange={(e) => setInviteTicket(e.target.value)}
                                         placeholder="invite_ticket"
-                                        className="font-mono w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink text-xs"
+                                        className="font-mono w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink text-xs"
                                     />
                                 </>
                             ) : null}
@@ -805,7 +805,7 @@ export function Sidebar(props: Props) {
                                             onChange={(e) => setHostTotpCode(e.target.value)}
                                             type="password"
                                             placeholder="TOTP 动态码（6位）"
-                                            className="font-mono w-full rounded-chip border border-gold/25 bg-canvas/40 py-2 pl-9 pr-3 text-ink text-xs"
+                                            className="font-mono w-full rounded-chip border border-ink/10 mucha-panel py-2 pl-9 pr-3 text-ink text-xs"
                                         />
                                     </div>
                                     <p className="font-mono text-[11px] text-ink/40">
@@ -845,22 +845,22 @@ export function Sidebar(props: Props) {
 
             {showBroadcastModal ? (
                 <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-4">
-                    <div className="w-full max-w-xl rounded-panel border border-gold/25 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md">
+                    <div className="w-full max-w-xl rounded-panel border border-ink/10 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md">
                         <h3 className="mb-3 text-lg font-semibold">WHIP Broadcast Credentials</h3>
                         <div className="font-mono space-y-2 text-xs">
-                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                            <div className="rounded-chip border border-ink/8 mucha-panel p-2">
                                 <p className="mb-1 text-ink/50">obs_whip_endpoint</p>
                                 <p className="break-all">{obsWhipEndpoint || "-"}</p>
                             </div>
-                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                            <div className="rounded-chip border border-ink/8 mucha-panel p-2">
                                 <p className="mb-1 text-ink/50">whip_url</p>
                                 <p className="break-all">{whipUrl || "-"}</p>
                             </div>
-                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                            <div className="rounded-chip border border-ink/8 mucha-panel p-2">
                                 <p className="mb-1 text-ink/50">stream_key</p>
                                 <p className="break-all">{streamKey || "-"}</p>
                             </div>
-                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                            <div className="rounded-chip border border-ink/8 mucha-panel p-2">
                                 <p className="mb-1 text-ink/50">ingress_id</p>
                                 <p className="break-all">{ingressId || "-"}</p>
                             </div>

@@ -403,7 +403,7 @@ export function Layout() {
                 <div className={`min-w-0 flex-1 ${inTheaterMode ? "flex flex-col" : "flex flex-col gap-2"}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
                     <header
-                        className={`shrink-0 flex items-center justify-between border border-gold/30 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
+                        className={`shrink-0 flex items-center justify-between border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
                             }`}
                     >
                         <div className="flex items-center gap-3">
@@ -423,8 +423,8 @@ export function Layout() {
                                         void toggleChatFocusLayout();
                                     }}
                                     className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${chatDominant
-                                        ? "border-gold/55 bg-gold/15 text-gold"
-                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        ? "border-gold/55 bg-ink/8 text-ink/70"
+                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
                                 >
                                     {chatDominant ? "EXIT_CHAT_FOCUS" : "CHAT_FOCUS"}
@@ -437,8 +437,8 @@ export function Layout() {
                                         void toggleFullscreenStage();
                                     }}
                                     className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${isFullscreen || inTheaterMode
-                                        ? "border-gold/55 bg-gold/15 text-gold"
-                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        ? "border-gold/55 bg-ink/8 text-ink/70"
+                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
                                 >
                                     {isHostView || localScreenShareActive
@@ -450,10 +450,10 @@ export function Layout() {
                                             : "FULLSCREEN"}
                                 </button>
                             ) : null}
-                            <span className="rounded-chip bg-gold/12 px-2 py-1 text-gold border border-gold/30">
+                            <span className="rounded-chip bg-ink/6 px-2 py-1 text-gold border border-ink/10">
                                 {joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY"}
                             </span>
-                            <span className="rounded-chip bg-parchment/70 px-2 py-1 text-ink/70 border border-gold/20">
+                            <span className="rounded-chip bg-parchment/70 px-2 py-1 text-ink/70 border border-ink/8">
                                 {joined ? joined.role.toUpperCase() : role.toUpperCase()}
                             </span>
                         </div>
@@ -502,7 +502,7 @@ export function Layout() {
                             <button
                                 type="button"
                                 onClick={() => setTheaterControlOpen((v) => !v)}
-                                className="pointer-events-auto ml-1 rounded-r-panel border border-gold/35 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
+                                className="pointer-events-auto ml-1 rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterControlOpen ? "HIDE CTRL" : "CTRL"}
                             </button>
@@ -514,18 +514,18 @@ export function Layout() {
                             <button
                                 type="button"
                                 onClick={() => setTheaterChatOpen((v) => !v)}
-                                className="pointer-events-auto mr-1 rounded-l-panel border border-gold/35 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
+                                className="pointer-events-auto mr-1 rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterChatOpen ? "HIDE CHAT" : "CHAT"}
                             </button>
                         </div>
 
                         {theaterControlOpen ? (
-                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] overflow-hidden rounded-panel border border-gold/20 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
+                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
                                 <button
                                     type="button"
                                     onClick={() => setTheaterControlOpen(false)}
-                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-gold/30 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
                                     aria-label="close control drawer"
                                 >
                                     ×
@@ -563,11 +563,11 @@ export function Layout() {
                         ) : null}
 
                         {theaterChatOpen ? (
-                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] overflow-hidden rounded-panel border border-gold/20 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
+                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
                                 <button
                                     type="button"
                                     onClick={() => setTheaterChatOpen(false)}
-                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-gold/30 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
                                     aria-label="close chat drawer"
                                 >
                                     ×
@@ -579,7 +579,7 @@ export function Layout() {
                                     onlineCount={members.length}
                                     messages={messages}
                                     onSend={handleSendChat}
-                                    className="!flex h-full w-full rounded-panel border border-gold/25 bg-parchment/95 shadow-mucha backdrop-blur-md"
+                                    className="!flex h-full w-full rounded-panel border border-ink/10 bg-parchment/95 shadow-mucha backdrop-blur-md"
                                 />
                             </div>
                         ) : null}

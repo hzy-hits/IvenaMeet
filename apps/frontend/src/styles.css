@@ -183,6 +183,40 @@
 }
 
 /* ============================================================
+   Mucha Surface — gradient depth panel (primary container)
+   Vertical cream→slightly-darker gradient with soft inner shadow
+   ============================================================ */
+.mucha-surface {
+    background: linear-gradient(180deg,
+            rgb(var(--canvas)) 0%,
+            rgb(var(--parchment) / 0.6) 100%);
+    box-shadow: inset 0 1px 0 rgb(var(--surface-raise) / 0.5),
+        inset 0 -1px 3px rgb(var(--ink) / 0.03);
+}
+
+/* ============================================================
+   Mucha Panel — subtle nested container (lighter, flatter)
+   ============================================================ */
+.mucha-panel {
+    background: linear-gradient(180deg,
+            rgb(var(--surface-raise) / 0.4) 0%,
+            rgb(var(--canvas) / 0.5) 100%);
+    box-shadow: inset 0 1px 0 rgb(var(--surface-raise) / 0.3);
+}
+
+/* ============================================================
+   Mucha Contour — ultra-thin decorative outline (Mucha's line art)
+   ============================================================ */
+.mucha-contour {
+    border: 1px solid rgb(var(--ink) / 0.08);
+}
+
+[data-theme="dark"] .mucha-contour,
+[data-theme="twilight"] .mucha-contour {
+    border-color: rgb(var(--ink) / 0.10);
+}
+
+/* ============================================================
    Halo / breathing animation (gold glow pulse)
    ============================================================ */
 @keyframes halo-breathe {

@@ -117,10 +117,10 @@ export function ChatPanel({
                         </p>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px]">
-                        <span className="rounded-chip border border-gold/30 bg-gold/10 px-2.5 py-1 text-ink/65">
+                        <span className="rounded-chip border border-ink/10 bg-ink/6 px-2.5 py-1 text-ink/65">
                             online {onlineCount}
                         </span>
-                        <span className="rounded-chip border border-gold/30 bg-gold/10 px-2.5 py-1 text-ink/65">
+                        <span className="rounded-chip border border-ink/10 bg-ink/6 px-2.5 py-1 text-ink/65">
                             msgs {messages.length}
                         </span>
                     </div>
@@ -129,7 +129,7 @@ export function ChatPanel({
             </div>
 
             {!joined ? (
-                <div className="grid flex-1 place-items-center rounded-panel border border-dashed border-gold/25 bg-canvas/50 text-center font-body text-sm text-ink/45">
+                <div className="grid flex-1 place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel text-center font-body text-sm text-ink/45">
                     先加入房间，再开始聊天
                 </div>
             ) : (
@@ -141,7 +141,7 @@ export function ChatPanel({
                             className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
                         >
                             {!messages.length ? (
-                                <div className="grid h-full place-items-center rounded-panel border border-dashed border-gold/25 bg-canvas/40 px-3 font-body text-sm text-ink/45">
+                                <div className="grid h-full place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel px-3 font-body text-sm text-ink/45">
                                     暂无消息，发送第一条开始聊天
                                 </div>
                             ) : (
@@ -167,7 +167,7 @@ export function ChatPanel({
                     </div>
 
                     {/* Input Console */}
-                    <div className="mt-2 flex items-center gap-2 rounded-panel border border-gold/30 bg-parchment p-1.5">
+                    <div className="mt-2 flex items-center gap-2 rounded-panel border border-ink/10 bg-parchment p-1.5">
                         <input
                             value={chatText}
                             onChange={(e) => setChatText(e.target.value)}

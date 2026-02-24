@@ -12,11 +12,11 @@ type Props = {
 
 const VARIANT_BUBBLE: Record<Variant, { mine: string; peer: string }> = {
     panel: {
-        mine: "border-gold/45 bg-teal/8 shadow-mucha",
+        mine: "border-ink/15 bg-teal/8 shadow-mucha",
         peer: "border-ink/12 bg-parchment/40",
     },
     sidebar: {
-        mine: "border-gold/40 bg-teal/6",
+        mine: "border-ink/12 bg-teal/6",
         peer: "border-ink/10 bg-rail/30",
     },
 };
@@ -34,7 +34,7 @@ export function ChatMessageRow({
         <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${isMine ? "animate-bubble-mine" : "animate-bubble-peer"}`}>
             <div className={`flex max-w-[90%] items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                 {/* Avatar */}
-                <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gold/30 bg-parchment/60">
+                <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-ink/10 bg-parchment/60">
                     <div className="grid h-full w-full place-items-center font-display text-[11px] text-ink/55">
                         {message.nickname.slice(0, 1).toUpperCase()}
                     </div>
@@ -56,7 +56,7 @@ export function ChatMessageRow({
                         <span className="max-w-[8rem] truncate font-semibold text-indigo">
                             {message.nickname}
                         </span>
-                        <span className="rounded-chip bg-gold/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-gold">
+                        <span className="rounded-chip bg-ink/8 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink/70">
                             {message.role}
                         </span>
                         <span>{formatChatTime(message.created_at)}</span>

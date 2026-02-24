@@ -35,7 +35,7 @@ export function PaperSurface({
     as: Tag = "div",
 }: PaperSurfaceProps) {
     return (
-        <Tag className={`paper-grain relative shadow-mucha ${TONE_BG[tone]} ${className}`}>
+        <Tag className={`paper-grain mucha-contour relative shadow-mucha ${TONE_BG[tone]} ${className}`}>
             {children}
         </Tag>
     );
@@ -60,27 +60,27 @@ export function OrnamentFrame({
 }: OrnamentFrameProps) {
     const borderClass =
         intensity === "strong"
-            ? "border border-gold/90"
-            : "border border-gold/45";
+            ? "border border-gold/55"
+            : "mucha-contour";
 
     return (
         <div className={`relative ${borderClass} rounded-panel ${className}`}>
-            {/* Corner ornaments — tiny gold diamonds at each corner */}
+            {/* Corner ornaments — tiny ink points at each corner */}
             <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -left-[3px] -top-[3px] h-1.5 w-1.5 rounded-sm bg-gold/60"
+                className="pointer-events-none absolute -left-[3px] -top-[3px] h-1.5 w-1.5 rounded-sm bg-ink/15"
             />
             <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -right-[3px] -top-[3px] h-1.5 w-1.5 rounded-sm bg-gold/60"
+                className="pointer-events-none absolute -right-[3px] -top-[3px] h-1.5 w-1.5 rounded-sm bg-ink/15"
             />
             <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -bottom-[3px] -left-[3px] h-1.5 w-1.5 rounded-sm bg-gold/60"
+                className="pointer-events-none absolute -bottom-[3px] -left-[3px] h-1.5 w-1.5 rounded-sm bg-ink/15"
             />
             <span
                 aria-hidden="true"
-                className="pointer-events-none absolute -bottom-[3px] -right-[3px] h-1.5 w-1.5 rounded-sm bg-gold/60"
+                className="pointer-events-none absolute -bottom-[3px] -right-[3px] h-1.5 w-1.5 rounded-sm bg-ink/15"
             />
             {children}
         </div>

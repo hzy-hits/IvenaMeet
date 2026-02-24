@@ -526,7 +526,7 @@ function StageScene({
 
     return (
         <div
-            className={`paper-grain relative h-full w-full overflow-hidden bg-canvas ${immersive ? "rounded-none border-0" : "rounded-panel border border-gold/25 shadow-mucha"
+            className={`paper-grain relative h-full w-full overflow-hidden bg-canvas ${immersive ? "rounded-none border-0" : "rounded-panel border border-ink/10 shadow-mucha"
                 }`}
         >
             <div className="absolute inset-0">
@@ -548,20 +548,20 @@ function StageScene({
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,14,0.32),rgba(5,10,14,0)_30%,rgba(5,10,14,0.36))]" />
 
             <div className="absolute left-4 right-4 top-4 z-20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <div className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-parchment/80 px-3 py-1 backdrop-blur-sm">
+                <div className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-parchment/80 px-3 py-1 backdrop-blur-sm">
                     <span className={`h-2 w-2 rounded-full ${hasStageMedia ? "bg-gold" : "bg-ink/35"}`} />
                     <span className="text-ink/75">
                         {hasStageMedia ? "video stage online" : "voice lounge"}
                     </span>
                 </div>
                 <div className="inline-flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-chip border border-gold/25 bg-parchment/80 px-2.5 py-1 text-ink/65">
+                    <span className="rounded-chip border border-ink/10 bg-parchment/80 px-2.5 py-1 text-ink/65">
                         members {activeParticipantCount}
                     </span>
                     <span
                         className={`rounded-chip border px-2.5 py-1 ${hasIngressParticipant
-                            ? "border-gold/55 bg-gold/12 text-gold"
-                            : "border-gold/25 bg-parchment/80 text-ink/65"
+                            ? "border-gold/55 bg-ink/6 text-ink/70"
+                            : "border-ink/10 bg-parchment/80 text-ink/65"
                             }`}
                     >
                         {hasIngressParticipant ? "obs ingress" : "browser feed"}
@@ -570,7 +570,7 @@ function StageScene({
                         <button
                             type="button"
                             onClick={() => setPinnedIdentity(null)}
-                            className="inline-flex items-center gap-1 rounded-chip border border-gold/55 bg-gold/12 px-2.5 py-1 text-gold transition-colors ease-mucha"
+                            className="inline-flex items-center gap-1 rounded-chip border border-gold/55 bg-ink/6 px-2.5 py-1 text-gold transition-colors ease-mucha"
                             title="取消固定"
                         >
                             <PinOff size={12} />
@@ -581,13 +581,13 @@ function StageScene({
             </div>
 
             {isHost && hostStageRequests.length > 0 ? (
-                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-panel border border-gold/25 bg-parchment/90 p-2 shadow-mucha backdrop-blur-md">
+                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-panel border border-ink/10 bg-parchment/90 p-2 shadow-mucha backdrop-blur-md">
                     <p className="px-2 pb-1 font-display text-[11px] font-mono text-ink/60">stage requests</p>
                     <div className="space-y-1.5">
                         {hostStageRequests.map((request) => (
-                            <div key={request.request_id} className="rounded-chip border border-gold/20 bg-canvas/50 p-2">
+                            <div key={request.request_id} className="rounded-chip border border-ink/8 mucha-panel p-2">
                                 <p className="text-xs text-ink/80">
-                                    <span className="font-semibold text-gold">{request.target_user}</span>
+                                    <span className="font-semibold text-ink/70">{request.target_user}</span>
                                     {request.feature === "camera" ? " requests camera" : " requests screen share"}
                                 </p>
                                 <div className="mt-2 flex items-center gap-1.5">
@@ -628,7 +628,7 @@ function StageScene({
                                 onClick={() => {
                                     setPinnedIdentity((current) => (current === identity ? null : identity));
                                 }}
-                                className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-chip border ${pinned ? "border-gold/65" : "border-gold/25"}`}
+                                className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-chip border ${pinned ? "border-gold/65" : "border-ink/10"}`}
                                 title={pinned ? "取消固定" : `固定 ${identity}`}
                             >
                                 <VideoTrack trackRef={trackRef} className="absolute inset-0 h-full w-full object-cover" />
@@ -642,10 +642,10 @@ function StageScene({
                 </div>
             ) : null}
 
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-gold/25 bg-parchment/85 p-1.5 shadow-mucha backdrop-blur-md">
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-ink/10 bg-parchment/85 p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleMic();
                         }}
@@ -654,7 +654,7 @@ function StageScene({
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                     </button>
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-ink/8" : "text-ink/60 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleCamera();
                         }}
@@ -667,7 +667,7 @@ function StageScene({
                         {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
                     </button>
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-ink/8" : "text-ink/60 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleShare();
                         }}
@@ -759,7 +759,7 @@ export function MainStage({
 
     if (!joined) {
         return (
-            <main className="paper-grain relative grid h-full min-h-0 place-items-center rounded-panel border border-gold/25 bg-canvas shadow-mucha">
+            <main className="paper-grain relative grid h-full min-h-0 place-items-center rounded-panel border border-ink/10 bg-canvas shadow-mucha">
                 <div className="text-center">
                     <p className="font-display text-xl font-semibold text-ink">Ivena Meet</p>
                     <p className="mt-2 font-body text-sm text-ink/45">Join a room from the Command Center to enter Main Stage.</p>
@@ -772,7 +772,7 @@ export function MainStage({
         <main
             className={`paper-grain relative h-full min-h-0 bg-canvas ${immersive
                 ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
-                : "rounded-panel border border-gold/25 p-2 shadow-mucha lg:p-3"
+                : "rounded-panel border border-ink/10 p-2 shadow-mucha lg:p-3"
                 } ${compact && !immersive ? "xl:min-h-[420px]" : ""}`}
         >
             <LiveKitRoom
