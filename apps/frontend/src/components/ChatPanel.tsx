@@ -167,7 +167,7 @@ export function ChatPanel({
                     </div>
 
                     {/* Input Console */}
-                    <div className="mt-2 flex items-center gap-2 rounded-panel border border-ink/10 bg-parchment p-1.5">
+                    <div className="mt-2 flex items-center gap-2 rounded-panel mucha-contour mucha-panel p-1.5">
                         <input
                             value={chatText}
                             onChange={(e) => setChatText(e.target.value)}
