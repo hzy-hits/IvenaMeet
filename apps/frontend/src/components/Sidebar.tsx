@@ -375,16 +375,6 @@ export function Sidebar(props: Props) {
                             >
                                 解除全员静音
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setConsolePane("members");
-                                    setOpenMembers(true);
-                                }}
-                                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-accent/35 bg-accent/10 px-3 py-2 text-sm text-accent"
-                            >
-                                打开成员媒体控制（开摄/关摄/开屏/关屏）
-                            </button>
                         </div>
                         {inviteCopied ? (
                             <div className="mt-2 inline-flex items-center gap-2 rounded-xl border border-ok/50 bg-ok/15 px-3 py-1 text-xs text-ok">
@@ -420,37 +410,37 @@ export function Sidebar(props: Props) {
                                             </span>
                                         </div>
                                         {isHost && !m.isLocal ? (
-                                            <div className="mt-2 grid grid-cols-5 gap-1">
+                                            <div className="mt-2 grid grid-cols-3 gap-1">
                                                 <button
                                                     onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
                                                     className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
                                                 >
                                                     {m.micEnabled ? "静音" : "解除"}
                                                 </button>
-                                                <button
-                                                    onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", true))}
-                                                    className="rounded-lg border border-ok/35 bg-ok/10 px-2 py-1 text-[11px] text-ok"
-                                                >
-                                                    开摄
-                                                </button>
-                                                <button
-                                                    onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
-                                                    className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
-                                                >
-                                                    关摄
-                                                </button>
-                                                <button
-                                                    onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", true))}
-                                                    className="rounded-lg border border-ok/35 bg-ok/10 px-2 py-1 text-[11px] text-ok"
-                                                >
-                                                    开屏
-                                                </button>
-                                                <button
-                                                    onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
-                                                    className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
-                                                >
-                                                    关屏
-                                                </button>
+                                                {m.cameraEnabled ? (
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
+                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
+                                                    >
+                                                        关摄
+                                                    </button>
+                                                ) : (
+                                                    <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                                                        摄像头未开
+                                                    </span>
+                                                )}
+                                                {m.screenShareEnabled ? (
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
+                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
+                                                    >
+                                                        关屏
+                                                    </button>
+                                                ) : (
+                                                    <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                                                        投屏未开
+                                                    </span>
+                                                )}
                                             </div>
                                         ) : null}
                                     </div>

@@ -232,4 +232,6 @@ export interface MemberItem {
   isLocal: boolean;
   speaking: boolean;
   micEnabled: boolean;
+  cameraEnabled: boolean;
+  screenShareEnabled: boolean;
 }

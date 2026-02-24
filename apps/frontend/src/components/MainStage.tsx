@@ -138,9 +138,12 @@ function createRequestId(): string {
     return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function participantMicEnabled(trackPublications: Map<string, unknown>): boolean {
+function participantSourceEnabled(
+    trackPublications: Map<string, unknown>,
+    source: Track.Source,
+): boolean {
     for (const pub of trackPublications.values() as Iterable<{ source?: Track.Source; isMuted?: boolean }>) {
-        if (pub.source === Track.Source.Microphone) {
+        if (pub.source === source) {
             return !pub.isMuted;
         }
     }
@@ -307,7 +310,18 @@ function StageScene({
                     identity: p.identity,
                     isLocal: p.isLocal,
                     speaking: p.isSpeaking,
-                    micEnabled: participantMicEnabled(p.trackPublications as unknown as Map<string, unknown>),
+                    micEnabled: participantSourceEnabled(
+                        p.trackPublications as unknown as Map<string, unknown>,
+                        Track.Source.Microphone,
+                    ),
+                    cameraEnabled: participantSourceEnabled(
+                        p.trackPublications as unknown as Map<string, unknown>,
+                        Track.Source.Camera,
+                    ),
+                    screenShareEnabled: participantSourceEnabled(
+                        p.trackPublications as unknown as Map<string, unknown>,
+                        Track.Source.ScreenShare,
+                    ),
                 })),
         );
     }, [participants, onMembersChange]);
