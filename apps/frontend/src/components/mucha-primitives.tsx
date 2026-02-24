@@ -129,10 +129,10 @@ export function OrnamentFrame({
 
     return (
         <div className={`relative ${borderClass} rounded-panel ${className}`}>
-            <MuchaCorner style={{ top: "-2px", left: "-2px" }} />
-            <MuchaCorner style={{ top: "-2px", right: "-2px", transform: "scaleX(-1)" }} />
-            <MuchaCorner style={{ bottom: "-2px", left: "-2px", transform: "scaleY(-1)" }} />
-            <MuchaCorner style={{ bottom: "-2px", right: "-2px", transform: "scale(-1, -1)" }} />
+            <MuchaCorner style={{ top: "-3px", left: "-3px" }} />
+            <MuchaCorner style={{ top: "-3px", right: "-3px", transform: "scaleX(-1)" }} />
+            <MuchaCorner style={{ bottom: "-3px", left: "-3px", transform: "scaleY(-1)" }} />
+            <MuchaCorner style={{ bottom: "-3px", right: "-3px", transform: "scale(-1, -1)" }} />
             {children}
         </div>
     );
