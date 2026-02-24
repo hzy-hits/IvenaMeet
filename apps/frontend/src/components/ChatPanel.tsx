@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import type { JoinResp, MessageItem } from "../lib/types";
-import { API_BASE_URL } from "../lib/env";
+import { messageTailKey } from "../lib/chat";
+import { ChatMessageRow } from "./chat/ChatMessageRow";
 
 type Props = {
   className?: string;
@@ -12,75 +13,6 @@ type Props = {
   messages: MessageItem[];
   onSend: (text: string) => Promise<void>;
 };
-
-const AVATAR_CACHE_PREFIX = "ivena.meet.avatar.";
-
-function avatarCacheKey(userName: string): string {
-  return `${AVATAR_CACHE_PREFIX}${userName.trim().toLowerCase()}`;
-}
-
-function loadCachedAvatar(userName: string): string {
-  const key = avatarCacheKey(userName);
-  if (!key || key === AVATAR_CACHE_PREFIX) return "";
-  try {
-    return localStorage.getItem(key) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function resolveMessageAvatar(
-  avatarUrl: string | null | undefined,
-  userName: string,
-): string {
-  const direct = avatarUrl?.trim() ?? "";
-  if (direct) return direct;
-  return loadCachedAvatar(userName);
-}
-
-function resolveAvatarSrc(raw: string | null | undefined): string {
-  if (!raw) return "";
-  const normalized = raw.startsWith("/avatars/") ? `/api${raw}` : raw;
-  if (
-    normalized.startsWith("http://") ||
-    normalized.startsWith("https://") ||
-    normalized.startsWith("data:")
-  ) {
-    return normalized;
-  }
-  const base = API_BASE_URL.replace(/\/+$/, "");
-  if (normalized.startsWith("/api/")) {
-    if (base.startsWith("http://") || base.startsWith("https://")) {
-      if (base.endsWith("/api")) return `${base}${normalized.slice(4)}`;
-      return `${base}${normalized}`;
-    }
-    return normalized;
-  }
-  if (normalized.startsWith("/")) {
-    if (base.startsWith("http://") || base.startsWith("https://")) {
-      return `${base}${normalized}`;
-    }
-    return normalized;
-  }
-  if (base.startsWith("http://") || base.startsWith("https://")) {
-    return `${base}/${normalized.replace(/^\/+/, "")}`;
-  }
-  return normalized;
-}
-
-function formatChatTime(epochSeconds: number): string {
-  if (!epochSeconds) return "";
-  return new Date(epochSeconds * 1000).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function messageTailKey(items: MessageItem[]): string {
-  if (!items.length) return "empty";
-  const m = items[items.length - 1];
-  return `${m.id}:${m.client_id ?? ""}:${m.created_at}:${m.pending ? "1" : "0"}:${m.failed ? "1" : "0"}`;
-}
 
 function errorText(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -208,62 +140,14 @@ export function ChatPanel({
                   暂无消息，发送第一条开始聊天
                 </div>
               ) : (
-                messages.map((m) => {
-                  const isMine = m.user_name === userName.trim();
-                  const messageAvatar = resolveMessageAvatar(m.avatar_url, m.user_name);
-                  return (
-                    <div
-                      key={m.client_id ?? m.id}
-                      className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`flex max-w-[90%] items-end gap-2 ${
-                          isMine ? "flex-row-reverse" : ""
-                        }`}
-                      >
-                        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
-                          <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
-                            {m.nickname.slice(0, 1).toUpperCase()}
-                          </div>
-                          {messageAvatar ? (
-                            <img
-                              src={resolveAvatarSrc(messageAvatar)}
-                              alt={m.nickname}
-                              className="absolute inset-0 h-full w-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          ) : null}
-                        </div>
-                        <div
-                          className={`min-w-0 rounded-2xl border px-3 py-2 ${
-                            isMine
-                              ? "border-accent/50 bg-accent/18 shadow-[0_8px_20px_rgba(78,205,196,0.12)]"
-                              : "border-white/12 bg-black/22"
-                          }`}
-                        >
-                          <div className="mb-1 flex items-center gap-2 text-[11px] text-white/65">
-                            <span className="max-w-[8rem] truncate font-medium text-white/80">
-                              {m.nickname}
-                            </span>
-                            <span className="rounded bg-white/10 px-1.5 py-0.5 uppercase tracking-wide">
-                              {m.role}
-                            </span>
-                            <span>{formatChatTime(m.created_at)}</span>
-                            {m.failed ? (
-                              <span className="text-red-300">发送失败</span>
-                            ) : m.pending ? (
-                              <span className="text-accent">发送中</span>
-                            ) : null}
-                          </div>
-                          <p className="whitespace-pre-wrap break-words text-sm leading-5">{m.text}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                messages.map((m) => (
+                  <ChatMessageRow
+                    key={m.client_id ?? m.id}
+                    message={m}
+                    currentUserName={userName}
+                    variant="panel"
+                  />
+                ))
               )}
             </div>
             {pendingHints > 0 ? (

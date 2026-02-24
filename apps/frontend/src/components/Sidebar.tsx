@@ -20,7 +20,6 @@ import {
     UserPlus,
 } from "lucide-react";
 import {
-    API_BASE_URL,
     AVATAR_MAX_BYTES,
     CHAT_HISTORY_LIMIT,
     INVITE_COPY_HINT_MS,
@@ -28,8 +27,16 @@ import {
     SESSION_REFRESH_BEFORE_SECONDS,
     SESSION_REFRESH_POLL_MS,
 } from "../lib/env";
+import {
+    clearCachedAvatar,
+    loadCachedAvatar,
+    resolveAvatarSrc,
+    saveCachedAvatar,
+} from "../lib/avatar";
+import { messageTailKey } from "../lib/chat";
 import type { ResolvedTheme, ThemeMode } from "../lib/theme";
 import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
+import { ChatMessageRow } from "./chat/ChatMessageRow";
 
 type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
 
@@ -68,43 +75,7 @@ const LS_KEYS = {
     appSessionToken: "ivena.meet.app_session_token",
     hostSessionToken: "ivena.meet.host_session_token",
 } as const;
-const AVATAR_CACHE_PREFIX = "ivena.meet.avatar.";
 let bootReconnectAttempted = false;
-
-function avatarCacheKey(userName: string): string {
-    return `${AVATAR_CACHE_PREFIX}${userName.trim().toLowerCase()}`;
-}
-
-function loadCachedAvatar(userName: string): string {
-    const key = avatarCacheKey(userName);
-    if (!key || key === AVATAR_CACHE_PREFIX) return "";
-    try {
-        return localStorage.getItem(key) ?? "";
-    } catch {
-        return "";
-    }
-}
-
-function saveCachedAvatar(userName: string, avatarUrl: string): void {
-    const name = userName.trim();
-    const url = avatarUrl.trim();
-    if (!name || !url) return;
-    try {
-        localStorage.setItem(avatarCacheKey(name), url);
-    } catch {
-        // Ignore storage quota/privacy mode failures.
-    }
-}
-
-function clearCachedAvatar(userName: string): void {
-    const name = userName.trim();
-    if (!name) return;
-    try {
-        localStorage.removeItem(avatarCacheKey(name));
-    } catch {
-        // Ignore storage quota/privacy mode failures.
-    }
-}
 
 function persistableAvatarUrl(raw: string): string | undefined {
     const v = raw.trim();
@@ -121,43 +92,6 @@ function parseInviteFromQuery() {
         room: q.get("room") ?? "",
         ticket: q.get("ticket") ?? "",
     };
-}
-
-function resolveAvatarSrc(raw: string | null | undefined): string {
-    if (!raw) return "";
-    const normalized = raw.startsWith("/avatars/") ? `/api${raw}` : raw;
-    if (
-        normalized.startsWith("http://") ||
-        normalized.startsWith("https://") ||
-        normalized.startsWith("data:")
-    ) {
-        return normalized;
-    }
-    const base = API_BASE_URL.replace(/\/+$/, "");
-    if (normalized.startsWith("/api/")) {
-        if (base.startsWith("http://") || base.startsWith("https://")) {
-            // If base already includes /api, avoid duplicating it; otherwise keep raw path intact.
-            if (base.endsWith("/api")) return `${base}${normalized.slice(4)}`;
-            return `${base}${normalized}`;
-        }
-        return normalized;
-    }
-    if (normalized.startsWith("/")) {
-        if (base.startsWith("http://") || base.startsWith("https://")) {
-            return `${base}${normalized}`;
-        }
-        return normalized;
-    }
-    if (base.startsWith("http://") || base.startsWith("https://")) {
-        return `${base}/${normalized.replace(/^\/+/, "")}`;
-    }
-    return normalized;
-}
-
-function resolveMessageAvatar(rawAvatar: string | null | undefined, messageUserName: string): string {
-    const direct = rawAvatar?.trim() ?? "";
-    if (direct) return direct;
-    return loadCachedAvatar(messageUserName);
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -286,20 +220,6 @@ function toRealtimeMessage(payload: RealtimeChatPayload): MessageItem {
         pending: true,
         failed: false,
     };
-}
-
-function formatChatTime(epochSeconds: number): string {
-    if (!epochSeconds) return "";
-    return new Date(epochSeconds * 1000).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
-
-function messageTailKey(items: MessageItem[]): string {
-    if (!items.length) return "empty";
-    const m = items[items.length - 1];
-    return `${m.id}:${m.client_id ?? ""}:${m.created_at}:${m.pending ? "1" : "0"}:${m.failed ? "1" : "0"}`;
 }
 
 export function Sidebar(props: Props) {
@@ -1334,62 +1254,14 @@ export function Sidebar(props: Props) {
                                                 暂无消息，发送第一条开始聊天
                                             </div>
                                         ) : (
-                                            messages.map((m) => {
-                                                const isMine = m.user_name === userName.trim();
-                                                const messageAvatar = resolveMessageAvatar(m.avatar_url, m.user_name);
-                                                return (
-                                                    <div
-                                                        key={m.client_id ?? m.id}
-                                                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                                                    >
-                                                        <div
-                                                            className={`flex max-w-[90%] items-end gap-2 ${isMine ? "flex-row-reverse" : ""
-                                                                }`}
-                                                        >
-                                                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/15 bg-black/40">
-                                                                <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
-                                                                    {m.nickname.slice(0, 1).toUpperCase()}
-                                                                </div>
-                                                                {messageAvatar ? (
-                                                                    <img
-                                                                        src={resolveAvatarSrc(messageAvatar)}
-                                                                        alt={m.nickname}
-                                                                        className="absolute inset-0 h-full w-full object-cover"
-                                                                        onError={(e) => {
-                                                                            e.currentTarget.onerror = null;
-                                                                            e.currentTarget.style.display = "none";
-                                                                        }}
-                                                                    />
-                                                                ) : null}
-                                                            </div>
-                                                            <div
-                                                                className={`min-w-0 rounded-2xl border px-3 py-2 ${isMine
-                                                                    ? "border-accent/50 bg-accent/15"
-                                                                    : "border-white/10 bg-black/20"
-                                                                    }`}
-                                                            >
-                                                                <div className="mb-1 flex items-center gap-2 text-[11px] text-white/65">
-                                                                    <span className="max-w-[8rem] truncate font-medium text-white/80">
-                                                                        {m.nickname}
-                                                                    </span>
-                                                                    <span className="rounded bg-white/10 px-1.5 py-0.5 uppercase tracking-wide">
-                                                                        {m.role}
-                                                                    </span>
-                                                                    <span>{formatChatTime(m.created_at)}</span>
-                                                                    {m.failed ? (
-                                                                        <span className="text-red-300">发送失败</span>
-                                                                    ) : m.pending ? (
-                                                                        <span className="text-accent">发送中</span>
-                                                                    ) : null}
-                                                                </div>
-                                                                <p className="whitespace-pre-wrap break-words text-sm leading-5">
-                                                                    {m.text}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
+                                            messages.map((m) => (
+                                                <ChatMessageRow
+                                                    key={m.client_id ?? m.id}
+                                                    message={m}
+                                                    currentUserName={userName}
+                                                    variant="sidebar"
+                                                />
+                                            ))
                                         )}
                                     </div>
                                     {pendingChatHints > 0 ? (
