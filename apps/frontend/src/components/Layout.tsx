@@ -309,8 +309,9 @@ export function Layout() {
                 feature,
                 enabled,
             });
+            const expiresAt = feature === "camera" ? res.camera_expires_at : res.screen_share_expires_at;
             pushLog(
-                `stage permission ${enabled ? "allow" : "deny"} ${feature} -> ${targetIdentity} (affected=${res.affected_tracks})`,
+                `stage permission ${enabled ? "allow" : "deny"} ${feature} -> ${targetIdentity} (affected=${res.affected_tracks}${expiresAt ? `, expires_at=${expiresAt}` : ""})`,
             );
         },
         [api, joined?.role, role, roomId, userName, pushLog],

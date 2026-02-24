@@ -441,12 +441,16 @@ export function useRoomState({
       enabled,
     });
     const featureText = feature === "camera" ? "摄像头" : "投屏";
+    const expiresAt = feature === "camera" ? res.camera_expires_at : res.screen_share_expires_at;
+    const expiresHint = enabled && expiresAt
+      ? `（有效至 ${new Date(expiresAt * 1000).toLocaleTimeString()}）`
+      : "";
     pushLog(
-      `${enabled ? "allow" : "deny"} ${feature} ${targetIdentity} (affected=${res.affected_tracks})`,
+      `${enabled ? "allow" : "deny"} ${feature} ${targetIdentity} (affected=${res.affected_tracks}${expiresAt ? `, expires_at=${expiresAt}` : ""})`,
     );
     showActionNotice(
       "ok",
-      `${enabled ? "已允许" : "已关闭"} ${targetIdentity} 的${featureText}`,
+      `${enabled ? "已允许" : "已关闭"} ${targetIdentity} 的${featureText}${expiresHint}`,
     );
   };
 

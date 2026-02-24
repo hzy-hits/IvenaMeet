@@ -54,6 +54,8 @@ pub struct SetMemberMediaPermissionResp {
     pub affected_tracks: u32,
     pub camera_allowed: bool,
     pub screen_share_allowed: bool,
+    pub camera_expires_at: Option<i64>,
+    pub screen_share_expires_at: Option<i64>,
 }
 
 async fn mute_member(
@@ -260,9 +262,16 @@ async fn set_member_media_permission(
         )
         .await?;
 
+    let now = now_ts();
     match feature {
-        MediaFeature::Camera => permission.camera = req.enabled,
-        MediaFeature::ScreenShare => permission.screen_share = req.enabled,
+        MediaFeature::Camera => {
+            permission.set_camera_granted(req.enabled, now, state.config.member_media_grant_ttl_seconds)
+        }
+        MediaFeature::ScreenShare => permission.set_screen_share_granted(
+            req.enabled,
+            now,
+            state.config.member_media_grant_ttl_seconds,
+        ),
     }
 
     state
@@ -275,10 +284,14 @@ async fn set_member_media_permission(
             state.config.room_ttl_seconds,
         )
         .await?;
+    let effective = {
+        let mut p = permission;
+        p.resolve_at(now)
+    };
 
     let publish_permission = PublishPermission {
-        camera: permission.camera,
-        screen_share: permission.screen_share,
+        camera: effective.camera_allowed,
+        screen_share: effective.screen_share_allowed,
     };
     state
         .livekit_service
@@ -307,16 +320,20 @@ async fn set_member_media_permission(
         feature = feature.as_str(),
         enabled = req.enabled,
         affected_tracks,
-        camera_allowed = permission.camera,
-        screen_share_allowed = permission.screen_share,
+        camera_allowed = effective.camera_allowed,
+        screen_share_allowed = effective.screen_share_allowed,
+        camera_expires_at = ?effective.camera_expires_at,
+        screen_share_expires_at = ?effective.screen_share_expires_at,
         result = "ok",
         "member media permission updated"
     );
 
     Ok(Json(SetMemberMediaPermissionResp {
         affected_tracks,
-        camera_allowed: permission.camera,
-        screen_share_allowed: permission.screen_share,
+        camera_allowed: effective.camera_allowed,
+        screen_share_allowed: effective.screen_share_allowed,
+        camera_expires_at: effective.camera_expires_at,
+        screen_share_expires_at: effective.screen_share_expires_at,
     }))
 }
 
@@ -343,4 +360,11 @@ fn parse_media_feature(raw: &str) -> AppResult<MediaFeature> {
             "feature must be camera or screen_share".to_string(),
         )),
     }
+}
+
+fn now_ts() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }

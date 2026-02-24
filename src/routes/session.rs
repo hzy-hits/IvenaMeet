@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::request_meta;
+use crate::services::livekit::PublishPermission;
 use crate::services::session::SessionClaims;
 use crate::state::AppState;
 use axum::{
@@ -40,6 +41,8 @@ async fn refresh_session(
     let (new_token, claims) = state
         .session_service
         .refresh(&mut redis, token, state.config.session_ttl_seconds)
+        .await?;
+    enforce_member_media_lease(&state, &mut redis, &claims, &request_id, "/sessions/refresh")
         .await?;
     let owner = session_owner(&claims);
     let rotated = state
@@ -92,6 +95,8 @@ async fn session_heartbeat(
 
     let mut redis = state.redis.clone();
     let claims = state.session_service.verify(&mut redis, token).await?;
+    enforce_member_media_lease(&state, &mut redis, &claims, &request_id, "/sessions/heartbeat")
+        .await?;
     let owner = session_owner(&claims);
     let touched = state
         .presence_service
@@ -153,4 +158,79 @@ fn now_ts() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+async fn enforce_member_media_lease(
+    state: &AppState,
+    redis: &mut redis::aio::ConnectionManager,
+    claims: &SessionClaims,
+    request_id: &str,
+    route: &'static str,
+) -> AppResult<()> {
+    if claims.role != "member" {
+        return Ok(());
+    }
+
+    let effective = state
+        .stage_permission_service
+        .resolve_member(
+            redis,
+            &claims.room_id,
+            &claims.user_name,
+            state.config.room_ttl_seconds,
+            now_ts(),
+        )
+        .await?;
+
+    if !(effective.expired_camera || effective.expired_screen_share) {
+        return Ok(());
+    }
+
+    state
+        .livekit_service
+        .update_participant_publish_permission(
+            &claims.room_id,
+            &claims.user_name,
+            PublishPermission {
+                camera: effective.camera_allowed,
+                screen_share: effective.screen_share_allowed,
+            },
+        )
+        .await?;
+
+    if effective.expired_camera {
+        let _ = state
+            .livekit_service
+            .mute_participant_track_source(
+                &claims.room_id,
+                &claims.user_name,
+                livekit_protocol::TrackSource::Camera,
+                true,
+            )
+            .await?;
+    }
+    if effective.expired_screen_share {
+        let _ = state
+            .livekit_service
+            .mute_participant_track_source(
+                &claims.room_id,
+                &claims.user_name,
+                livekit_protocol::TrackSource::ScreenShare,
+                true,
+            )
+            .await?;
+    }
+
+    warn!(
+        request_id,
+        route,
+        room_id = claims.room_id,
+        user_name = claims.user_name,
+        expired_camera = effective.expired_camera,
+        expired_screen_share = effective.expired_screen_share,
+        result = "lease_expired",
+        "member media grant lease expired; publish permission revoked"
+    );
+
+    Ok(())
 }

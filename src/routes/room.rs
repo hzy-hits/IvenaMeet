@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::services::livekit::{PublishPermission, UserRole};
-use crate::services::stage_permission::MemberMediaPermission;
+use crate::services::stage_permission::EffectiveMemberMediaPermission;
 use crate::services::session::SessionClaims;
 use crate::state::AppState;
 use crate::validation;
@@ -49,6 +49,8 @@ pub struct JoinResp {
     pub role: String,
     pub camera_allowed: bool,
     pub screen_share_allowed: bool,
+    pub camera_expires_at: Option<i64>,
+    pub screen_share_expires_at: Option<i64>,
     pub nickname: String,
     pub avatar_url: Option<String>,
     pub app_session_token: String,
@@ -65,6 +67,8 @@ pub struct ReconnectResp {
     pub role: String,
     pub camera_allowed: bool,
     pub screen_share_allowed: bool,
+    pub camera_expires_at: Option<i64>,
+    pub screen_share_expires_at: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -360,10 +364,16 @@ async fn join_room(
     };
 
     let media_permission = match role {
-        UserRole::Host => MemberMediaPermission::host_default(),
+        UserRole::Host => EffectiveMemberMediaPermission::host_default(),
         UserRole::Member => state
             .stage_permission_service
-            .get_or_default_member(&mut redis, &room_id, &user_name, state.config.room_ttl_seconds)
+            .resolve_member(
+                &mut redis,
+                &room_id,
+                &user_name,
+                state.config.room_ttl_seconds,
+                now_ts(),
+            )
             .await?,
     };
     let token = match state
@@ -373,8 +383,8 @@ async fn join_room(
             &room_id,
             role,
             PublishPermission {
-                camera: media_permission.camera,
-                screen_share: media_permission.screen_share,
+                camera: media_permission.camera_allowed,
+                screen_share: media_permission.screen_share_allowed,
             },
         )
     {
@@ -516,8 +526,10 @@ async fn join_room(
             UserRole::Host => "host".to_string(),
             UserRole::Member => "member".to_string(),
         },
-        camera_allowed: media_permission.camera,
-        screen_share_allowed: media_permission.screen_share,
+        camera_allowed: media_permission.camera_allowed,
+        screen_share_allowed: media_permission.screen_share_allowed,
+        camera_expires_at: media_permission.camera_expires_at,
+        screen_share_expires_at: media_permission.screen_share_expires_at,
         nickname: profile.nickname,
         avatar_url: profile.avatar_url,
         app_session_token,
@@ -579,14 +591,15 @@ async fn reconnect_room(
     let role = UserRole::from_str(&claims.role)
         .ok_or_else(|| AppError::Unauthorized("session role invalid".to_string()))?;
     let media_permission = match role {
-        UserRole::Host => MemberMediaPermission::host_default(),
+        UserRole::Host => EffectiveMemberMediaPermission::host_default(),
         UserRole::Member => state
             .stage_permission_service
-            .get_or_default_member(
+            .resolve_member(
                 &mut redis,
                 &claims.room_id,
                 &claims.user_name,
                 state.config.room_ttl_seconds,
+                now_ts(),
             )
             .await?,
     };
@@ -595,8 +608,8 @@ async fn reconnect_room(
         &claims.room_id,
         role,
         PublishPermission {
-            camera: media_permission.camera,
-            screen_share: media_permission.screen_share,
+            camera: media_permission.camera_allowed,
+            screen_share: media_permission.screen_share_allowed,
         },
     )?;
 
@@ -614,8 +627,10 @@ async fn reconnect_room(
         token,
         expires_in_seconds: state.config.token_ttl_seconds,
         role: claims.role,
-        camera_allowed: media_permission.camera,
-        screen_share_allowed: media_permission.screen_share,
+        camera_allowed: media_permission.camera_allowed,
+        screen_share_allowed: media_permission.screen_share_allowed,
+        camera_expires_at: media_permission.camera_expires_at,
+        screen_share_expires_at: media_permission.screen_share_expires_at,
     }))
 }
 

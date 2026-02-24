@@ -27,6 +27,8 @@ export interface JoinResp {
   role: Role;
   camera_allowed: boolean;
   screen_share_allowed: boolean;
+  camera_expires_at?: number | null;
+  screen_share_expires_at?: number | null;
   nickname: string;
   avatar_url?: string | null;
   app_session_token: string;
@@ -42,6 +44,8 @@ export interface ReconnectResp {
   role: Role;
   camera_allowed: boolean;
   screen_share_allowed: boolean;
+  camera_expires_at?: number | null;
+  screen_share_expires_at?: number | null;
 }
 
 export interface LeaveResp {
@@ -130,6 +134,8 @@ export interface SetMemberMediaPermissionResp {
   affected_tracks: number;
   camera_allowed: boolean;
   screen_share_allowed: boolean;
+  camera_expires_at?: number | null;
+  screen_share_expires_at?: number | null;
 }
 
 export interface RefreshSessionResp {

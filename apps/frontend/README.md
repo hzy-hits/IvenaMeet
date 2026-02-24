@@ -6,7 +6,7 @@ React + Vite frontend for the private LiveKit stage.
 
 - Role selector: `host` / `member`
 - `host` can directly screen share/camera; `member` can request approval for camera/screen share
-- `host` can remotely allow/deny member camera and screen share
+- `host` can remotely allow/deny member camera and screen share (grants expire after 30 minutes by default)
 - Member list + active speaker highlight
 - Room chat (real-time over LiveKit DataChannel)
 - Message history persistence via control-plane API

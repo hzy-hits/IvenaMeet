@@ -35,6 +35,7 @@ pub struct Config {
     pub avatar_upload_limit_per_minute: u64,
     pub avatar_upload_limit_per_day: u64,
     pub avatar_storage_quota_bytes: u64,
+    pub member_media_grant_ttl_seconds: u64,
     pub trusted_proxy_ips: Vec<IpAddr>,
 }
 
@@ -78,6 +79,10 @@ impl Config {
             avatar_storage_quota_bytes: parse_env_u64(
                 "AVATAR_STORAGE_QUOTA_BYTES",
                 500 * 1024 * 1024,
+            )?,
+            member_media_grant_ttl_seconds: parse_env_u64(
+                "MEMBER_MEDIA_GRANT_TTL_SECONDS",
+                30 * 60,
             )?,
             trusted_proxy_ips: parse_env_ip_list("TRUSTED_PROXY_IPS")?,
         })
