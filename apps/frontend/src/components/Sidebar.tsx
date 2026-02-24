@@ -25,6 +25,7 @@ import {
 import type { ResolvedTheme, ThemeMode } from "../lib/theme";
 import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 import { ChatMessageRow } from "./chat/ChatMessageRow";
+import { MuchaArch, OrnateDivider } from "./mucha-primitives";
 import { useAvatarState } from "../hooks/sidebar/useAvatarState";
 import { useChatState } from "../hooks/sidebar/useChatState";
 import { usePresenceState } from "../hooks/sidebar/usePresenceState";
@@ -240,25 +241,27 @@ export function Sidebar(props: Props) {
     return (
         <>
             <aside className="paper-grain mucha-surface mucha-contour relative hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-panel p-3 shadow-mucha lg:flex lg:p-4">
-                <section className="bg-parchment/80 p-4 flex flex-col shrink-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div>
-                            <h2 className="font-display text-sm font-bold text-ink tracking-wide uppercase">Command Center</h2>
-                            <p className="text-xs font-mono text-ink/50 mt-0.5">
-                                {joined ? `CH/${roomId} · ${joined.role.toUpperCase()}` : "STANDBY"}
-                            </p>
+                <MuchaArch className="bg-parchment/80 shrink-0">
+                    <section className="px-4 pb-4 flex flex-col">
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <h2 className="font-display text-sm font-bold text-ink tracking-wide uppercase">Command Center</h2>
+                                <p className="text-xs font-mono text-ink/50 mt-0.5">
+                                    {joined ? `CH/${roomId} · ${joined.role.toUpperCase()}` : "STANDBY"}
+                                </p>
+                            </div>
+                            {joined ? (
+                                <button
+                                    onClick={() => run(leaveRoom)}
+                                    className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                >
+                                    <LogOut size={16} /> Leave
+                                </button>
+                            ) : null}
                         </div>
-                        {joined ? (
-                            <button
-                                onClick={() => run(leaveRoom)}
-                                className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
-                            >
-                                <LogOut size={16} /> Leave
-                            </button>
-                        ) : null}
-                    </div>
-                    <div className="ornate-divider mt-3" aria-hidden="true" />
-                </section>
+                        <OrnateDivider className="mt-3" />
+                    </section>
+                </MuchaArch>
 
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
                     <section className="px-4 py-2 shrink-0">

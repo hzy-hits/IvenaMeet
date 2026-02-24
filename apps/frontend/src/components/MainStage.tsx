@@ -8,6 +8,7 @@ import {
     useRoomContext,
     useTracks,
 } from "@livekit/components-react";
+import { MuchaHalo } from "./mucha-primitives";
 import type { TrackReference, TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import {
     RoomEvent,
@@ -759,10 +760,11 @@ export function MainStage({
 
     if (!joined) {
         return (
-            <main className="relative grid h-full min-h-0 place-items-center rounded-panel border border-ink/10 bg-[#1A1A1A] shadow-mucha">
-                <div className="text-center">
-                    <p className="font-display text-xl font-semibold text-white/80">Ivena Meet</p>
-                    <p className="mt-2 font-body text-sm text-white/45">Join a room from the Command Center to enter Main Stage.</p>
+            <main className="relative grid h-full min-h-0 place-items-center rounded-panel border border-ink/10 bg-[#1A1A1A] shadow-mucha overflow-hidden">
+                <MuchaHalo className="absolute inset-0 m-auto h-[400px] w-[400px] text-white/5" />
+                <div className="relative z-10 text-center">
+                    <p className="font-display text-2xl font-semibold text-white/80 tracking-widest">Ivena Meet</p>
+                    <p className="mt-3 font-body text-sm text-white/45">Join a room from the Command Center to enter Main Stage.</p>
                 </div>
             </main>
         );

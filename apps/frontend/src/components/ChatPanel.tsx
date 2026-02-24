@@ -3,7 +3,7 @@ import { MessageCircle, Send } from "lucide-react";
 import type { JoinResp, MessageItem } from "../lib/types";
 import { messageTailKey } from "../lib/chat";
 import { ChatMessageRow } from "./chat/ChatMessageRow";
-import { PaperSurface, OrnateDivider } from "./mucha-primitives";
+import { PaperSurface, OrnateDivider, MuchaArch } from "./mucha-primitives";
 
 type Props = {
     className?: string;
@@ -105,8 +105,8 @@ export function ChatPanel({
             className={`hidden h-full min-h-0 flex-col overflow-hidden rounded-panel p-3 xl:flex xl:p-4 ${className ?? ""}`}
         >
             {/* Header */}
-            <div className="mb-3 pb-3">
-                <div className="flex items-center justify-between gap-2">
+            <MuchaArch className="mb-3">
+                <div className="flex items-center justify-between gap-2 px-1">
                     <div>
                         <p className="font-display text-[10px] uppercase tracking-[0.14em] text-ink/40">Text Channel</p>
                         <h2 className="mt-1 inline-flex items-center gap-2 font-display text-sm font-semibold tracking-wide text-ink/90">
@@ -125,8 +125,8 @@ export function ChatPanel({
                         </span>
                     </div>
                 </div>
-                <OrnateDivider className="mt-3 mb-0" />
-            </div>
+                <OrnateDivider className="mt-2 mb-0" />
+            </MuchaArch>
 
             {!joined ? (
                 <div className="grid flex-1 place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel text-center font-body text-sm text-ink/45">
