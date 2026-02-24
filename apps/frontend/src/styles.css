@@ -2,53 +2,221 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   MUCHA UI ENGINE — Design Tokens (CSS Variables)
+   Light = default (parchment canvas)
+   Dark  = [data-theme="dark"] (ink-noir atelier)
+   ============================================================ */
 @layer base {
-  :root {
-    --bg-dark: 30 31 34;
-    --bg-panel: 43 45 49;
-    --bg-light: 49 51 56;
-    --accent: 88 101 242;
-    --accent-hover: 71 82 196;
-    --accent-neon: 0 240 255;
-    --ok: 35 165 89;
-    --warn: 254 231 92;
-    --error: 218 55 60;
-  }
+    :root {
+        /* ── Surfaces ── */
+        --canvas: 242 237 228;
+        /* #F2EDE4 */
+        --parchment: 230 218 185;
+        /* #E6DAB9 */
+        --rail: 217 203 168;
+        /* #D9CBA8 */
+        --surface-raise: 242 237 228;
+        /* used at low alpha for lift */
 
-  html[data-theme="light"] {
-    --bg-dark: 46 54 64;
-    --bg-panel: 56 66 78;
-    --bg-light: 74 86 102;
-    --accent: 77 151 255;
-    --accent-hover: 55 129 232;
-    --accent-neon: 66 228 255;
-    --ok: 44 186 118;
-    --warn: 248 210 96;
-    --error: 233 96 102;
-  }
+        /* ── Text ── */
+        --ink: 44 38 33;
+        /* #2C2621 — NEVER pure black */
+        --ink-secondary: 44 38 33;
+        /* used at 0.78 alpha */
+        --ink-muted: 44 38 33;
+        /* used at 0.55 alpha */
+
+        /* ── Accents ── */
+        --gold: 212 175 55;
+        /* #D4AF37 */
+        --indigo: 59 74 107;
+        /* #3B4A6B */
+        --coral: 209 106 84;
+        /* #D16A54 */
+        --teal: 107 158 155;
+        /* #6B9E9B */
+
+        /* ── Semantic ── */
+        --ok: 107 158 155;
+        /* same as teal for light */
+        --warn: 212 175 55;
+        /* same as gold for light */
+        --error: 209 106 84;
+        /* same as coral for light */
+
+        /* ── Stroke ── */
+        --stroke-ink: 44 38 33;
+        --stroke-gold: 212 175 55;
+
+        /* ── Shadows (light) ── */
+        --shadow-mucha: 0 4px 12px rgba(44, 38, 33, .10), 0 2px 4px rgba(44, 38, 33, .05);
+        --shadow-gold-glow: 0 0 0 1px rgba(212, 175, 55, .18), 0 0 14px rgba(212, 175, 55, .10);
+
+        color-scheme: light;
+    }
+
+    [data-theme="dark"] {
+        /* ── Surfaces (ink-noir) ── */
+        --canvas: 23 20 17;
+        /* #171411 */
+        --parchment: 35 29 23;
+        /* #231D17 */
+        --rail: 28 23 18;
+        /* #1C1712 */
+        --surface-raise: 242 237 228;
+
+        /* ── Text (warm ivory, never pure white) ── */
+        --ink: 231 221 200;
+        /* #E7DDC8 */
+        --ink-secondary: 231 221 200;
+        --ink-muted: 231 221 200;
+
+        /* ── Accents (brightened for dark bg) ── */
+        --gold: 200 167 74;
+        /* #C8A74A */
+        --indigo: 143 160 198;
+        /* #8FA0C6 */
+        --coral: 224 139 118;
+        /* #E08B76 */
+        --teal: 134 184 176;
+        /* #86B8B0 */
+
+        /* ── Semantic ── */
+        --ok: 134 184 176;
+        --warn: 200 167 74;
+        --error: 224 139 118;
+
+        /* ── Stroke ── */
+        --stroke-ink: 231 221 200;
+        --stroke-gold: 200 167 74;
+
+        --shadow-mucha: 0 8px 24px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .25);
+        --shadow-gold-glow: 0 0 0 1px rgba(200, 167, 74, .22), 0 0 18px rgba(200, 167, 74, .16);
+
+        color-scheme: dark;
+    }
 }
 
+/* ============================================================
+   Base styles
+   ============================================================ */
 @layer base {
-  body {
-    @apply bg-bg-dark text-gray-200 antialiased;
-    transition: background-color 180ms ease, color 180ms ease;
-  }
+    body {
+        @apply bg-canvas text-ink antialiased;
+        font-weight: 500;
+        /* Mucha: no thin text */
+        transition: background-color 180ms ease, color 180ms ease;
+    }
+
+    /* Focus ring: always gold, never blue */
+    :focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px rgb(var(--gold) / 0.55);
+    }
 }
 
-/* Custom Scrollbar for a sleeker look */
+/* ============================================================
+   Paper grain texture overlay (applied via .paper-grain class)
+   Pure CSS noise — extremely faint
+   ============================================================ */
+.paper-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.06;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    border-radius: inherit;
+}
+
+[data-theme="dark"] .paper-grain::before {
+    opacity: 0.08;
+}
+
+/* ============================================================
+   Halo / breathing animation (gold glow pulse)
+   ============================================================ */
+@keyframes halo-breathe {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 2px rgb(var(--gold) / 0.20), 0 0 12px rgb(var(--gold) / 0.08);
+    }
+
+    50% {
+        box-shadow: 0 0 0 3px rgb(var(--gold) / 0.35), 0 0 18px rgb(var(--gold) / 0.16);
+    }
+}
+
+.halo-active {
+    animation: halo-breathe 2s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .halo-active {
+        animation: none;
+        box-shadow: 0 0 0 2px rgb(var(--gold) / 0.30), 0 0 8px rgb(var(--gold) / 0.12);
+    }
+}
+
+/* ============================================================
+   Ornate divider (gold rule with center ornament)
+   ============================================================ */
+.ornate-divider {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgb(var(--gold) / 0.35) 20%,
+            rgb(var(--gold) / 0.55) 50%,
+            rgb(var(--gold) / 0.35) 80%,
+            transparent 100%);
+}
+
+.ornate-divider::after {
+    content: "◆";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 8px;
+    color: rgb(var(--gold) / 0.65);
+    background: rgb(var(--canvas));
+    padding: 0 6px;
+    line-height: 1;
+}
+
+[data-theme="dark"] .ornate-divider::after {
+    background: rgb(var(--parchment));
+}
+
+/* ============================================================
+   Custom Scrollbar (parchment + gold)
+   ============================================================ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-bg-light rounded-full;
+    background: rgb(var(--gold) / 0.25);
+    border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500;
+    background: rgb(var(--gold) / 0.45);
+}
+
+/* ============================================================
+   Transition easing utility
+   ============================================================ */
+.ease-mucha {
+    transition-timing-function: cubic-bezier(.2, .8, .2, 1);
 }

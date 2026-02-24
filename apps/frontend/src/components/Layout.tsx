@@ -403,17 +403,16 @@ export function Layout() {
                 <div className={`min-w-0 flex-1 ${inTheaterMode ? "flex flex-col" : "flex flex-col gap-2"}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
                     <header
-                        className={`shrink-0 flex items-center justify-between border border-bg-light bg-bg-panel/40 ${
-                            inTheaterMode ? "rounded-none px-3 py-2" : "rounded-xl px-4 py-3"
-                        }`}
+                        className={`shrink-0 flex items-center justify-between border border-gold/30 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
+                            }`}
                     >
                         <div className="flex items-center gap-3">
-                            <h1 className="text-lg font-semibold tracking-tight text-white hover:text-accent transition-colors cursor-default">
+                            <h1 className="font-display text-lg font-semibold tracking-tight text-ink hover:text-gold transition-colors ease-mucha cursor-default">
                                 Ivena Meet
                             </h1>
-                            <div className="h-4 w-px bg-gray-600"></div>
+                            <div className="h-4 w-px bg-gold/35"></div>
                             <div className="flex items-center gap-2 text-xs font-mono">
-                                <span className="text-gray-400">CH/<span className="text-gray-200">{roomId}</span></span>
+                                <span className="text-ink/50">CH/<span className="text-ink/80">{roomId}</span></span>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs font-mono">
@@ -423,11 +422,10 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleChatFocusLayout();
                                     }}
-                                    className={`rounded border px-2 py-1 ${
-                                        chatDominant
-                                            ? "border-accent/45 bg-accent/15 text-accent"
-                                            : "border-white/20 bg-black/25 text-white/80"
-                                    }`}
+                                    className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${chatDominant
+                                            ? "border-gold/55 bg-gold/15 text-gold"
+                                            : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        }`}
                                 >
                                     {chatDominant ? "EXIT_CHAT_FOCUS" : "CHAT_FOCUS"}
                                 </button>
@@ -438,25 +436,24 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleFullscreenStage();
                                     }}
-                                    className={`rounded border px-2 py-1 ${
-                                        isFullscreen || inTheaterMode
-                                            ? "border-accent/45 bg-accent/15 text-accent"
-                                            : "border-white/20 bg-black/25 text-white/80"
-                                    }`}
+                                    className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${isFullscreen || inTheaterMode
+                                            ? "border-gold/55 bg-gold/15 text-gold"
+                                            : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        }`}
                                 >
                                     {isHostView || localScreenShareActive
                                         ? inTheaterMode
                                             ? "EXIT_STAGE"
                                             : "STAGE_FOCUS"
                                         : isFullscreen
-                                          ? "EXIT_FULLSCREEN"
-                                          : "FULLSCREEN"}
+                                            ? "EXIT_FULLSCREEN"
+                                            : "FULLSCREEN"}
                                 </button>
                             ) : null}
-                            <span className="rounded bg-bg-light/60 px-2 py-1 text-accent border border-accent/20">
+                            <span className="rounded-chip bg-gold/12 px-2 py-1 text-gold border border-gold/30">
                                 {joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY"}
                             </span>
-                            <span className="rounded bg-bg-light/60 px-2 py-1 text-gray-300">
+                            <span className="rounded-chip bg-parchment/70 px-2 py-1 text-ink/70 border border-gold/20">
                                 {joined ? joined.role.toUpperCase() : role.toUpperCase()}
                             </span>
                         </div>
@@ -505,7 +502,7 @@ export function Layout() {
                             <button
                                 type="button"
                                 onClick={() => setTheaterControlOpen((v) => !v)}
-                                className="pointer-events-auto ml-1 rounded-r-xl border border-white/20 bg-black/45 px-2 py-3 text-[11px] font-mono text-white/80 backdrop-blur-md hover:bg-black/60"
+                                className="pointer-events-auto ml-1 rounded-r-panel border border-gold/35 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterControlOpen ? "HIDE CTRL" : "CTRL"}
                             </button>
@@ -517,7 +514,7 @@ export function Layout() {
                             <button
                                 type="button"
                                 onClick={() => setTheaterChatOpen((v) => !v)}
-                                className="pointer-events-auto mr-1 rounded-l-xl border border-white/20 bg-black/45 px-2 py-3 text-[11px] font-mono text-white/80 backdrop-blur-md hover:bg-black/60"
+                                className="pointer-events-auto mr-1 rounded-l-panel border border-gold/35 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterChatOpen ? "HIDE CHAT" : "CHAT"}
                             </button>
@@ -528,7 +525,7 @@ export function Layout() {
                                 <button
                                     type="button"
                                     onClick={() => setTheaterControlOpen(false)}
-                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-black/30 text-xs text-white/60 transition-all hover:bg-black/55 hover:text-white/90"
+                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-gold/30 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
                                     aria-label="close control drawer"
                                 >
                                     ×
@@ -570,7 +567,7 @@ export function Layout() {
                                 <button
                                     type="button"
                                     onClick={() => setTheaterChatOpen(false)}
-                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-black/30 text-xs text-white/60 transition-all hover:bg-black/55 hover:text-white/90"
+                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-gold/30 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
                                     aria-label="close chat drawer"
                                 >
                                     ×
@@ -582,7 +579,7 @@ export function Layout() {
                                     onlineCount={members.length}
                                     messages={messages}
                                     onSend={handleSendChat}
-                                    className="!flex h-full w-full rounded-2xl border border-white/15 bg-[linear-gradient(180deg,rgba(18,35,48,0.86),rgba(10,20,28,0.82))]"
+                                    className="!flex h-full w-full rounded-panel border border-gold/25 bg-parchment/95 shadow-mucha backdrop-blur-md"
                                 />
                             </div>
                         ) : null}
@@ -593,7 +590,7 @@ export function Layout() {
     );
 
     return (
-        <div ref={layoutRef} className="relative h-screen overflow-hidden bg-bg-dark font-space text-gray-200 flex">
+        <div ref={layoutRef} className="relative h-screen overflow-hidden bg-canvas font-body text-ink flex">
             {content}
         </div>
     );

@@ -526,9 +526,8 @@ function StageScene({
 
     return (
         <div
-            className={`relative h-full w-full overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(78,205,196,0.14),rgba(8,17,24,0.96)_42%)] ${
-                immersive ? "rounded-none border-0" : "rounded-[26px] border border-white/10"
-            }`}
+            className={`paper-grain relative h-full w-full overflow-hidden bg-canvas ${immersive ? "rounded-none border-0" : "rounded-panel border border-gold/25 shadow-mucha"
+                }`}
         >
             <div className="absolute inset-0">
                 {heroTrack ? (
@@ -537,10 +536,10 @@ function StageScene({
                         className="absolute inset-0 h-full w-full object-contain"
                     />
                 ) : (
-                    <div className="grid h-full place-items-center text-center text-white/45">
+                    <div className="grid h-full place-items-center text-center text-ink/40">
                         <div>
-                            <p className="text-lg font-semibold tracking-wide text-white/80">Main Stage</p>
-                            <p className="mt-1 text-sm text-white/55">Waiting for screen share / OBS ingress track...</p>
+                            <p className="font-display text-lg font-semibold tracking-wide text-ink/70">Main Stage</p>
+                            <p className="mt-1 font-body text-sm text-ink/45">Waiting for screen share / OBS ingress track...</p>
                         </div>
                     </div>
                 )}
@@ -549,20 +548,20 @@ function StageScene({
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,14,0.32),rgba(5,10,14,0)_30%,rgba(5,10,14,0.36))]" />
 
             <div className="absolute left-4 right-4 top-4 z-20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1 backdrop-blur">
-                    <span className={`h-2 w-2 rounded-full ${hasStageMedia ? "bg-accent" : "bg-white/45"}`} />
-                    <span className="text-white/80">
+                <div className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-parchment/80 px-3 py-1 backdrop-blur-sm">
+                    <span className={`h-2 w-2 rounded-full ${hasStageMedia ? "bg-gold" : "bg-ink/35"}`} />
+                    <span className="text-ink/75">
                         {hasStageMedia ? "video stage online" : "voice lounge"}
                     </span>
                 </div>
                 <div className="inline-flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-white/75">
+                    <span className="rounded-chip border border-gold/25 bg-parchment/80 px-2.5 py-1 text-ink/65">
                         members {activeParticipantCount}
                     </span>
                     <span
-                        className={`rounded-full border px-2.5 py-1 ${hasIngressParticipant
-                            ? "border-accent/45 bg-accent/10 text-accent"
-                            : "border-white/15 bg-black/35 text-white/75"
+                        className={`rounded-chip border px-2.5 py-1 ${hasIngressParticipant
+                            ? "border-gold/55 bg-gold/12 text-gold"
+                            : "border-gold/25 bg-parchment/80 text-ink/65"
                             }`}
                     >
                         {hasIngressParticipant ? "obs ingress" : "browser feed"}
@@ -571,7 +570,7 @@ function StageScene({
                         <button
                             type="button"
                             onClick={() => setPinnedIdentity(null)}
-                            className="inline-flex items-center gap-1 rounded-full border border-accent/45 bg-accent/10 px-2.5 py-1 text-accent"
+                            className="inline-flex items-center gap-1 rounded-chip border border-gold/55 bg-gold/12 px-2.5 py-1 text-gold transition-colors ease-mucha"
                             title="取消固定"
                         >
                             <PinOff size={12} />
@@ -582,13 +581,13 @@ function StageScene({
             </div>
 
             {isHost && hostStageRequests.length > 0 ? (
-                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-2xl border border-white/15 bg-black/55 p-2 backdrop-blur-md">
-                    <p className="px-2 pb-1 text-[11px] font-mono text-white/70">stage requests</p>
+                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-panel border border-gold/25 bg-parchment/90 p-2 shadow-mucha backdrop-blur-md">
+                    <p className="px-2 pb-1 font-display text-[11px] font-mono text-ink/60">stage requests</p>
                     <div className="space-y-1.5">
                         {hostStageRequests.map((request) => (
-                            <div key={request.request_id} className="rounded-xl border border-white/10 bg-black/35 p-2">
-                                <p className="text-xs text-white/85">
-                                    <span className="font-semibold text-accent">{request.target_user}</span>
+                            <div key={request.request_id} className="rounded-chip border border-gold/20 bg-canvas/50 p-2">
+                                <p className="text-xs text-ink/80">
+                                    <span className="font-semibold text-gold">{request.target_user}</span>
                                     {request.feature === "camera" ? " requests camera" : " requests screen share"}
                                 </p>
                                 <div className="mt-2 flex items-center gap-1.5">
@@ -597,7 +596,7 @@ function StageScene({
                                         onClick={() => {
                                             void decideStageAccess(request, true);
                                         }}
-                                        className="rounded-lg border border-ok/40 bg-ok/15 px-2 py-1 text-[11px] text-ok hover:bg-ok/20"
+                                        className="rounded-chip border border-teal/40 bg-teal/15 px-2 py-1 text-[11px] text-teal hover:bg-teal/25"
                                     >
                                         allow
                                     </button>
@@ -606,7 +605,7 @@ function StageScene({
                                         onClick={() => {
                                             void decideStageAccess(request, false);
                                         }}
-                                        className="rounded-lg border border-red-300/40 bg-red-500/20 px-2 py-1 text-[11px] text-red-100 hover:bg-red-500/25"
+                                        className="rounded-chip border border-coral/40 bg-coral/15 px-2 py-1 text-[11px] text-coral hover:bg-coral/25"
                                     >
                                         deny
                                     </button>
@@ -629,11 +628,11 @@ function StageScene({
                                 onClick={() => {
                                     setPinnedIdentity((current) => (current === identity ? null : identity));
                                 }}
-                                className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-xl border ${pinned ? "border-accent/65" : "border-white/20"}`}
+                                className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-chip border ${pinned ? "border-gold/65" : "border-gold/25"}`}
                                 title={pinned ? "取消固定" : `固定 ${identity}`}
                             >
                                 <VideoTrack trackRef={trackRef} className="absolute inset-0 h-full w-full object-cover" />
-                                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/50 px-1.5 py-1 text-[10px] text-white/85">
+                                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-ink/50 px-1.5 py-1 text-[10px] text-parchment/90">
                                     <span className="truncate">{identity}</span>
                                     {pinned ? <PinOff size={10} /> : <Pin size={10} />}
                                 </div>
@@ -643,10 +642,10 @@ function StageScene({
                 </div>
             ) : null}
 
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-white/10 bg-bg-panel/80 p-1.5 backdrop-blur-md">
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-gold/25 bg-parchment/85 p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
-                        className={`rounded-xl p-2 transition-colors ${micOn ? "text-ok bg-ok/15" : "text-white/75 hover:bg-white/10"}`}
+                        className={`rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleMic();
                         }}
@@ -655,7 +654,7 @@ function StageScene({
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                     </button>
                     <button
-                        className={`rounded-xl p-2 transition-colors ${camOn ? "text-accent bg-accent/15" : "text-white/75 hover:bg-white/10"}`}
+                        className={`rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleCamera();
                         }}
@@ -668,7 +667,7 @@ function StageScene({
                         {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
                     </button>
                     <button
-                        className={`rounded-xl p-2 transition-colors ${shareOn ? "text-accent bg-accent/15" : "text-white/75 hover:bg-white/10"}`}
+                        className={`rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleShare();
                         }}
@@ -685,9 +684,9 @@ function StageScene({
 
             {stageNotice ? (
                 <div
-                    className={`absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-xl border px-3 py-2 text-xs ${stageNotice.kind === "ok"
-                        ? "border-ok/40 bg-ok/10 text-ok"
-                        : "border-red-300/40 bg-red-500/20 text-red-100"
+                    className={`absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-chip border px-3 py-2 font-body text-xs ${stageNotice.kind === "ok"
+                        ? "border-teal/40 bg-teal/10 text-teal"
+                        : "border-coral/40 bg-coral/15 text-coral"
                         }`}
                 >
                     {stageNotice.text}
@@ -760,10 +759,10 @@ export function MainStage({
 
     if (!joined) {
         return (
-            <main className="grid h-full min-h-0 place-items-center rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))]">
+            <main className="paper-grain relative grid h-full min-h-0 place-items-center rounded-panel border border-gold/25 bg-canvas shadow-mucha">
                 <div className="text-center">
-                    <p className="text-xl font-semibold">Ivena Meet</p>
-                    <p className="mt-2 text-sm text-white/55">Join a room from the Command Center to enter Main Stage.</p>
+                    <p className="font-display text-xl font-semibold text-ink">Ivena Meet</p>
+                    <p className="mt-2 font-body text-sm text-ink/45">Join a room from the Command Center to enter Main Stage.</p>
                 </div>
             </main>
         );
@@ -771,11 +770,10 @@ export function MainStage({
 
     return (
         <main
-            className={`relative h-full min-h-0 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))] ${
-                immersive
+            className={`paper-grain relative h-full min-h-0 bg-canvas ${immersive
                     ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
-                    : "rounded-[26px] border border-white/10 p-2 shadow-[0_20px_70px_rgba(0,0,0,0.38)] backdrop-blur-md lg:p-3"
-            } ${compact && !immersive ? "xl:min-h-[420px]" : ""}`}
+                    : "rounded-panel border border-gold/25 p-2 shadow-mucha lg:p-3"
+                } ${compact && !immersive ? "xl:min-h-[420px]" : ""}`}
         >
             <LiveKitRoom
                 key={joined.token}

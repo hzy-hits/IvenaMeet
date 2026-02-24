@@ -239,368 +239,367 @@ export function Sidebar(props: Props) {
 
     return (
         <>
-      <aside className="hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,35,48,0.92),rgba(10,20,28,0.88))] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-md lg:flex lg:p-4">
-                <section className="bg-bg-panel p-4 flex flex-col shrink-0 border-b border-bg-light">
+            <aside className="paper-grain relative hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-panel border border-gold/30 bg-parchment p-3 shadow-mucha lg:flex lg:p-4">
+                <section className="bg-parchment/80 p-4 flex flex-col shrink-0">
                     <div className="flex items-center justify-between gap-2">
                         <div>
-                            <h2 className="text-sm font-bold text-white tracking-wide uppercase">Command Center</h2>
-                            <p className="text-xs font-mono text-gray-400 mt-0.5">
+                            <h2 className="font-display text-sm font-bold text-ink tracking-wide uppercase">Command Center</h2>
+                            <p className="text-xs font-mono text-ink/50 mt-0.5">
                                 {joined ? `CH/${roomId} · ${joined.role.toUpperCase()}` : "STANDBY"}
                             </p>
                         </div>
                         {joined ? (
                             <button
                                 onClick={() => run(leaveRoom)}
-                                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+                                className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                             >
                                 <LogOut size={16} /> Leave
                             </button>
                         ) : null}
                     </div>
+                    <div className="ornate-divider mt-3" aria-hidden="true" />
                 </section>
 
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-                <section className="px-4 py-2 shrink-0">
-                    <p className="px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 mb-2">Navigator</p>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setConsolePane("control")}
-                            className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs ${consolePane === "control"
-                                ? "border border-accent/45 bg-accent/12 text-accent"
-                                : "border border-white/10 bg-white/5 text-white/70"
-                                }`}
-                        >
-                            <SlidersHorizontal size={12} /> 控制
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setConsolePane("members")}
-                            className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs ${consolePane === "members"
-                                ? "border border-accent/45 bg-accent/12 text-accent"
-                                : "border border-white/10 bg-white/5 text-white/70"
-                                }`}
-                        >
-                            <Users size={12} /> 成员
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setConsolePane("ops")}
-                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${consolePane === "ops"
-                                ? "bg-bg-light text-white"
-                                : "bg-transparent text-gray-400 hover:bg-bg-light/50 hover:text-gray-200"
-                                }`}
-                        >
-                            <Terminal size={12} /> 系统
-                        </button>
-                    </div>
-                </section>
-
-                {joined && consolePane === "control" && !isHost ? (
-                    <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
-                        <h3 className="mb-2 text-sm font-semibold">Profile</h3>
-                        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                            <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
-                                {avatarPreview ? (
-                                    <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
-                                ) : (
-                                    <div className="grid h-full w-full place-items-center text-white/60">
-                                        <Image size={14} />
-                                    </div>
-                                )}
-                            </div>
+                    <section className="px-4 py-2 shrink-0">
+                        <p className="px-1 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-ink/45 mb-2">Navigator</p>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
                             <button
                                 type="button"
-                                onClick={onPickAvatar}
-                                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+                                onClick={() => setConsolePane("control")}
+                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
+                                    ? "border border-gold/55 bg-gold/12 text-gold"
+                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    }`}
                             >
-                                <ImagePlus size={16} /> 上传头像
+                                <SlidersHorizontal size={12} /> 控制
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setConsolePane("members")}
+                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
+                                    ? "border border-gold/55 bg-gold/12 text-gold"
+                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    }`}
+                            >
+                                <Users size={12} /> 成员
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setConsolePane("ops")}
+                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
+                                    ? "border border-gold/55 bg-gold/12 text-gold"
+                                    : "border border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                    }`}
+                            >
+                                <Terminal size={12} /> 系统
                             </button>
                         </div>
-                        <p
-                            className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
-                                ? "text-ok"
-                                : avatarStatus.kind === "error"
-                                    ? "text-red-300"
-                                    : "text-white/50"
+                    </section>
+
+                    {joined && consolePane === "control" && !isHost ? (
+                        <section className="rounded-panel border border-gold/20 bg-canvas/60 p-3">
+                            <h3 className="mb-2 font-display text-sm font-semibold text-ink">Profile</h3>
+                            <div className="flex items-center gap-3 rounded-chip border border-gold/25 bg-parchment/50 px-3 py-2">
+                                <div className="h-10 w-10 overflow-hidden rounded-full border border-gold/30 bg-canvas/60">
+                                    {avatarPreview ? (
+                                        <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <div className="grid h-full w-full place-items-center text-ink/50">
+                                            <Image size={14} />
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onPickAvatar}
+                                    className="inline-flex items-center gap-2 rounded-chip border border-gold/30 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                >
+                                    <ImagePlus size={16} /> 上传头像
+                                </button>
+                            </div>
+                            <p
+                                className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
+                                    ? "text-teal"
+                                    : avatarStatus.kind === "error"
+                                        ? "text-coral"
+                                        : "text-ink/45"
+                                    }`}
+                            >
+                                {avatarStatus.text}
+                            </p>
+                        </section>
+                    ) : null}
+
+                    {actionNotice ? (
+                        <section
+                            className={`rounded-panel border px-3 py-2 font-body text-sm ${actionNotice.kind === "ok"
+                                ? "border-teal/40 bg-teal/10 text-teal"
+                                : "border-coral/40 bg-coral/12 text-coral"
                                 }`}
                         >
-                            {avatarStatus.text}
-                        </p>
-                    </section>
-                ) : null}
+                            {actionNotice.text}
+                        </section>
+                    ) : null}
 
-                {actionNotice ? (
-                    <section
-                        className={`rounded-2xl border px-3 py-2 text-sm ${actionNotice.kind === "ok"
-                            ? "border-ok/40 bg-ok/10 text-ok"
-                            : "border-red-300/40 bg-red-500/20 text-red-100"
-                            }`}
-                    >
-                        {actionNotice.text}
-                    </section>
-                ) : null}
-
-                {isHost && consolePane === "control" ? (
-                    <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
-                        <h3 className="mb-2 text-sm font-semibold">主持工具</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => run(issueInvite)}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
-                            >
-                                <UserPlus size={16} /> 复制邀请
-                            </button>
-                            <button
-                                onClick={() => run(startBroadcast)}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-[#06211f]"
-                            >
-                                <Radio size={16} /> Broadcast
-                            </button>
-                            <button
-                                onClick={() => run(stopBroadcast)}
-                                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/80 px-3 py-2 text-sm"
-                            >
-                                <CircleStop size={16} /> Stop Broadcast
-                            </button>
-                            <button
-                                onClick={() => run(() => muteAll(true))}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
-                            >
-                                全员静音
-                            </button>
-                            <button
-                                onClick={() => run(() => muteAll(false))}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
-                            >
-                                解除全员静音
-                            </button>
-                        </div>
-                        {inviteCopied ? (
-                            <div className="mt-2 inline-flex items-center gap-2 rounded-xl border border-ok/50 bg-ok/15 px-3 py-1 text-xs text-ok">
-                                <Copy size={14} /> 复制成功
+                    {isHost && consolePane === "control" ? (
+                        <section className="rounded-panel border border-gold/20 bg-canvas/60 p-3">
+                            <h3 className="mb-2 font-display text-sm font-semibold text-ink">主持工具</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => run(issueInvite)}
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                >
+                                    <UserPlus size={16} /> 复制邀请
+                                </button>
+                                <button
+                                    onClick={() => run(startBroadcast)}
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip bg-gold px-3 py-2 text-sm font-semibold text-canvas transition-colors ease-mucha hover:bg-gold/85"
+                                >
+                                    <Radio size={16} /> Broadcast
+                                </button>
+                                <button
+                                    onClick={() => run(stopBroadcast)}
+                                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-chip bg-coral/80 px-3 py-2 text-sm text-canvas transition-colors ease-mucha hover:bg-coral/70"
+                                >
+                                    <CircleStop size={16} /> Stop Broadcast
+                                </button>
+                                <button
+                                    onClick={() => run(() => muteAll(true))}
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                >
+                                    全员静音
+                                </button>
+                                <button
+                                    onClick={() => run(() => muteAll(false))}
+                                    className="inline-flex items-center justify-center gap-2 rounded-chip border border-gold/25 bg-canvas/50 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/45"
+                                >
+                                    解除全员静音
+                                </button>
                             </div>
-                        ) : null}
-                    </section>
-                ) : null}
+                            {inviteCopied ? (
+                                <div className="mt-2 inline-flex items-center gap-2 rounded-chip border border-teal/50 bg-teal/12 px-3 py-1 text-xs text-teal">
+                                    <Copy size={14} /> 复制成功
+                                </div>
+                            ) : null}
+                        </section>
+                    ) : null}
 
-                {consolePane === "members" ? (
-                    <section className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2">
-                        {/* Members list (which will later hold videos) */}
-                        <button
-                            onClick={() => setOpenMembers((v) => !v)}
-                            className="flex w-full items-center justify-between text-left text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-gray-200 px-2 py-1 transition-colors"
-                        >
-                            <span>Voice Connected - {members.length}</span>
-                            {openMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </button>
-                        {openMembers ? (
-                            <div className="max-h-36 space-y-2 overflow-auto pr-1">
-                                {members.map((m) => (
-                                    <div
-                                        key={m.identity}
-                                        className={`rounded-xl border border-white/10 bg-black/20 px-3 py-2 ${m.speaking ? "ring-1 ring-ok shadow-[0_0_10px_#7edb8f]" : ""
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className="truncate text-sm">{m.identity}{m.isLocal ? " (me)" : ""}</span>
-                                            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-white/60">
-                                                {m.micEnabled ? <Mic size={12} /> : <MicOff size={12} />}
-                                                {m.speaking ? "speaking" : m.micEnabled ? "on" : "muted"}
-                                            </span>
-                                        </div>
-                                        {isHost && !m.isLocal ? (
-                                            <div className="mt-2 grid grid-cols-3 gap-1">
-                                                <button
-                                                    onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
-                                                    className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
-                                                >
-                                                    {m.micEnabled ? "静音" : "解除"}
-                                                </button>
-                                                {m.cameraEnabled ? (
-                                                    <button
-                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
-                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
-                                                    >
-                                                        关摄
-                                                    </button>
-                                                ) : (
-                                                    <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
-                                                        摄像头未开
-                                                    </span>
-                                                )}
-                                                {m.screenShareEnabled ? (
-                                                    <button
-                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
-                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
-                                                    >
-                                                        关屏
-                                                    </button>
-                                                ) : (
-                                                    <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
-                                                        投屏未开
-                                                    </span>
-                                                )}
+                    {consolePane === "members" ? (
+                        <section className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2">
+                            {/* Members list */}
+                            <button
+                                onClick={() => setOpenMembers((v) => !v)}
+                                className="flex w-full items-center justify-between text-left font-display text-xs font-bold uppercase tracking-wider text-ink/50 hover:text-ink/80 px-2 py-1 transition-colors ease-mucha"
+                            >
+                                <span>Voice Connected - {members.length}</span>
+                                {openMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                            {openMembers ? (
+                                <div className="max-h-36 space-y-2 overflow-auto pr-1">
+                                    {members.map((m) => (
+                                        <div
+                                            key={m.identity}
+                                            className={`rounded-chip border border-gold/20 bg-canvas/50 px-3 py-2 ${m.speaking ? "halo-active" : ""
+                                                }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="truncate text-sm text-ink">{m.identity}{m.isLocal ? " (me)" : ""}</span>
+                                                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-ink/50">
+                                                    {m.micEnabled ? <Mic size={12} /> : <MicOff size={12} />}
+                                                    {m.speaking ? "speaking" : m.micEnabled ? "on" : "muted"}
+                                                </span>
                                             </div>
+                                            {isHost && !m.isLocal ? (
+                                                <div className="mt-2 grid grid-cols-3 gap-1">
+                                                    <button
+                                                        onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
+                                                        className="rounded-chip bg-canvas/60 border border-gold/20 px-2 py-1 text-[11px] text-ink/65 transition-colors ease-mucha hover:border-gold/40"
+                                                    >
+                                                        {m.micEnabled ? "静音" : "解除"}
+                                                    </button>
+                                                    {m.cameraEnabled ? (
+                                                        <button
+                                                            onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
+                                                            className="rounded-chip border border-coral/35 bg-coral/15 px-2 py-1 text-[11px] text-coral"
+                                                        >
+                                                            关摄
+                                                        </button>
+                                                    ) : (
+                                                        <span className="rounded-chip border border-ink/12 bg-canvas/40 px-2 py-1 text-[11px] text-ink/40">
+                                                            摄像头未开
+                                                        </span>
+                                                    )}
+                                                    {m.screenShareEnabled ? (
+                                                        <button
+                                                            onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
+                                                            className="rounded-chip border border-coral/35 bg-coral/15 px-2 py-1 text-[11px] text-coral"
+                                                        >
+                                                            关屏
+                                                        </button>
+                                                    ) : (
+                                                        <span className="rounded-chip border border-ink/12 bg-canvas/40 px-2 py-1 text-[11px] text-ink/40">
+                                                            投屏未开
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </section>
+                    ) : null}
+
+                    <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
+                        <div
+                            className={`min-h-0 flex-1 flex flex-col rounded-panel border border-gold/15 bg-canvas/40 p-2 ${hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
+                                }`}
+                        >
+                            <button
+                                onClick={() => setOpenChat((v) => !v)}
+                                className="flex w-full items-center justify-between text-left font-display text-xs font-bold uppercase tracking-wider text-ink/50 hover:text-ink/80 px-2 py-1 transition-colors ease-mucha mb-2"
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    <MessageCircle size={14} /> Chat
+                                    {chatPriorityMode ? (
+                                        <span className="rounded-chip border border-gold/45 bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold">
+                                            Focus
+                                        </span>
+                                    ) : null}
+                                </span>
+                                {openChat ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </button>
+                            {openChat ? (
+                                <div
+                                    className={`flex min-h-0 flex-col flex-1`}
+                                >
+                                    <div className="relative min-h-0 flex-1">
+                                        <div
+                                            ref={chatScrollRef}
+                                            onScroll={onChatScroll}
+                                            className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
+                                        >
+                                            {!messages.length ? (
+                                                <div className="grid h-full place-items-center rounded-chip border border-dashed border-gold/25 bg-canvas/30 px-3 font-body text-sm text-ink/40">
+                                                    暂无消息，发送第一条开始聊天
+                                                </div>
+                                            ) : (
+                                                messages.map((m) => (
+                                                    <ChatMessageRow
+                                                        key={m.client_id ?? m.id}
+                                                        message={m}
+                                                        currentUserName={userName}
+                                                        variant="sidebar"
+                                                    />
+                                                ))
+                                            )}
+                                        </div>
+                                        {pendingChatHints > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollChatToBottom("smooth")}
+                                                className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-chip border border-gold/50 bg-parchment/90 px-3 py-1 text-xs font-medium text-gold shadow-gold-glow backdrop-blur-md"
+                                            >
+                                                {pendingChatHints > 1 ? `${pendingChatHints} 条新消息` : "1 条新消息"}，点击查看
+                                            </button>
                                         ) : null}
                                     </div>
-                                ))}
-                            </div>
-                        ) : null}
-                    </section>
-                ) : null}
-
-                <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
-                    <div
-                        className={`min-h-0 flex-1 flex flex-col rounded-xl border border-white/5 bg-black/20 p-2 ${
-                            hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
-                        }`}
-                    >
-                        <button
-                            onClick={() => setOpenChat((v) => !v)}
-                            className="flex w-full items-center justify-between text-left text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-gray-200 px-2 py-1 transition-colors mb-2"
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                <MessageCircle size={14} /> Chat
-                                {chatPriorityMode ? (
-                                    <span className="rounded-full border border-accent/45 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
-                                        Focus
-                                    </span>
-                                ) : null}
-                            </span>
-                            {openChat ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        </button>
-                        {openChat ? (
-                            <div
-                                className={`flex min-h-0 flex-col flex-1`}
-                            >
-                                <div className="relative min-h-0 flex-1">
-                                    <div
-                                        ref={chatScrollRef}
-                                        onScroll={onChatScroll}
-                                        className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
-                                    >
-                                        {!messages.length ? (
-                                            <div className="grid h-full place-items-center rounded-xl border border-dashed border-white/15 bg-black/20 px-3 text-sm text-white/50">
-                                                暂无消息，发送第一条开始聊天
-                                            </div>
-                                        ) : (
-                                            messages.map((m) => (
-                                                <ChatMessageRow
-                                                    key={m.client_id ?? m.id}
-                                                    message={m}
-                                                    currentUserName={userName}
-                                                    variant="sidebar"
-                                                />
-                                            ))
-                                        )}
-                                    </div>
-                                    {pendingChatHints > 0 ? (
+                                    <div className="mt-2 flex items-center gap-2 rounded-chip border border-gold/25 bg-parchment/50 p-1.5">
+                                        <input
+                                            value={chatText}
+                                            onChange={(e) => setChatText(e.target.value)}
+                                            placeholder="输入消息，按 Enter 发送"
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") run(sendChat);
+                                            }}
+                                            className="min-w-0 flex-1 bg-transparent px-2 py-2 font-body text-sm text-ink outline-none placeholder:text-ink/35"
+                                        />
                                         <button
-                                            type="button"
-                                            onClick={() => scrollChatToBottom("smooth")}
-                                            className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-accent/50 bg-card/90 px-3 py-1 text-xs font-medium text-accent shadow-[0_6px_20px_rgba(0,0,0,0.35)] backdrop-blur-md"
+                                            onClick={() => run(sendChat)}
+                                            disabled={!chatText.trim()}
+                                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-colors ease-mucha hover:bg-gold/85"
                                         >
-                                            {pendingChatHints > 1 ? `${pendingChatHints} 条新消息` : "1 条新消息"}，点击查看
+                                            <Send size={16} />
                                         </button>
-                                    ) : null}
+                                    </div>
                                 </div>
-                                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-1.5">
-                                    <input
-                                        value={chatText}
-                                        onChange={(e) => setChatText(e.target.value)}
-                                        placeholder="输入消息，按 Enter 发送"
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") run(sendChat);
-                                        }}
-                                        className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-white/45"
-                                    />
-                                    <button
-                                        onClick={() => run(sendChat)}
-                                        disabled={!chatText.trim()}
-                                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent leading-none text-[#06211f] disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        <Send size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
-
-                    <div className={`rounded-xl border border-white/5 bg-black/20 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">Visual Theme</p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(["system", "dark", "light"] as ThemeMode[]).map((mode) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => setThemeMode(mode)}
-                                    className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide ${
-                                        themeMode === mode
-                                            ? "border-accent/45 bg-accent/15 text-accent"
-                                            : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"
-                                    }`}
-                                >
-                                    {mode}
-                                </button>
-                            ))}
+                            ) : null}
                         </div>
-                        <p className="mt-2 text-[11px] text-white/55">
-                            active: <span className="font-mono text-white/80">{resolvedTheme}</span>
-                        </p>
-                    </div>
 
-                    <div className={`rounded-xl border border-white/5 bg-black/20 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
-                        <button
-                            onClick={() => setOpenLogs((v) => !v)}
-                            className="mb-2 flex w-full items-center justify-between text-left text-sm font-semibold"
-                        >
-                            <span>Logs</span>
-                            {openLogs ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        </button>
-                        {openLogs ? (
-                            <div className="font-mono max-h-40 space-y-1 overflow-auto text-[11px] text-white/75">
-                                {logs.map((line, idx) => (
-                                    <p key={`${line}-${idx}`}>{line}</p>
+                        <div className={`rounded-panel border border-gold/15 bg-canvas/40 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                            <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Visual Theme</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(["system", "dark", "light"] as ThemeMode[]).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => setThemeMode(mode)}
+                                        className={`rounded-chip border px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide transition-colors ease-mucha ${themeMode === mode
+                                            ? "border-gold/55 bg-gold/15 text-gold"
+                                            : "border-ink/15 bg-canvas/50 text-ink/65 hover:border-gold/35"
+                                            }`}
+                                    >
+                                        {mode}
+                                    </button>
                                 ))}
                             </div>
-                        ) : (
-                            <p className="font-mono text-xs text-white/50">点击展开查看系统日志</p>
-                        )}
-                    </div>
-                </section>
+                            <p className="mt-2 text-[11px] text-ink/50">
+                                active: <span className="font-mono text-ink/75">{resolvedTheme}</span>
+                            </p>
+                        </div>
+
+                        <div className={`rounded-panel border border-gold/15 bg-canvas/40 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                            <button
+                                onClick={() => setOpenLogs((v) => !v)}
+                                className="mb-2 flex w-full items-center justify-between text-left font-display text-sm font-semibold text-ink"
+                            >
+                                <span>Logs</span>
+                                {openLogs ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </button>
+                            {openLogs ? (
+                                <div className="font-mono max-h-40 space-y-1 overflow-auto text-[11px] text-ink/65">
+                                    {logs.map((line, idx) => (
+                                        <p key={`${line}-${idx}`}>{line}</p>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="font-mono text-xs text-ink/40">点击展开查看系统日志</p>
+                            )}
+                        </div>
+                    </section>
                 </div>
 
-                {/* Bottom Anchor: User Status & Media Controls (Discord Style) */}
+                {/* Bottom Anchor: User Status */}
                 {joined ? (
-                    <div className="shrink-0 bg-bg-dark rounded-xl p-2 flex items-center justify-between shadow-inner">
+                    <div className="shrink-0 bg-rail rounded-chip p-2 flex items-center justify-between">
                         <button
                             type="button"
                             onClick={openAvatarEditor}
-                            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1 py-1 text-left transition hover:bg-white/5"
+                            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-chip px-1 py-1 text-left transition-colors ease-mucha hover:bg-canvas/40"
                             title="修改头像"
                         >
-                            <div className="relative h-8 w-8 shrink-0 rounded-full bg-black/40 border border-white/10 overflow-hidden">
+                            <div className="relative h-8 w-8 shrink-0 rounded-full bg-canvas/50 border border-gold/25 overflow-hidden">
                                 {avatarPreview ? (
                                     <img src={resolveAvatarSrc(avatarPreview)} alt="me" className="h-full w-full object-cover" />
                                 ) : (
-                                    <div className="grid h-full w-full place-items-center text-xs font-bold text-white/70">
+                                    <div className="grid h-full w-full place-items-center font-display text-xs font-bold text-ink/60">
                                         {userName.slice(0, 1).toUpperCase()}
                                     </div>
                                 )}
                                 {/* Status indicator */}
-                                <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-ok border-2 border-bg-dark"></div>
+                                <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-teal border-2 border-rail"></div>
                             </div>
                             <div className="flex flex-col min-w-0 pr-1 text-left">
-                                <span className="truncate text-xs font-bold text-gray-200">{userName}</span>
-                                <span className="truncate text-[10px] items-center gap-1 text-gray-400">
-                                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${joined.role === 'host' ? 'bg-accent' : 'bg-gray-500'} mr-1`}></span>
+                                <span className="truncate text-xs font-bold text-ink">{userName}</span>
+                                <span className="truncate text-[10px] items-center gap-1 text-ink/50">
+                                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${joined.role === 'host' ? 'bg-gold' : 'bg-ink/30'} mr-1`}></span>
                                     {joined.role}
                                 </span>
                             </div>
                         </button>
 
-                        <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/55">
+                        <div className="inline-flex items-center gap-1 rounded-chip border border-gold/20 bg-canvas/40 px-2 py-1 text-[10px] text-ink/45">
                             媒体控制在主舞台区域
                         </div>
                     </div>
@@ -609,11 +608,11 @@ export function Sidebar(props: Props) {
 
             {joined && avatarEditorOpen ? (
                 <div
-                    className="fixed inset-0 z-[72] grid place-items-center bg-black/65 p-4"
+                    className="fixed inset-0 z-[72] grid place-items-center bg-ink/55 p-4"
                     onClick={() => setAvatarEditorOpen(false)}
                 >
                     <section
-                        className="w-full max-w-sm rounded-2xl border border-white/10 bg-card/90 p-4 backdrop-blur-md"
+                        className="w-full max-w-sm rounded-panel border border-gold/25 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-2">
@@ -621,32 +620,32 @@ export function Sidebar(props: Props) {
                             <button
                                 type="button"
                                 onClick={() => setAvatarEditorOpen(false)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/75 hover:bg-white/10"
+                                className="rounded-chip border border-gold/20 bg-canvas/50 px-2 py-1 text-xs text-ink/65 hover:border-gold/40"
                             >
                                 Close
                             </button>
                         </div>
-                        <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                            <div className="h-12 w-12 overflow-hidden rounded-full border border-white/20 bg-black/30">
+                        <div className="mt-3 flex items-center gap-3 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-3">
+                            <div className="h-12 w-12 overflow-hidden rounded-full border border-gold/30 bg-canvas/50">
                                 {avatarPreview ? (
                                     <img src={resolveAvatarSrc(avatarPreview)} alt="avatar preview" className="h-full w-full object-cover" />
                                 ) : (
-                                    <div className="grid h-full w-full place-items-center text-white/60">
+                                    <div className="grid h-full w-full place-items-center text-ink/50">
                                         <Image size={16} />
                                     </div>
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-white">{userName}</p>
-                                <p className="text-xs text-white/55">点击下方按钮选择新头像</p>
+                                <p className="truncate text-sm font-semibold text-ink">{userName}</p>
+                                <p className="text-xs text-ink/45">点击下方按钮选择新头像</p>
                             </div>
                         </div>
                         <p
                             className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
                                 ? "text-ok"
                                 : avatarStatus.kind === "error"
-                                    ? "text-red-300"
-                                    : "text-white/50"
+                                    ? "text-coral"
+                                    : "text-ink/40"
                                 }`}
                         >
                             {avatarStatus.text}
@@ -654,7 +653,7 @@ export function Sidebar(props: Props) {
                         <button
                             type="button"
                             onClick={onPickAvatar}
-                            className="mt-3 w-full rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-[#06211f]"
+                            className="mt-3 w-full rounded-chip bg-gold px-3 py-2 text-sm font-semibold text-canvas"
                         >
                             选择并上传头像
                         </button>
@@ -663,29 +662,29 @@ export function Sidebar(props: Props) {
             ) : null}
 
             {showInviteGate ? (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-                    <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-card/80 p-5 backdrop-blur-md">
+                <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
+                    <div className="w-full max-w-lg rounded-panel border border-gold/25 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
-                        <p className="mt-1 text-sm text-white/60">
+                        <p className="mt-1 text-sm text-ink/50">
                             需要邀请链接才能进入房间。若你是主持人，请走主持人入口。
                         </p>
                         <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <button
                                 type="button"
                                 onClick={() => setHostEntryUnlocked(true)}
-                                className="rounded-xl bg-accent px-3 py-2 font-semibold text-[#06211f]"
+                                className="rounded-chip bg-gold px-3 py-2 font-semibold text-canvas"
                             >
                                 主持人入口
                             </button>
                             <button
                                 type="button"
                                 onClick={() => window.location.reload()}
-                                className="rounded-xl bg-white/10 px-3 py-2 text-white"
+                                className="rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
                             >
                                 我有邀请链接
                             </button>
                         </div>
-                        <p className="mt-3 text-xs text-white/50">
+                        <p className="mt-3 text-xs text-ink/40">
                             邀请模式请使用包含 room/ticket 参数的完整链接打开。
                         </p>
                     </div>
@@ -693,33 +692,33 @@ export function Sidebar(props: Props) {
             ) : null}
 
             {!joined && !showInviteGate ? (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-                    <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-card/80 p-5 backdrop-blur-md">
+                <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
+                    <div className="w-full max-w-lg rounded-panel border border-gold/25 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
-                        <p className="mt-1 text-sm text-white/60">先完成鉴权和房间配置，才能继续进入会话。</p>
+                        <p className="mt-1 text-sm text-ink/50">先完成鉴权和房间配置，才能继续进入会话。</p>
 
                         <div className="mt-4 space-y-2">
                             <input
                                 value={roomId}
                                 onChange={(e) => setRoomId(e.target.value)}
                                 placeholder="room_id"
-                                className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                className="w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
                             />
                             <input
                                 value={userName}
                                 onChange={(e) => setUserName(e.target.value)}
                                 placeholder="name"
-                                className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                className="w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink"
                             />
 
                             {effectiveRole === "member" ? (
                                 <>
-                                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                                        <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
+                                    <div className="flex items-center gap-3 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2">
+                                        <div className="h-10 w-10 overflow-hidden rounded-full border border-gold/30 bg-canvas/50">
                                             {avatarPreview ? (
                                                 <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
                                             ) : (
-                                                <div className="grid h-full w-full place-items-center text-white/60">
+                                                <div className="grid h-full w-full place-items-center text-ink/50">
                                                     <Image size={14} />
                                                 </div>
                                             )}
@@ -727,7 +726,7 @@ export function Sidebar(props: Props) {
                                         <button
                                             type="button"
                                             onClick={onPickAvatar}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm"
+                                            className="inline-flex items-center gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65"
                                         >
                                             <ImagePlus size={16} /> 上传头像
                                         </button>
@@ -736,41 +735,41 @@ export function Sidebar(props: Props) {
                                         className={`font-mono text-[11px] ${avatarStatus.kind === "ok"
                                             ? "text-ok"
                                             : avatarStatus.kind === "error"
-                                                ? "text-red-300"
-                                                : "text-white/50"
+                                                ? "text-coral"
+                                                : "text-ink/40"
                                             }`}
                                     >
                                         {avatarStatus.text}
                                     </p>
                                 </>
                             ) : (
-                                <p className="font-mono text-[11px] text-white/50">
+                                <p className="font-mono text-[11px] text-ink/40">
                                     主持人模式默认沿用已保存头像。
                                 </p>
                             )}
 
                             {hostEntryUnlocked ? (
-                                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                                <div className="flex items-center justify-between gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
                                     <span>host mode</span>
                                     <button
                                         type="button"
                                         onClick={() => setHostEntryUnlocked(false)}
-                                        className="rounded-lg bg-white/10 px-2 py-1 text-xs text-white/80"
+                                        className="rounded-chip border border-gold/20 bg-canvas/50 px-2 py-1 text-xs text-ink/65"
                                     >
                                         切回成员
                                     </button>
                                 </div>
                             ) : !inviteMode ? (
-                                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                                <div className="rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
                                     member mode
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/70">
+                                <div className="flex items-center justify-between gap-2 rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-sm text-ink/65">
                                     <span>invite mode: member</span>
                                     <button
                                         type="button"
                                         onClick={() => setHostEntryUnlocked(true)}
-                                        className="rounded-lg bg-accent/90 px-2 py-1 text-xs font-semibold text-[#06211f]"
+                                        className="rounded-chip bg-gold/90 px-2 py-1 text-xs font-semibold text-canvas"
                                     >
                                         主持人入口
                                     </button>
@@ -780,19 +779,19 @@ export function Sidebar(props: Props) {
                             {(requireInvite || inviteMode) && effectiveRole === "member" ? (
                                 <>
                                     <div className="relative">
-                                        <Ticket size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+                                        <Ticket size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" />
                                         <input
                                             value={inviteCode}
                                             onChange={(e) => setInviteCode(e.target.value)}
                                             placeholder="invite_code"
-                                            className="w-full rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3"
+                                            className="w-full rounded-chip border border-gold/25 bg-canvas/40 py-2 pl-9 pr-3 text-ink"
                                         />
                                     </div>
                                     <input
                                         value={inviteTicket}
                                         onChange={(e) => setInviteTicket(e.target.value)}
                                         placeholder="invite_ticket"
-                                        className="font-mono w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs"
+                                        className="font-mono w-full rounded-chip border border-gold/25 bg-canvas/40 px-3 py-2 text-ink text-xs"
                                     />
                                 </>
                             ) : null}
@@ -800,16 +799,16 @@ export function Sidebar(props: Props) {
                             {effectiveRole === "host" ? (
                                 <>
                                     <div className="relative">
-                                        <ShieldCheck size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+                                        <ShieldCheck size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" />
                                         <input
                                             value={hostTotpCode}
                                             onChange={(e) => setHostTotpCode(e.target.value)}
                                             type="password"
                                             placeholder="TOTP 动态码（6位）"
-                                            className="font-mono w-full rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs"
+                                            className="font-mono w-full rounded-chip border border-gold/25 bg-canvas/40 py-2 pl-9 pr-3 text-ink text-xs"
                                         />
                                     </div>
-                                    <p className="font-mono text-[11px] text-white/50">
+                                    <p className="font-mono text-[11px] text-ink/40">
                                         使用 TOTP 验证后签发 15 分钟主持会话，系统会自动续期。
                                     </p>
                                 </>
@@ -826,7 +825,7 @@ export function Sidebar(props: Props) {
                         <button
                             disabled={joining}
                             onClick={() => run(joinRoom)}
-                            className="mt-4 w-full rounded-xl bg-accent px-3 py-2 font-semibold text-[#06211f] disabled:opacity-60"
+                            className="mt-4 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas disabled:opacity-60"
                         >
                             {joining ? "Joining..." : "Join Room"}
                         </button>
@@ -845,38 +844,38 @@ export function Sidebar(props: Props) {
             ) : null}
 
             {showBroadcastModal ? (
-                <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4">
-                    <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-card/80 p-4 backdrop-blur-md">
+                <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-4">
+                    <div className="w-full max-w-xl rounded-panel border border-gold/25 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md">
                         <h3 className="mb-3 text-lg font-semibold">WHIP Broadcast Credentials</h3>
                         <div className="font-mono space-y-2 text-xs">
-                            <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                                <p className="mb-1 text-white/60">obs_whip_endpoint</p>
+                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                                <p className="mb-1 text-ink/50">obs_whip_endpoint</p>
                                 <p className="break-all">{obsWhipEndpoint || "-"}</p>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                                <p className="mb-1 text-white/60">whip_url</p>
+                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                                <p className="mb-1 text-ink/50">whip_url</p>
                                 <p className="break-all">{whipUrl || "-"}</p>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                                <p className="mb-1 text-white/60">stream_key</p>
+                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                                <p className="mb-1 text-ink/50">stream_key</p>
                                 <p className="break-all">{streamKey || "-"}</p>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                                <p className="mb-1 text-white/60">ingress_id</p>
+                            <div className="rounded-chip border border-gold/20 bg-canvas/40 p-2">
+                                <p className="mb-1 text-ink/50">ingress_id</p>
                                 <p className="break-all">{ingressId || "-"}</p>
                             </div>
                         </div>
-                        <p className="mt-3 text-xs text-white/70">
+                        <p className="mt-3 text-xs text-ink/60">
                             OBS 推荐直接填 <span className="font-mono">obs_whip_endpoint</span>。如果使用该完整地址，
                             不需要再单独填写 Bearer Token。
                         </p>
-                        <p className="mt-2 text-xs text-white/70">
+                        <p className="mt-2 text-xs text-ink/60">
                             防回声建议：OBS 只保留“桌面/窗口 + 系统音频”，不要添加麦克风音源；
                             麦克风请使用本页面的语音按钮单独上麦。
                         </p>
                         <button
                             onClick={() => setShowBroadcastModal(false)}
-                            className="mt-3 w-full rounded-xl bg-accent px-3 py-2 font-semibold text-[#06211f]"
+                            className="mt-3 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas"
                         >
                             Close
                         </button>
