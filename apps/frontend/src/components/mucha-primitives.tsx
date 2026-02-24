@@ -44,20 +44,35 @@ export function PaperSurface({
 /* ─────────────────────────────────────────────
    2.1) SVG Primitives
    ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   2.1) High-Fidelity Mucha Assets
+   ───────────────────────────────────────────── */
+
+/**
+ * A wrapper for opaque black-on-white PNG assets.
+ * Uses CSS blend modes to knock out the white background.
+ * Adapts to Dark/Twilight themes by inverting the colors.
+ */
+function MuchaAsset({ src, className = "", style }: { src: string, className?: string, style?: React.CSSProperties }) {
+    // In light theme, 'dark:invert dark:mix-blend-screen' kicks in on dark mode.
+    // By default, 'mix-blend-multiply' knocks out white.
+    return (
+        <img
+            src={src}
+            alt=""
+            aria-hidden="true"
+            className={`pointer-events-none absolute mix-blend-multiply dark:mix-blend-screen dark:invert opacity-25 object-contain ${className}`}
+            style={style}
+        />
+    );
+}
+
 function MuchaCorner({ className = "", style }: { className?: string, style?: React.CSSProperties }) {
     return (
-        <div
-            className={`pointer-events-none absolute w-8 h-8 bg-current text-ink/30 ${className}`}
-            style={{
-                ...style,
-                WebkitMaskImage: "url('/assets/mucha/corner.png')",
-                maskImage: "url('/assets/mucha/corner.png')",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-            }}
-            aria-hidden="true"
+        <MuchaAsset
+            src="/assets/mucha/corner.png"
+            className={`w-8 h-8 ${className}`}
+            style={style}
         />
     );
 }
@@ -65,17 +80,9 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
 export function MuchaArch({ children, className = "" }: { children: ReactNode, className?: string }) {
     return (
         <div className={`relative ${className}`}>
-            <div
-                className="absolute inset-x-0 top-0 h-16 w-full bg-current text-ink/25 pointer-events-none"
-                style={{
-                    WebkitMaskImage: "url('/assets/mucha/arch.png')",
-                    maskImage: "url('/assets/mucha/arch.png')",
-                    WebkitMaskSize: "100% 100%",
-                    maskSize: "100% 100%",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskRepeat: "no-repeat",
-                }}
-                aria-hidden="true"
+            <MuchaAsset
+                src="/assets/mucha/arch.png"
+                className="inset-x-0 top-0 h-16 w-full opacity-20 object-fill"
             />
             <div className="relative z-10 pt-4">
                 {children}
@@ -86,19 +93,11 @@ export function MuchaArch({ children, className = "" }: { children: ReactNode, c
 
 export function MuchaHalo({ className = "" }: { className?: string }) {
     return (
-        <div
-            className={`pointer-events-none bg-current ${className}`}
-            style={{
-                WebkitMaskImage: "url('/assets/mucha/halo.png')",
-                maskImage: "url('/assets/mucha/halo.png')",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-            }}
+        <img
+            src="/assets/mucha/halo.png"
+            alt=""
             aria-hidden="true"
+            className={`pointer-events-none mix-blend-multiply dark:mix-blend-screen dark:invert opacity-[0.06] object-contain ${className}`}
         />
     );
 }
