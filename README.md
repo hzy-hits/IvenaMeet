@@ -244,6 +244,20 @@ mkdir -p /opt/livekit/control-plane/logs
 - Browser screen share is video-only in this project (no system audio).
 - When using OBS, do not add microphone source in OBS; otherwise host voice may loop/duplicate.
 
+### OBS/WHIP troubleshooting (important)
+
+- Symptom pattern:
+  - OBS shows `PeerConnection state: Connecting` then fails around ~30-45s.
+  - Sometimes followed by `DELETE request ... HTTP 404` (this is usually cleanup after failure, not root cause).
+- First check client network path:
+  - Disable VPN/TUN/Global proxy mode on the OBS machine.
+  - Keep `livekit.ivena.top` and `turn.ivena.top` on direct route (no tunnel).
+- Required connectivity:
+  - Ingress WHIP ICE: UDP `7885` (server)
+  - LiveKit RTC: UDP `7882` (server)
+  - TURN: UDP `3478` (server)
+  - Optional fallback: TCP `7886` (ingress), TCP `7881` (RTC)
+
 ## Reverse proxy (recommended)
 
 - `meet.ivena.top` -> `192.168.1.108:8090` (frontend)

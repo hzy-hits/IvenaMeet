@@ -240,22 +240,35 @@ async fn start_broadcast(
         .await?
     {
         if existing.host_identity == participant_identity {
-            match state
-                .livekit_service
-                .get_ingress(&existing.ingress_id)
-                .await?
-            {
-                Some(_) => {
-                    info!(
+            match state.livekit_service.get_ingress(&existing.ingress_id).await? {
+                Some(remote) => {
+                    if !remote.enable_transcoding.unwrap_or(false) {
+                        info!(
+                            request_id,
+                            route = "/broadcast/start",
+                            room_id,
+                            participant_identity,
+                            ingress_id = existing.ingress_id,
+                            result = "ok",
+                            "broadcast reused (idempotent)"
+                        );
+                        return Ok(Json(start_resp_from_record(&existing)));
+                    }
+
+                    let _ = state.livekit_service.delete_ingress(&existing.ingress_id).await;
+                    state
+                        .storage_service
+                        .delete_room_broadcast(room_id.clone())
+                        .await?;
+                    warn!(
                         request_id,
                         route = "/broadcast/start",
                         room_id,
                         participant_identity,
                         ingress_id = existing.ingress_id,
-                        result = "ok",
-                        "broadcast reused (idempotent)"
+                        result = "migrated",
+                        "legacy transcoding ingress replaced with bypass ingress"
                     );
-                    return Ok(Json(start_resp_from_record(&existing)));
                 }
                 None => {
                     state
