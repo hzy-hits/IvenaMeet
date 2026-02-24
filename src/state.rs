@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::services::{
     HostAuthService, InviteService, LiveKitService, PresenceService, RateLimitService,
-    SessionService, StorageService, storage::ChatMessage,
+    SessionService, StagePermissionService, StorageService, storage::ChatMessage,
 };
 use redis::aio::ConnectionManager;
 use tokio::sync::broadcast;
@@ -18,6 +18,7 @@ pub struct AppState {
     pub presence_service: PresenceService,
     pub rate_limit_service: RateLimitService,
     pub livekit_service: LiveKitService,
+    pub stage_permission_service: StagePermissionService,
     pub storage_service: StorageService,
     pub chat_bus: broadcast::Sender<ChatMessage>,
 }
@@ -49,6 +50,7 @@ impl AppState {
             config.livekit_api_secret.clone(),
             config.token_ttl_seconds,
         );
+        let stage_permission_service = StagePermissionService::new("stageperm".to_string());
         let storage_service = StorageService::new(&config.sqlite_path)?;
 
         Ok(Self {
@@ -61,6 +63,7 @@ impl AppState {
             presence_service,
             rate_limit_service,
             livekit_service,
+            stage_permission_service,
             storage_service,
             chat_bus,
         })

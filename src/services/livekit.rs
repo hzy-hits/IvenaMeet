@@ -3,7 +3,7 @@ use livekit_api::{
     access_token::{AccessToken, VideoGrants},
     services::{
         ingress::{CreateIngressOptions, IngressClient},
-        room::RoomClient,
+        room::{RoomClient, UpdateParticipantOptions},
     },
 };
 use livekit_protocol as proto;
@@ -23,6 +23,12 @@ pub struct CreatedIngress {
     pub whip_url: String,
     pub stream_key: String,
     pub ingress_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PublishPermission {
+    pub camera: bool,
+    pub screen_share: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,20 +81,10 @@ impl LiveKitService {
         &self,
         identity: &str,
         room: &str,
-        role: UserRole,
+        _role: UserRole,
+        permission: PublishPermission,
     ) -> AppResult<String> {
-        let publish_sources = match role {
-            UserRole::Host => vec![
-                "camera".to_string(),
-                "microphone".to_string(),
-                "screen_share".to_string(),
-            ],
-            UserRole::Member => vec![
-                "camera".to_string(),
-                "microphone".to_string(),
-                "screen_share".to_string(),
-            ],
-        };
+        let publish_sources = token_publish_sources(permission);
 
         AccessToken::with_api_key(&self.api_key, &self.api_secret)
             .with_identity(identity)
@@ -186,30 +182,13 @@ impl LiveKitService {
         participant_identity: &str,
         muted: bool,
     ) -> AppResult<u32> {
-        let mut last_err = None;
-        for host in self.api_hosts_in_order() {
-            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
-            match client.get_participant(room_id, participant_identity).await {
-                Ok(participant) => {
-                    let mut changed = 0_u32;
-                    for track in participant.tracks {
-                        if track.source != proto::TrackSource::Microphone as i32 {
-                            continue;
-                        }
-                        client
-                            .mute_published_track(room_id, participant_identity, &track.sid, muted)
-                            .await
-                            .map_err(|e| AppError::LiveKit(e.to_string()))?;
-                        changed += 1;
-                    }
-                    return Ok(changed);
-                }
-                Err(e) => last_err = Some(e.to_string()),
-            }
-        }
-        Err(AppError::LiveKit(
-            last_err.unwrap_or_else(|| "mute participant failed".to_string()),
-        ))
+        self.mute_participant_track_source(
+            room_id,
+            participant_identity,
+            proto::TrackSource::Microphone,
+            muted,
+        )
+        .await
     }
 
     pub async fn mute_all_microphones(
@@ -272,6 +251,113 @@ impl LiveKitService {
             "identity active check failed".to_string()
         })))
     }
+
+    pub async fn update_participant_publish_permission(
+        &self,
+        room_id: &str,
+        participant_identity: &str,
+        permission: PublishPermission,
+    ) -> AppResult<()> {
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            let options = UpdateParticipantOptions {
+                permission: Some(proto::ParticipantPermission {
+                    can_subscribe: true,
+                    can_publish: true,
+                    can_publish_data: true,
+                    can_publish_sources: permission_track_sources(permission),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            match client
+                .update_participant(room_id, participant_identity, options)
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    let err_text = e.to_string();
+                    if is_participant_not_found(&err_text) {
+                        return Ok(());
+                    }
+                    last_err = Some(err_text);
+                }
+            }
+        }
+        Err(AppError::LiveKit(last_err.unwrap_or_else(|| {
+            "update participant permission failed".to_string()
+        })))
+    }
+
+    pub async fn mute_participant_track_source(
+        &self,
+        room_id: &str,
+        participant_identity: &str,
+        source: proto::TrackSource,
+        muted: bool,
+    ) -> AppResult<u32> {
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = RoomClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client.get_participant(room_id, participant_identity).await {
+                Ok(participant) => {
+                    let mut changed = 0_u32;
+                    let source_value = source as i32;
+                    for track in participant.tracks {
+                        if track.source != source_value {
+                            continue;
+                        }
+                        client
+                            .mute_published_track(room_id, participant_identity, &track.sid, muted)
+                            .await
+                            .map_err(|e| AppError::LiveKit(e.to_string()))?;
+                        changed += 1;
+                    }
+                    return Ok(changed);
+                }
+                Err(e) => {
+                    let err_text = e.to_string();
+                    if is_participant_not_found(&err_text) {
+                        return Ok(0);
+                    }
+                    last_err = Some(err_text);
+                }
+            }
+        }
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "mute participant source failed".to_string()),
+        ))
+    }
+}
+
+fn token_publish_sources(permission: PublishPermission) -> Vec<String> {
+    let mut out = vec!["microphone".to_string()];
+    if permission.camera {
+        out.push("camera".to_string());
+    }
+    if permission.screen_share {
+        out.push("screen_share".to_string());
+    }
+    out
+}
+
+fn permission_track_sources(permission: PublishPermission) -> Vec<i32> {
+    let mut out = vec![proto::TrackSource::Microphone as i32];
+    if permission.camera {
+        out.push(proto::TrackSource::Camera as i32);
+    }
+    if permission.screen_share {
+        out.push(proto::TrackSource::ScreenShare as i32);
+    }
+    out
+}
+
+fn is_participant_not_found(err: &str) -> bool {
+    let lowered = err.to_ascii_lowercase();
+    lowered.contains("participant does not exist")
+        || lowered.contains("participant not found")
+        || lowered.contains("not_found")
 }
 
 fn fallback_whip_url_from_public_ws(public_ws_url: &str) -> String {

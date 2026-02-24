@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type MutableRefObject, typ
 import { INVITE_COPY_HINT_MS } from "../../lib/env";
 import { saveCachedAvatar } from "../../lib/avatar";
 import type { AvatarStatus } from "./useAvatarState";
-import type { JoinResp, MessageItem, Role } from "../../lib/types";
+import type { JoinResp, MessageItem, Role, StageFeature } from "../../lib/types";
 
 type ApiClient = ReturnType<typeof import("../../lib/api").createApi>;
 
@@ -428,6 +428,28 @@ export function useRoomState({
     }
   };
 
+  const setMemberMediaPermission = async (
+    targetIdentity: string,
+    feature: StageFeature,
+    enabled: boolean,
+  ) => {
+    const res = await api.setMemberMediaPermission({
+      room_id: roomId.trim(),
+      host_identity: userName.trim(),
+      target_identity: targetIdentity,
+      feature,
+      enabled,
+    });
+    const featureText = feature === "camera" ? "摄像头" : "投屏";
+    pushLog(
+      `${enabled ? "allow" : "deny"} ${feature} ${targetIdentity} (affected=${res.affected_tracks})`,
+    );
+    showActionNotice(
+      "ok",
+      `${enabled ? "已允许" : "已关闭"} ${targetIdentity} 的${featureText}`,
+    );
+  };
+
   const run = (fn: () => Promise<void>) => {
     void fn().catch((e) => {
       const message = errorText(e);
@@ -478,6 +500,7 @@ export function useRoomState({
     stopBroadcast,
     muteAll,
     muteOne,
+    setMemberMediaPermission,
     run,
   };
 }

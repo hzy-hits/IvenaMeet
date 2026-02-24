@@ -191,6 +191,7 @@ export function Sidebar(props: Props) {
         stopBroadcast,
         muteAll,
         muteOne,
+        setMemberMediaPermission,
         run,
     } = useRoomState({
         requireInvite,
@@ -408,12 +409,38 @@ export function Sidebar(props: Props) {
                                                 {m.speaking ? "speaking" : m.micEnabled ? "on" : "muted"}
                                             </span>
                                             {isHost && !m.isLocal ? (
-                                                <button
-                                                    onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
-                                                    className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
-                                                >
-                                                    {m.micEnabled ? "静音" : "解除"}
-                                                </button>
+                                                <div className="inline-flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
+                                                        className="rounded-lg bg-white/10 px-2 py-1 text-[11px]"
+                                                    >
+                                                        {m.micEnabled ? "静音" : "解除"}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", true))}
+                                                        className="rounded-lg border border-ok/35 bg-ok/10 px-2 py-1 text-[11px] text-ok"
+                                                    >
+                                                        开摄
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
+                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
+                                                    >
+                                                        关摄
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", true))}
+                                                        className="rounded-lg border border-ok/35 bg-ok/10 px-2 py-1 text-[11px] text-ok"
+                                                    >
+                                                        开屏
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
+                                                        className="rounded-lg border border-red-300/35 bg-red-500/20 px-2 py-1 text-[11px] text-red-100"
+                                                    >
+                                                        关屏
+                                                    </button>
+                                                </div>
                                             ) : null}
                                         </div>
                                     </div>

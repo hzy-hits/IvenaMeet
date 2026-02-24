@@ -4,6 +4,7 @@ pub mod livekit;
 pub mod presence;
 pub mod rate_limit;
 pub mod session;
+pub mod stage_permission;
 pub mod storage;
 
 pub use host_auth::HostAuthService;
@@ -12,4 +13,5 @@ pub use livekit::LiveKitService;
 pub use presence::PresenceService;
 pub use rate_limit::RateLimitService;
 pub use session::SessionService;
+pub use stage_permission::StagePermissionService;
 pub use storage::StorageService;

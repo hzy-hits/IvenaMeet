@@ -48,6 +48,11 @@ type Props = {
     onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
     onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
     onVisualMediaChange?: (hasVisualMedia: boolean) => void;
+    onHostStagePermissionChange?: (
+        targetIdentity: string,
+        feature: StageFeature,
+        enabled: boolean,
+    ) => Promise<void>;
     onLog: (msg: string) => void;
 };
 
@@ -167,21 +172,31 @@ function pickPreferredCameraTrack(
 function StageScene({
     role,
     roomId,
+    initialCameraAllowed,
+    initialScreenShareAllowed,
     onMembersChange,
     onRealtimeChatMessage,
     onRealtimeChatSenderReady,
     onVisualMediaChange,
     onLocalScreenShareChange,
+    onHostStagePermissionChange,
     onLog,
     immersive = false,
 }: {
     role: Role;
     roomId: string;
+    initialCameraAllowed: boolean;
+    initialScreenShareAllowed: boolean;
     onMembersChange: (members: MemberItem[]) => void;
     onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
     onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
     onVisualMediaChange?: (hasVisualMedia: boolean) => void;
     onLocalScreenShareChange?: (enabled: boolean) => void;
+    onHostStagePermissionChange?: (
+        targetIdentity: string,
+        feature: StageFeature,
+        enabled: boolean,
+    ) => Promise<void>;
     onLog: (msg: string) => void;
     immersive?: boolean;
 }) {
@@ -194,7 +209,10 @@ function StageScene({
     const [stagePermission, setStagePermission] = useState<Record<StageFeature, boolean>>(
         isHost
             ? { camera: true, screen_share: true }
-            : { camera: false, screen_share: false },
+            : {
+                camera: initialCameraAllowed,
+                screen_share: initialScreenShareAllowed,
+            },
     );
     const [pendingStageAccess, setPendingStageAccess] = useState<Record<StageFeature, boolean>>({
         camera: false,
@@ -248,12 +266,15 @@ function StageScene({
         setStagePermission(
             isHost
                 ? { camera: true, screen_share: true }
-                : { camera: false, screen_share: false },
+                : {
+                    camera: initialCameraAllowed,
+                    screen_share: initialScreenShareAllowed,
+                },
         );
         setPendingStageAccess({ camera: false, screen_share: false });
         setHostStageRequests([]);
         setPinnedIdentity(null);
-    }, [isHost, roomId]);
+    }, [isHost, roomId, initialCameraAllowed, initialScreenShareAllowed]);
 
     useEffect(() => {
         if (!pinnedIdentity) return;
@@ -408,6 +429,7 @@ function StageScene({
         };
 
         try {
+            await onHostStagePermissionChange?.(request.target_user, request.feature, approved);
             await publishStageControl(payload);
             setHostStageRequests((prev) => prev.filter((item) => item.request_id !== request.request_id));
             const text = approved
@@ -681,6 +703,7 @@ export function MainStage({
     onRealtimeChatMessage,
     onRealtimeChatSenderReady,
     onVisualMediaChange,
+    onHostStagePermissionChange,
     onLog,
 }: Props) {
     const onLogRef = useRef(onLog);
@@ -749,11 +772,14 @@ export function MainStage({
                 <StageScene
                     role={role}
                     roomId={roomId}
+                    initialCameraAllowed={joined.camera_allowed}
+                    initialScreenShareAllowed={joined.screen_share_allowed}
                     onMembersChange={onMembersChange}
                     onRealtimeChatMessage={onRealtimeChatMessage}
                     onRealtimeChatSenderReady={onRealtimeChatSenderReady}
                     onVisualMediaChange={onVisualMediaChange}
                     onLocalScreenShareChange={onLocalScreenShareChange}
+                    onHostStagePermissionChange={onHostStagePermissionChange}
                     onLog={onLogRef.current}
                     immersive={immersive}
                 />

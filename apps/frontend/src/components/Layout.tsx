@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
+import type {
+    JoinResp,
+    MemberItem,
+    MessageItem,
+    RealtimeChatPayload,
+    Role,
+    StageFeature,
+} from "../lib/types";
 import {
     API_BASE_URL,
     DEFAULT_ROOM_ID,
@@ -284,6 +291,31 @@ export function Layout() {
         [api, joined, roomId, userName, realtimeChatSender, upsertMessage, pushLog],
     );
 
+    const handleHostStagePermissionChange = useCallback(
+        async (targetIdentity: string, feature: StageFeature, enabled: boolean) => {
+            const activeRole = joined?.role ?? role;
+            if (activeRole !== "host") {
+                throw new Error("only host can change stage permissions");
+            }
+            const room = roomId.trim();
+            const hostIdentity = userName.trim();
+            if (!room || !hostIdentity) {
+                throw new Error("room_id and host identity are required");
+            }
+            const res = await api.setMemberMediaPermission({
+                room_id: room,
+                host_identity: hostIdentity,
+                target_identity: targetIdentity,
+                feature,
+                enabled,
+            });
+            pushLog(
+                `stage permission ${enabled ? "allow" : "deny"} ${feature} -> ${targetIdentity} (affected=${res.affected_tracks})`,
+            );
+        },
+        [api, joined?.role, role, roomId, userName, pushLog],
+    );
+
     const toggleFullscreenStage = useCallback(async () => {
         if (!joined || !hasVisualMedia) return;
         const isHostSession = (joined?.role ?? role) === "host";
@@ -443,6 +475,7 @@ export function Layout() {
                                 onRealtimeChatSenderReady={handleRealtimeChatSenderReady}
                                 onVisualMediaChange={setHasVisualMedia}
                                 onLocalScreenShareChange={setLocalScreenShareActive}
+                                onHostStagePermissionChange={handleHostStagePermissionChange}
                                 onLog={pushLog}
                             />
                         </div>

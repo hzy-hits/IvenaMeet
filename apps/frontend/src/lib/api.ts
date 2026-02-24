@@ -21,6 +21,8 @@ import type {
   RedeemInviteResp,
   RefreshSessionResp,
   ReconnectResp,
+  SetMemberMediaPermissionReq,
+  SetMemberMediaPermissionResp,
   SessionHeartbeatResp,
   StartBroadcastReq,
   StartBroadcastResp,
@@ -219,6 +221,20 @@ export function createApi(baseURL: string, getters: TokenGetters) {
     async muteAll(payload: MuteAllReq): Promise<MuteResp> {
       try {
         const { data } = await withControl.post<MuteResp>("/moderation/mute-all", payload);
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async setMemberMediaPermission(
+      payload: SetMemberMediaPermissionReq,
+    ): Promise<SetMemberMediaPermissionResp> {
+      try {
+        const { data } = await withControl.post<SetMemberMediaPermissionResp>(
+          "/moderation/media-permission",
+          payload,
+        );
         return data;
       } catch (e) {
         toError(e);

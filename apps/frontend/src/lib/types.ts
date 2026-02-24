@@ -25,6 +25,8 @@ export interface JoinResp {
   token: string;
   expires_in_seconds: number;
   role: Role;
+  camera_allowed: boolean;
+  screen_share_allowed: boolean;
   nickname: string;
   avatar_url?: string | null;
   app_session_token: string;
@@ -38,6 +40,8 @@ export interface ReconnectResp {
   token: string;
   expires_in_seconds: number;
   role: Role;
+  camera_allowed: boolean;
+  screen_share_allowed: boolean;
 }
 
 export interface LeaveResp {
@@ -112,6 +116,20 @@ export interface MuteAllReq {
 
 export interface MuteResp {
   affected_tracks: number;
+}
+
+export interface SetMemberMediaPermissionReq {
+  room_id: string;
+  host_identity: string;
+  target_identity: string;
+  feature: StageFeature;
+  enabled: boolean;
+}
+
+export interface SetMemberMediaPermissionResp {
+  affected_tracks: number;
+  camera_allowed: boolean;
+  screen_share_allowed: boolean;
 }
 
 export interface RefreshSessionResp {
