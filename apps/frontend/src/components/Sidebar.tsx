@@ -529,7 +529,7 @@ export function Sidebar(props: Props) {
 
                         <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                             <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Visual Theme</p>
-                            <div className="grid grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 {(["system", "light", "twilight", "dark"] as ThemeMode[]).map((mode) => (
                                     <button
                                         key={mode}

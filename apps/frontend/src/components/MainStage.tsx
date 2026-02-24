@@ -548,20 +548,20 @@ function StageScene({
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,14,0.32),rgba(5,10,14,0)_30%,rgba(5,10,14,0.36))]" />
 
             <div className="absolute left-4 right-4 top-4 z-20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <div className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-parchment/80 px-3 py-1 backdrop-blur-sm">
+                <div className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/70 backdrop-blur-sm px-3 py-1 backdrop-blur-sm">
                     <span className={`h-2 w-2 rounded-full ${hasStageMedia ? "bg-gold" : "bg-ink/35"}`} />
                     <span className="text-ink/75">
                         {hasStageMedia ? "video stage online" : "voice lounge"}
                     </span>
                 </div>
                 <div className="inline-flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-chip border border-ink/10 bg-parchment/80 px-2.5 py-1 text-ink/65">
+                    <span className="rounded-chip border border-ink/10 bg-canvas/70 backdrop-blur-sm px-2.5 py-1 text-ink/65">
                         members {activeParticipantCount}
                     </span>
                     <span
                         className={`rounded-chip border px-2.5 py-1 ${hasIngressParticipant
                             ? "border-gold/55 bg-ink/6 text-ink/70"
-                            : "border-ink/10 bg-parchment/80 text-ink/65"
+                            : "border-ink/10 bg-canvas/70 backdrop-blur-sm text-ink/65"
                             }`}
                     >
                         {hasIngressParticipant ? "obs ingress" : "browser feed"}
@@ -581,7 +581,7 @@ function StageScene({
             </div>
 
             {isHost && hostStageRequests.length > 0 ? (
-                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-panel border border-ink/10 bg-parchment/90 p-2 shadow-mucha backdrop-blur-md">
+                <div className="absolute right-4 top-12 z-30 w-[300px] rounded-panel border border-ink/10 bg-canvas/80 backdrop-blur-md p-2 shadow-mucha backdrop-blur-md">
                     <p className="px-2 pb-1 font-display text-[11px] font-mono text-ink/60">stage requests</p>
                     <div className="space-y-1.5">
                         {hostStageRequests.map((request) => (
@@ -642,7 +642,7 @@ function StageScene({
                 </div>
             ) : null}
 
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-ink/10 bg-parchment/85 p-1.5 shadow-mucha backdrop-blur-md">
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-ink/10 bg-canvas/75 backdrop-blur-md p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
                         className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:mucha-panel"}`}
