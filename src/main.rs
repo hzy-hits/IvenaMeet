@@ -9,7 +9,8 @@ mod state;
 mod validation;
 
 use crate::error::AppError;
-use tracing::info;
+use tokio::time::{Duration, MissedTickBehavior, interval};
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
@@ -20,6 +21,7 @@ async fn main() -> Result<(), AppError> {
     let bind = config.app_bind.clone();
 
     let state = state::AppState::build(config).await?;
+    spawn_background_jobs(state.clone());
     let app = app::build_router(state);
 
     let listener = tokio::net::TcpListener::bind(&bind)
@@ -33,6 +35,21 @@ async fn main() -> Result<(), AppError> {
     )
     .await
     .map_err(AppError::Io)
+}
+
+fn spawn_background_jobs(state: state::AppState) {
+    tokio::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(60));
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            match routes::broadcast::cleanup_expired_room_broadcasts(&state).await {
+                Ok(0) => {}
+                Ok(cleaned) => info!(cleaned, "expired room broadcasts cleaned"),
+                Err(err) => warn!(error = %err, "failed to clean expired room broadcasts"),
+            }
+        }
+    });
 }
 
 fn init_tracing() {

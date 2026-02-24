@@ -1,5 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import type {
+  CurrentBroadcastReq,
+  CurrentBroadcastResp,
   CreateInviteReq,
   CreateInviteResp,
   CreateMessageReq,
@@ -204,6 +206,21 @@ export function createApi(baseURL: string, getters: TokenGetters) {
     async stopBroadcast(payload: StopBroadcastReq): Promise<void> {
       try {
         await withControl.post("/broadcast/stop", payload);
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async currentBroadcast(
+      payload: CurrentBroadcastReq,
+      authTokenOverride?: string,
+    ): Promise<CurrentBroadcastResp> {
+      try {
+        const { data } = await withControl.get<CurrentBroadcastResp>("/broadcast/current", {
+          params: payload,
+          headers: authTokenOverride ? { Authorization: `Bearer ${authTokenOverride}` } : undefined,
+        });
+        return data;
       } catch (e) {
         toError(e);
       }

@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use livekit_api::{
     access_token::{AccessToken, VideoGrants},
     services::{
-        ingress::{CreateIngressOptions, IngressClient},
+        ingress::{CreateIngressOptions, IngressClient, IngressListFilter},
         room::{RoomClient, UpdateParticipantOptions},
     },
 };
@@ -117,20 +117,17 @@ impl LiveKitService {
             audio: proto::IngressAudioOptions {
                 name: "audio".to_string(),
                 source: 0,
-                encoding_options: Some(proto::ingress_audio_options::EncodingOptions::Preset(
-                    proto::IngressAudioEncodingPreset::OpusStereo96kbps as i32,
-                )),
+                encoding_options: None,
             },
             video: proto::IngressVideoOptions {
                 name: "video".to_string(),
                 source: 0,
-                encoding_options: Some(proto::ingress_video_options::EncodingOptions::Preset(
-                    proto::IngressVideoEncodingPreset::H2641080p30fps3LayersHighMotion as i32,
-                )),
+                encoding_options: None,
             },
-            // Enable server-side simulcast layers (1080/720/360-ish) for adaptive subscribers.
-            bypass_transcoding: false,
-            enable_transcoding: Some(true),
+            // Keep WHIP in bypass mode when source is already H264/Opus.
+            // This avoids the ingress transcoding path and its extra failure surface.
+            bypass_transcoding: true,
+            enable_transcoding: Some(false),
             ..Default::default()
         };
         let mut last_err = None;
@@ -173,6 +170,23 @@ impl LiveKitService {
         }
         Err(AppError::LiveKit(
             last_err.unwrap_or_else(|| "delete ingress failed".to_string()),
+        ))
+    }
+
+    pub async fn get_ingress(&self, ingress_id: &str) -> AppResult<Option<proto::IngressInfo>> {
+        let mut last_err = None;
+        for host in self.api_hosts_in_order() {
+            let client = IngressClient::with_api_key(&host, &self.api_key, &self.api_secret);
+            match client
+                .list_ingress(IngressListFilter::IngressId(ingress_id.to_string()))
+                .await
+            {
+                Ok(items) => return Ok(items.into_iter().next()),
+                Err(e) => last_err = Some(e.to_string()),
+            }
+        }
+        Err(AppError::LiveKit(
+            last_err.unwrap_or_else(|| "get ingress failed".to_string()),
         ))
     }
 
@@ -325,9 +339,9 @@ impl LiveKitService {
                 }
             }
         }
-        Err(AppError::LiveKit(
-            last_err.unwrap_or_else(|| "mute participant source failed".to_string()),
-        ))
+        Err(AppError::LiveKit(last_err.unwrap_or_else(|| {
+            "mute participant source failed".to_string()
+        })))
     }
 }
 

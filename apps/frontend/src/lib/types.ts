@@ -105,6 +105,18 @@ export interface StopBroadcastReq {
   ingress_id: string;
 }
 
+export interface CurrentBroadcastReq {
+  room_id: string;
+  host_identity: string;
+}
+
+export interface CurrentBroadcastResp {
+  active: boolean;
+  whip_url?: string | null;
+  stream_key?: string | null;
+  ingress_id?: string | null;
+}
+
 export interface MuteMemberReq {
   room_id: string;
   host_identity: string;

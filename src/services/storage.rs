@@ -37,6 +37,20 @@ pub struct RoomInfo {
     pub expires_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomBroadcastInfo {
+    pub room_id: String,
+    pub host_identity: String,
+    pub participant_identity: String,
+    pub participant_name: String,
+    pub ingress_identity: String,
+    pub ingress_id: String,
+    pub whip_url: String,
+    pub stream_key: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 impl StorageService {
     pub fn new(sqlite_path: &str) -> AppResult<Self> {
         if let Some(parent) = Path::new(sqlite_path).parent() {
@@ -77,6 +91,22 @@ impl StorageService {
               created_at INTEGER NOT NULL,
               expires_at INTEGER NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS room_broadcasts (
+              room_id TEXT PRIMARY KEY,
+              host_identity TEXT NOT NULL,
+              participant_identity TEXT NOT NULL,
+              participant_name TEXT NOT NULL,
+              ingress_identity TEXT NOT NULL,
+              ingress_id TEXT NOT NULL UNIQUE,
+              whip_url TEXT NOT NULL,
+              stream_key TEXT NOT NULL,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_room_broadcasts_ingress_id
+            ON room_broadcasts(ingress_id);
             "#,
         )
         .map_err(|e| AppError::Db(e.to_string()))?;
@@ -368,6 +398,256 @@ impl StorageService {
             })
             .optional()
             .map_err(|e| AppError::Db(e.to_string()))
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn upsert_room_broadcast(
+        &self,
+        room_id: String,
+        host_identity: String,
+        participant_identity: String,
+        participant_name: String,
+        ingress_identity: String,
+        ingress_id: String,
+        whip_url: String,
+        stream_key: String,
+    ) -> AppResult<RoomBroadcastInfo> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = now_ts();
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            db.execute(
+                r#"
+                INSERT INTO room_broadcasts (
+                  room_id, host_identity, participant_identity, participant_name,
+                  ingress_identity, ingress_id, whip_url, stream_key, created_at, updated_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+                ON CONFLICT(room_id)
+                DO UPDATE SET
+                  host_identity = excluded.host_identity,
+                  participant_identity = excluded.participant_identity,
+                  participant_name = excluded.participant_name,
+                  ingress_identity = excluded.ingress_identity,
+                  ingress_id = excluded.ingress_id,
+                  whip_url = excluded.whip_url,
+                  stream_key = excluded.stream_key,
+                  updated_at = excluded.updated_at
+                "#,
+                params![
+                    &room_id,
+                    &host_identity,
+                    &participant_identity,
+                    &participant_name,
+                    &ingress_identity,
+                    &ingress_id,
+                    &whip_url,
+                    &stream_key,
+                    now
+                ],
+            )
+            .map_err(|e| AppError::Db(e.to_string()))?;
+
+            let mut stmt = db
+                .prepare(
+                    r#"
+                    SELECT
+                      room_id, host_identity, participant_identity, participant_name,
+                      ingress_identity, ingress_id, whip_url, stream_key, created_at, updated_at
+                    FROM room_broadcasts
+                    WHERE room_id = ?1
+                    "#,
+                )
+                .map_err(|e| AppError::Db(e.to_string()))?;
+
+            stmt.query_row(params![&room_id], |row| {
+                Ok(RoomBroadcastInfo {
+                    room_id: row.get(0)?,
+                    host_identity: row.get(1)?,
+                    participant_identity: row.get(2)?,
+                    participant_name: row.get(3)?,
+                    ingress_identity: row.get(4)?,
+                    ingress_id: row.get(5)?,
+                    whip_url: row.get(6)?,
+                    stream_key: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })
+            .map_err(|e| AppError::Db(e.to_string()))
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn get_room_broadcast(
+        &self,
+        room_id: String,
+    ) -> AppResult<Option<RoomBroadcastInfo>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            let mut stmt = db
+                .prepare(
+                    r#"
+                    SELECT
+                      room_id, host_identity, participant_identity, participant_name,
+                      ingress_identity, ingress_id, whip_url, stream_key, created_at, updated_at
+                    FROM room_broadcasts
+                    WHERE room_id = ?1
+                    "#,
+                )
+                .map_err(|e| AppError::Db(e.to_string()))?;
+
+            stmt.query_row(params![room_id], |row| {
+                Ok(RoomBroadcastInfo {
+                    room_id: row.get(0)?,
+                    host_identity: row.get(1)?,
+                    participant_identity: row.get(2)?,
+                    participant_name: row.get(3)?,
+                    ingress_identity: row.get(4)?,
+                    ingress_id: row.get(5)?,
+                    whip_url: row.get(6)?,
+                    stream_key: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })
+            .optional()
+            .map_err(|e| AppError::Db(e.to_string()))
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn get_room_broadcast_by_ingress_id(
+        &self,
+        ingress_id: String,
+    ) -> AppResult<Option<RoomBroadcastInfo>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            let mut stmt = db
+                .prepare(
+                    r#"
+                    SELECT
+                      room_id, host_identity, participant_identity, participant_name,
+                      ingress_identity, ingress_id, whip_url, stream_key, created_at, updated_at
+                    FROM room_broadcasts
+                    WHERE ingress_id = ?1
+                    "#,
+                )
+                .map_err(|e| AppError::Db(e.to_string()))?;
+
+            stmt.query_row(params![ingress_id], |row| {
+                Ok(RoomBroadcastInfo {
+                    room_id: row.get(0)?,
+                    host_identity: row.get(1)?,
+                    participant_identity: row.get(2)?,
+                    participant_name: row.get(3)?,
+                    ingress_identity: row.get(4)?,
+                    ingress_id: row.get(5)?,
+                    whip_url: row.get(6)?,
+                    stream_key: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })
+            .optional()
+            .map_err(|e| AppError::Db(e.to_string()))
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn delete_room_broadcast(&self, room_id: String) -> AppResult<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            db.execute(
+                "DELETE FROM room_broadcasts WHERE room_id = ?1",
+                params![room_id],
+            )
+            .map_err(|e| AppError::Db(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn delete_room_broadcast_by_ingress_id(&self, ingress_id: String) -> AppResult<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            db.execute(
+                "DELETE FROM room_broadcasts WHERE ingress_id = ?1",
+                params![ingress_id],
+            )
+            .map_err(|e| AppError::Db(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?
+    }
+
+    pub async fn list_room_broadcasts_for_expired_rooms(
+        &self,
+        limit: i64,
+    ) -> AppResult<Vec<RoomBroadcastInfo>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let now = now_ts();
+            let db = conn
+                .lock()
+                .map_err(|_| AppError::Db("db lock poisoned".to_string()))?;
+            let mut stmt = db
+                .prepare(
+                    r#"
+                    SELECT
+                      rb.room_id, rb.host_identity, rb.participant_identity, rb.participant_name,
+                      rb.ingress_identity, rb.ingress_id, rb.whip_url, rb.stream_key,
+                      rb.created_at, rb.updated_at
+                    FROM room_broadcasts rb
+                    LEFT JOIN rooms r ON r.room_id = rb.room_id
+                    WHERE r.room_id IS NULL OR r.expires_at <= ?1
+                    ORDER BY rb.updated_at ASC
+                    LIMIT ?2
+                    "#,
+                )
+                .map_err(|e| AppError::Db(e.to_string()))?;
+            let rows = stmt
+                .query_map(params![now, limit], |row| {
+                    Ok(RoomBroadcastInfo {
+                        room_id: row.get(0)?,
+                        host_identity: row.get(1)?,
+                        participant_identity: row.get(2)?,
+                        participant_name: row.get(3)?,
+                        ingress_identity: row.get(4)?,
+                        ingress_id: row.get(5)?,
+                        whip_url: row.get(6)?,
+                        stream_key: row.get(7)?,
+                        created_at: row.get(8)?,
+                        updated_at: row.get(9)?,
+                    })
+                })
+                .map_err(|e| AppError::Db(e.to_string()))?;
+            let mut out = Vec::new();
+            for row in rows {
+                out.push(row.map_err(|e| AppError::Db(e.to_string()))?);
+            }
+            Ok(out)
         })
         .await
         .map_err(|e| AppError::Db(e.to_string()))?

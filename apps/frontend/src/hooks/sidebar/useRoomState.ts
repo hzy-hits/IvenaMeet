@@ -153,6 +153,50 @@ export function useRoomState({
     }
   }, [setRoomId, setRole]);
 
+  useEffect(() => {
+    if (!joined || joined.role !== "host") {
+      setIngressId("");
+      setWhipUrl("");
+      setStreamKey("");
+      return;
+    }
+    const room = roomId.trim();
+    const host = userName.trim();
+    if (!room || !host) return;
+
+    let cancelled = false;
+    void api
+      .currentBroadcast({
+        room_id: room,
+        host_identity: host,
+      })
+      .then((current) => {
+        if (cancelled) return;
+        if (
+          current.active &&
+          current.ingress_id &&
+          current.whip_url &&
+          current.stream_key
+        ) {
+          setIngressId(current.ingress_id);
+          setWhipUrl(deriveWhipUrl(current.whip_url, joined.lk_url));
+          setStreamKey(current.stream_key);
+        } else {
+          setIngressId("");
+          setWhipUrl("");
+          setStreamKey("");
+        }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        pushLog(`broadcast current lookup failed: ${errorText(e)}`);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, joined, roomId, userName, pushLog]);
+
   const clearClientState = (options?: { clearHostTotp?: boolean; clearMessages?: boolean }) => {
     setJoined(null);
     setAppSessionToken("");
@@ -163,6 +207,10 @@ export function useRoomState({
     setHostSessionExpireAt(0);
     setSessionExpireAt(0);
     setShowReclaimCta(false);
+    setIngressId("");
+    setWhipUrl("");
+    setStreamKey("");
+    setShowBroadcastModal(false);
     if (options?.clearMessages ?? true) {
       setMessages([]);
     }
@@ -271,6 +319,25 @@ export function useRoomState({
       }
       setSessionExpireAt(Math.floor(Date.now() / 1000) + res.app_session_expires_in_seconds);
       pushLog(`joined: ${userName} (${res.role})`);
+      if (res.role === "host") {
+        const current = await api.currentBroadcast(
+          {
+            room_id: roomId.trim(),
+            host_identity: normalizedUserName,
+          },
+          joinAuthToken ?? res.host_session_token,
+        );
+        if (current.active && current.ingress_id && current.whip_url && current.stream_key) {
+          setIngressId(current.ingress_id);
+          setWhipUrl(deriveWhipUrl(current.whip_url, res.lk_url));
+          setStreamKey(current.stream_key);
+          pushLog(`broadcast restored: ${current.ingress_id}`);
+        } else {
+          setIngressId("");
+          setWhipUrl("");
+          setStreamKey("");
+        }
+      }
       const pendingAvatarUpload = Boolean(avatarUploadDataRef.current);
       if (!pendingAvatarUpload) {
         syncAvatarFromServer(normalizedUserName, res.avatar_url);
@@ -387,6 +454,9 @@ export function useRoomState({
   const stopBroadcast = async () => {
     if (!ingressId.trim()) throw new Error("ingress_id required");
     await api.stopBroadcast({ ingress_id: ingressId.trim() });
+    setIngressId("");
+    setWhipUrl("");
+    setStreamKey("");
     pushLog("broadcast stopped");
     showActionNotice("ok", "推流已停止");
   };
