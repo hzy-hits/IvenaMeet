@@ -71,27 +71,9 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
     return (
         <MuchaAsset
             src="/assets/mucha/corner.png"
-            className={`w-8 h-8 object-contain opacity-[0.22] ${className}`}
+            className={`w-28 h-28 object-contain opacity-[0.15] ${className}`}
             style={style}
         />
-    );
-}
-
-export function MuchaArch({ children, className = "" }: { children: ReactNode, className?: string }) {
-    return (
-        <div className={`relative overflow-hidden ${className}`}>
-            <MuchaAsset
-                src="/assets/mucha/arch.png"
-                className="inset-x-0 top-0 h-40 w-full opacity-10 object-cover object-[center_top]"
-                style={{
-                    WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
-                    maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
-                }}
-            />
-            <div className="relative z-10 pt-10">
-                {children}
-            </div>
-        </div>
     );
 }
 
@@ -108,12 +90,11 @@ export function MuchaHalo({ className = "" }: { className?: string }) {
 
 /* ─────────────────────────────────────────────
    2) OrnamentFrame
-   Thin border with SVG whiplash corner flourishes.
+   Thin border with High-Fid Mucha corners and halo watermark.
    ───────────────────────────────────────────── */
 type OrnamentFrameProps = {
     children: ReactNode;
     className?: string;
-    /** 'soft' for panels, 'strong' for active/focus states */
     intensity?: "soft" | "strong";
 };
 
@@ -128,12 +109,19 @@ export function OrnamentFrame({
             : "mucha-contour";
 
     return (
-        <div className={`relative ${borderClass} rounded-panel ${className}`}>
-            <MuchaCorner style={{ top: "-3px", left: "-3px" }} />
-            <MuchaCorner style={{ top: "-3px", right: "-3px", transform: "scaleX(-1)" }} />
-            <MuchaCorner style={{ bottom: "-3px", left: "-3px", transform: "scaleY(-1)" }} />
-            <MuchaCorner style={{ bottom: "-3px", right: "-3px", transform: "scale(-1, -1)" }} />
-            {children}
+        <div className={`relative ${borderClass} rounded-panel overflow-hidden ${className}`}>
+            {/* 4 Corners */}
+            <MuchaCorner style={{ top: "-5px", left: "-5px" }} />
+            <MuchaCorner style={{ top: "-5px", right: "-5px", transform: "scaleX(-1)" }} />
+            <MuchaCorner style={{ bottom: "-5px", left: "-5px", transform: "scaleY(-1)" }} />
+            <MuchaCorner style={{ bottom: "-5px", right: "-5px", transform: "scale(-1, -1)" }} />
+
+            {/* Center Watermark to prevent "bareness" */}
+            <MuchaHalo className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] max-w-[800px] opacity-[0.03]" />
+
+            <div className="relative z-10 flex h-full flex-col">
+                {children}
+            </div>
         </div>
     );
 }

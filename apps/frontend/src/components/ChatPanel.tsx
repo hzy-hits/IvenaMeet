@@ -3,7 +3,7 @@ import { MessageCircle, Send } from "lucide-react";
 import type { JoinResp, MessageItem } from "../lib/types";
 import { messageTailKey } from "../lib/chat";
 import { ChatMessageRow } from "./chat/ChatMessageRow";
-import { PaperSurface, OrnateDivider, MuchaArch } from "./mucha-primitives";
+import { OrnamentFrame, OrnateDivider } from "./mucha-primitives";
 
 type Props = {
     className?: string;
@@ -99,14 +99,12 @@ export function ChatPanel({
     };
 
     return (
-        <PaperSurface
-            tone="parchment"
-            as="section"
-            className={`hidden h-full min-h-0 flex-col overflow-hidden rounded-panel p-3 xl:flex xl:p-4 ${className ?? ""}`}
+        <OrnamentFrame
+            className={`paper-grain mucha-surface hidden h-full min-h-0 flex-col shadow-mucha xl:flex ${className ?? ""}`}
         >
             {/* Header */}
-            <MuchaArch className="mb-3">
-                <div className="flex items-center justify-between gap-2 px-1">
+            <section className="px-5 pt-5 pb-0 shrink-0">
+                <div className="flex items-center justify-between gap-2">
                     <div>
                         <p className="font-display text-[10px] uppercase tracking-[0.14em] text-ink/40">Text Channel</p>
                         <h2 className="mt-1 inline-flex items-center gap-2 font-display text-sm font-semibold tracking-wide text-ink/90">
@@ -125,16 +123,16 @@ export function ChatPanel({
                         </span>
                     </div>
                 </div>
-                <OrnateDivider className="mt-2 mb-0" />
-            </MuchaArch>
+                <OrnateDivider className="mt-4 mb-2" />
+            </section>
 
             {!joined ? (
-                <div className="grid flex-1 place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel text-center font-body text-sm text-ink/45">
+                <div className="m-4 grid flex-1 place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel text-center font-body text-sm text-ink/45">
                     先加入房间，再开始聊天
                 </div>
             ) : (
                 <>
-                    <div className="relative min-h-0 flex-1">
+                    <div className="relative min-h-0 flex-1 px-4">
                         <div
                             ref={chatScrollRef}
                             onScroll={onScroll}
@@ -190,6 +188,6 @@ export function ChatPanel({
                     ) : null}
                 </>
             )}
-        </PaperSurface>
+        </OrnamentFrame>
     );
 }
