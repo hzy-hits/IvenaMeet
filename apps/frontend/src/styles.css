@@ -9,15 +9,15 @@
    ============================================================ */
 @layer base {
     :root {
-        /* ── Surfaces ── */
-        --canvas: 242 237 228;
-        /* #F2EDE4 */
-        --parchment: 230 218 185;
-        /* #E6DAB9 */
-        --rail: 217 203 168;
-        /* #D9CBA8 */
-        --surface-raise: 242 237 228;
-        /* used at low alpha for lift */
+        /* ── Surfaces (warm mid-tones, NOT bright) ── */
+        --canvas: 213 207 198;
+        /* #D5CFC6 — muted warm grey-beige */
+        --parchment: 200 191 168;
+        /* #C8BFA8 — soft aged parchment */
+        --rail: 184 173 150;
+        /* #B8AD96 — deeper warm stone */
+        --surface-raise: 220 215 206;
+        /* #DCD7CE — subtle lift above canvas */
 
         /* ── Text ── */
         --ink: 44 38 33;
@@ -27,27 +27,27 @@
         --ink-muted: 44 38 33;
         /* used at 0.55 alpha */
 
-        /* ── Accents ── */
-        --gold: 212 175 55;
-        /* #D4AF37 */
+        /* ── Accents (muted antique tones) ── */
+        --gold: 184 151 58;
+        /* #B8973A — antique gold, less glare */
         --indigo: 59 74 107;
         /* #3B4A6B */
-        --coral: 209 106 84;
-        /* #D16A54 */
-        --teal: 107 158 155;
-        /* #6B9E9B */
+        --coral: 189 92 72;
+        /* #BD5C48 — slightly muted */
+        --teal: 94 140 137;
+        /* #5E8C89 — slightly deeper */
 
         /* ── Semantic ── */
-        --ok: 107 158 155;
+        --ok: 94 140 137;
         /* same as teal for light */
-        --warn: 212 175 55;
+        --warn: 184 151 58;
         /* same as gold for light */
-        --error: 209 106 84;
+        --error: 189 92 72;
         /* same as coral for light */
 
         /* ── Stroke ── */
         --stroke-ink: 44 38 33;
-        --stroke-gold: 212 175 55;
+        --stroke-gold: 184 151 58;
 
         /* ── Shadows (light) ── */
         --shadow-mucha: 0 4px 12px rgba(44, 38, 33, .10), 0 2px 4px rgba(44, 38, 33, .05);
@@ -96,6 +96,48 @@
 
         color-scheme: dark;
     }
+
+    [data-theme="twilight"] {
+        /* ── Surfaces (deep indigo-blue) ── */
+        --canvas: 26 31 54;
+        /* #1A1F36 */
+        --parchment: 34 40 64;
+        /* #222840 */
+        --rail: 25 30 51;
+        /* #191E33 */
+        --surface-raise: 44 50 78;
+        /* #2C324E */
+
+        /* ── Text (warm ivory) ── */
+        --ink: 232 224 208;
+        /* #E8E0D0 */
+        --ink-secondary: 232 224 208;
+        --ink-muted: 232 224 208;
+
+        /* ── Accents (amber-gold, warmer than dark) ── */
+        --gold: 212 168 48;
+        /* #D4A830 — amber gold */
+        --indigo: 152 168 212;
+        /* #98A8D4 — lightened for contrast */
+        --coral: 228 142 118;
+        /* #E48E76 */
+        --teal: 118 180 172;
+        /* #76B4AC */
+
+        /* ── Semantic ── */
+        --ok: 118 180 172;
+        --warn: 212 168 48;
+        --error: 228 142 118;
+
+        /* ── Stroke ── */
+        --stroke-ink: 232 224 208;
+        --stroke-gold: 212 168 48;
+
+        --shadow-mucha: 0 8px 28px rgba(10, 14, 30, .45), 0 2px 8px rgba(10, 14, 30, .30);
+        --shadow-gold-glow: 0 0 0 1px rgba(212, 168, 48, .25), 0 0 20px rgba(212, 168, 48, .14);
+
+        color-scheme: dark;
+    }
 }
 
 /* ============================================================
@@ -136,6 +178,10 @@
     opacity: 0.08;
 }
 
+[data-theme="twilight"] .paper-grain::before {
+    opacity: 0.05;
+}
+
 /* ============================================================
    Halo / breathing animation (gold glow pulse)
    ============================================================ */
@@ -159,6 +205,154 @@
     .halo-active {
         animation: none;
         box-shadow: 0 0 0 2px rgb(var(--gold) / 0.30), 0 0 8px rgb(var(--gold) / 0.12);
+    }
+}
+
+/* ============================================================
+   Speaking ripple (upgraded: 3-ring concentric expansion)
+   ============================================================ */
+@keyframes ripple-speak {
+
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 2px rgb(var(--gold) / 0.25),
+            0 0 0 4px rgb(var(--gold) / 0.12),
+            0 0 0 7px rgb(var(--gold) / 0.05);
+    }
+
+    50% {
+        box-shadow:
+            0 0 0 3px rgb(var(--gold) / 0.40),
+            0 0 0 7px rgb(var(--gold) / 0.18),
+            0 0 0 12px rgb(var(--gold) / 0.08);
+    }
+}
+
+.ripple-active {
+    animation: ripple-speak 1.8s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ripple-active {
+        animation: none;
+        box-shadow:
+            0 0 0 2px rgb(var(--gold) / 0.30),
+            0 0 0 5px rgb(var(--gold) / 0.12);
+    }
+}
+
+/* ============================================================
+   Slide-in (member entry)
+   ============================================================ */
+@keyframes slide-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-in {
+    animation: slide-in-up 280ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* ============================================================
+   Message bubble directional animations
+   ============================================================ */
+@keyframes bubble-in-mine {
+    from {
+        opacity: 0;
+        transform: translateX(12px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes bubble-in-peer {
+    from {
+        opacity: 0;
+        transform: translateX(-12px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.animate-bubble-mine {
+    animation: bubble-in-mine 220ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.animate-bubble-peer {
+    animation: bubble-in-peer 220ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* ============================================================
+   Button press feedback
+   ============================================================ */
+@keyframes btn-press {
+    0% {
+        transform: scale(0.92);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.press-feedback:active {
+    transform: scale(0.92);
+}
+
+.press-feedback {
+    transition: transform 150ms cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ============================================================
+   Art Nouveau loading spinner (golden arc)
+   ============================================================ */
+@keyframes mucha-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.mucha-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgb(var(--gold) / 0.15);
+    border-top-color: rgb(var(--gold) / 0.75);
+    border-right-color: rgb(var(--gold) / 0.40);
+    border-radius: 50%;
+    animation: mucha-spin 1s cubic-bezier(.5, .1, .5, .9) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .animate-slide-in,
+    .animate-bubble-mine,
+    .animate-bubble-peer {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .mucha-spinner {
+        animation-duration: 3s;
     }
 }
 
@@ -190,6 +384,10 @@
 }
 
 [data-theme="dark"] .ornate-divider::after {
+    background: rgb(var(--parchment));
+}
+
+[data-theme="twilight"] .ornate-divider::after {
     background: rgb(var(--parchment));
 }
 

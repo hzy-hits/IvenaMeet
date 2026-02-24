@@ -645,7 +645,7 @@ function StageScene({
             <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-gold/25 bg-parchment/85 p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
-                        className={`rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleMic();
                         }}
@@ -654,7 +654,7 @@ function StageScene({
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                     </button>
                     <button
-                        className={`rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleCamera();
                         }}
@@ -667,7 +667,7 @@ function StageScene({
                         {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
                     </button>
                     <button
-                        className={`rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-gold/15" : "text-ink/60 hover:bg-canvas/50"}`}
                         onClick={() => {
                             void toggleShare();
                         }}
@@ -771,8 +771,8 @@ export function MainStage({
     return (
         <main
             className={`paper-grain relative h-full min-h-0 bg-canvas ${immersive
-                    ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
-                    : "rounded-panel border border-gold/25 p-2 shadow-mucha lg:p-3"
+                ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
+                : "rounded-panel border border-gold/25 p-2 shadow-mucha lg:p-3"
                 } ${compact && !immersive ? "xl:min-h-[420px]" : ""}`}
         >
             <LiveKitRoom

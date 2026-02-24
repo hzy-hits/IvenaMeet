@@ -423,8 +423,8 @@ export function Layout() {
                                         void toggleChatFocusLayout();
                                     }}
                                     className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${chatDominant
-                                            ? "border-gold/55 bg-gold/15 text-gold"
-                                            : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        ? "border-gold/55 bg-gold/15 text-gold"
+                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
                                         }`}
                                 >
                                     {chatDominant ? "EXIT_CHAT_FOCUS" : "CHAT_FOCUS"}
@@ -437,8 +437,8 @@ export function Layout() {
                                         void toggleFullscreenStage();
                                     }}
                                     className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${isFullscreen || inTheaterMode
-                                            ? "border-gold/55 bg-gold/15 text-gold"
-                                            : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
+                                        ? "border-gold/55 bg-gold/15 text-gold"
+                                        : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-gold/40"
                                         }`}
                                 >
                                     {isHostView || localScreenShareActive
@@ -521,7 +521,7 @@ export function Layout() {
                         </div>
 
                         {theaterControlOpen ? (
-                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] lg:block">
+                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] overflow-hidden rounded-panel border border-gold/20 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
                                 <button
                                     type="button"
                                     onClick={() => setTheaterControlOpen(false)}
@@ -563,7 +563,7 @@ export function Layout() {
                         ) : null}
 
                         {theaterChatOpen ? (
-                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] lg:block">
+                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] overflow-hidden rounded-panel border border-gold/20 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
                                 <button
                                     type="button"
                                     onClick={() => setTheaterChatOpen(false)}

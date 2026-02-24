@@ -31,7 +31,7 @@ export function ChatMessageRow({
     const bubbleClass = isMine ? VARIANT_BUBBLE[variant].mine : VARIANT_BUBBLE[variant].peer;
 
     return (
-        <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+        <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${isMine ? "animate-bubble-mine" : "animate-bubble-peer"}`}>
             <div className={`flex max-w-[90%] items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                 {/* Avatar */}
                 <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gold/30 bg-parchment/60">

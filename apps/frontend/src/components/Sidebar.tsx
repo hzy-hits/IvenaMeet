@@ -400,7 +400,7 @@ export function Sidebar(props: Props) {
                                     {members.map((m) => (
                                         <div
                                             key={m.identity}
-                                            className={`rounded-chip border border-gold/20 bg-canvas/50 px-3 py-2 ${m.speaking ? "halo-active" : ""
+                                            className={`animate-slide-in rounded-chip border border-gold/20 bg-canvas/50 px-3 py-2 ${m.speaking ? "ripple-active" : ""
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between gap-2">
@@ -518,7 +518,7 @@ export function Sidebar(props: Props) {
                                         <button
                                             onClick={() => run(sendChat)}
                                             disabled={!chatText.trim()}
-                                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-colors ease-mucha hover:bg-gold/85"
+                                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-all ease-mucha hover:bg-gold/85 hover:shadow-gold-glow press-feedback"
                                         >
                                             <Send size={16} />
                                         </button>
@@ -529,8 +529,8 @@ export function Sidebar(props: Props) {
 
                         <div className={`rounded-panel border border-gold/15 bg-canvas/40 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                             <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Visual Theme</p>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(["system", "dark", "light"] as ThemeMode[]).map((mode) => (
+                            <div className="grid grid-cols-4 gap-2">
+                                {(["system", "light", "twilight", "dark"] as ThemeMode[]).map((mode) => (
                                     <button
                                         key={mode}
                                         type="button"
@@ -825,9 +825,9 @@ export function Sidebar(props: Props) {
                         <button
                             disabled={joining}
                             onClick={() => run(joinRoom)}
-                            className="mt-4 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas disabled:opacity-60"
+                            className="mt-4 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas disabled:opacity-60 press-feedback"
                         >
-                            {joining ? "Joining..." : "Join Room"}
+                            {joining ? (<span className="inline-flex items-center gap-2"><span className="mucha-spinner" /><span>Joining...</span></span>) : "Join Room"}
                         </button>
 
                         {effectiveRole === "host" && showReclaimCta ? (
