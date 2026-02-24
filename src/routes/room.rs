@@ -105,6 +105,18 @@ async fn join_room(
             .ok_or_else(|| AppError::BadRequest("role must be host or member".to_string()))?,
     };
 
+    let pending_redeem_token = if role == UserRole::Member && state.config.require_invite {
+        Some(
+            req.redeem_token
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("redeem_token is required".to_string()))?
+                .trim()
+                .to_string(),
+        )
+    } else {
+        None
+    };
+
     if role == UserRole::Host {
         let token = bearer_from_headers(&headers).ok_or_else(|| {
             AppError::Unauthorized(
@@ -170,17 +182,6 @@ async fn join_room(
             return Err(AppError::Unauthorized(
                 "member cannot use host identity".to_string(),
             ));
-        }
-        if state.config.require_invite {
-            let redeem_token = req
-                .redeem_token
-                .as_deref()
-                .ok_or_else(|| AppError::BadRequest("redeem_token is required".to_string()))?;
-            let mut redis = state.redis.clone();
-            state
-                .invite_service
-                .consume_redeem(&mut redis, redeem_token, &room.room_id, &user_name)
-                .await?;
         }
     }
 
@@ -469,6 +470,24 @@ async fn join_room(
         return Err(AppError::Unauthorized(
             "identity lock lost; retry join".to_string(),
         ));
+    }
+
+    if let Some(redeem_token) = pending_redeem_token.as_deref() {
+        if let Err(e) = state
+            .invite_service
+            .consume_redeem(&mut redis, redeem_token, &room_id, &user_name)
+            .await
+        {
+            let _ = state
+                .session_service
+                .revoke(&mut redis, &app_session_token)
+                .await;
+            let _ = state
+                .presence_service
+                .release_if_owner(&mut redis, &room_id, &user_name, &app_owner)
+                .await;
+            return Err(e);
+        }
     }
 
     let host_session_token = if role == UserRole::Host {

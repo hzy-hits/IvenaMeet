@@ -41,7 +41,7 @@ async fn redeem_invite(
     let room_id = validation::room_id(&req.room_id)?;
     let user_name = validation::user_name(&req.user_name)?;
     let invite_ticket = req.invite_ticket.trim();
-    let invite_code = req.invite_code.trim();
+    let invite_code = req.invite_code.trim().to_ascii_lowercase();
     if invite_ticket.is_empty() || invite_code.is_empty() {
         return Err(AppError::BadRequest(
             "invite_ticket and invite_code are required".to_string(),
@@ -74,7 +74,7 @@ async fn redeem_invite(
             &room.room_id,
             &user_name,
             invite_ticket,
-            invite_code,
+            &invite_code,
             state.config.redeem_ttl_seconds,
         )
         .await?;
