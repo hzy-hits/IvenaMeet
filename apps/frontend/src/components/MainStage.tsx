@@ -64,6 +64,12 @@ function isTrackReference(track: TrackReferenceOrPlaceholder): track is TrackRef
     return !!track.publication;
 }
 
+function isLiveVideoTrack(track: TrackReferenceOrPlaceholder): track is TrackReference {
+    if (!isTrackReference(track)) return false;
+    if (track.publication.isMuted) return false;
+    return Boolean(track.publication.track);
+}
+
 const CHAT_TOPIC = "chat.message.v1";
 const STAGE_CONTROL_TOPIC = "stage.control.v1";
 const MAX_HOST_STAGE_REQUESTS = 12;
@@ -232,9 +238,9 @@ function StageScene({
         { source: Track.Source.Unknown, withPlaceholder: false },
     ]);
 
-    const screenTrack = pickTrackRef(screenTracks);
+    const screenTrack = pickTrackRef(screenTracks.filter(isLiveVideoTrack));
     const cameraTrackRefs = useMemo(
-        () => cameraTracks.filter(isTrackReference),
+        () => cameraTracks.filter(isLiveVideoTrack),
         [cameraTracks],
     );
     const heroCameraTrack = useMemo(
