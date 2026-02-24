@@ -61,7 +61,7 @@ function MuchaAsset({ src, className = "", style }: { src: string, className?: s
             src={src}
             alt=""
             aria-hidden="true"
-            className={`pointer-events-none absolute mix-blend-multiply dark:mix-blend-screen dark:invert opacity-25 ${className}`}
+            className={`pointer-events-none absolute mix-blend-multiply dark:mix-blend-screen dark:invert ${className}`}
             style={style}
         />
     );
@@ -71,7 +71,7 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
     return (
         <MuchaAsset
             src="/assets/mucha/corner.png"
-            className={`w-8 h-8 object-contain ${className}`}
+            className={`w-8 h-8 object-contain opacity-[0.22] ${className}`}
             style={style}
         />
     );
@@ -82,13 +82,13 @@ export function MuchaArch({ children, className = "" }: { children: ReactNode, c
         <div className={`relative overflow-hidden ${className}`}>
             <MuchaAsset
                 src="/assets/mucha/arch.png"
-                className="inset-x-0 top-0 h-40 w-full opacity-30 object-cover object-top"
+                className="inset-x-0 top-0 h-40 w-full opacity-10 object-cover object-[center_top]"
                 style={{
                     WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
                     maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
                 }}
             />
-            <div className="relative z-10 pt-5">
+            <div className="relative z-10 pt-10">
                 {children}
             </div>
         </div>
@@ -101,7 +101,7 @@ export function MuchaHalo({ className = "" }: { className?: string }) {
             src="/assets/mucha/halo.png"
             alt=""
             aria-hidden="true"
-            className={`pointer-events-none mix-blend-multiply dark:mix-blend-screen dark:invert opacity-[0.06] object-contain ${className}`}
+            className={`pointer-events-none mix-blend-multiply dark:mix-blend-screen dark:invert opacity-5 object-contain ${className}`}
         />
     );
 }
