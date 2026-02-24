@@ -9,15 +9,15 @@
    ============================================================ */
 @layer base {
     :root {
-        /* ── Surfaces (warm mid-tones, NOT bright) ── */
-        --canvas: 213 207 198;
-        /* #D5CFC6 — muted warm grey-beige */
-        --parchment: 200 191 168;
-        /* #C8BFA8 — soft aged parchment */
-        --rail: 184 173 150;
-        /* #B8AD96 — deeper warm stone */
-        --surface-raise: 220 215 206;
-        /* #DCD7CE — subtle lift above canvas */
+        /* ── Surfaces (warm Mucha cream — NOT grey) ── */
+        --canvas: 227 218 200;
+        /* #E3DAC8 — warm cream, like aged poster paper */
+        --parchment: 216 205 174;
+        /* #D8CDAE — honey-parchment, Mucha's favourite ground */
+        --rail: 203 191 158;
+        /* #CBBF9E — warm sandstone */
+        --surface-raise: 234 226 210;
+        /* #EAE2D2 — subtle warm lift */
 
         /* ── Text ── */
         --ink: 44 38 33;
@@ -27,31 +27,31 @@
         --ink-muted: 44 38 33;
         /* used at 0.55 alpha */
 
-        /* ── Accents (muted antique tones) ── */
-        --gold: 184 151 58;
-        /* #B8973A — antique gold, less glare */
+        /* ── Accents (rich Mucha palette) ── */
+        --gold: 201 168 64;
+        /* #C9A840 — Art Nouveau gold, rich but not glaring */
         --indigo: 59 74 107;
         /* #3B4A6B */
-        --coral: 189 92 72;
-        /* #BD5C48 — slightly muted */
+        --coral: 199 98 78;
+        /* #C7624E — terracotta warmth */
         --teal: 94 140 137;
-        /* #5E8C89 — slightly deeper */
+        /* #5E8C89 — sage-teal */
 
         /* ── Semantic ── */
         --ok: 94 140 137;
         /* same as teal for light */
-        --warn: 184 151 58;
+        --warn: 201 168 64;
         /* same as gold for light */
-        --error: 189 92 72;
+        --error: 199 98 78;
         /* same as coral for light */
 
         /* ── Stroke ── */
         --stroke-ink: 44 38 33;
-        --stroke-gold: 184 151 58;
+        --stroke-gold: 201 168 64;
 
         /* ── Shadows (light) ── */
         --shadow-mucha: 0 4px 12px rgba(44, 38, 33, .10), 0 2px 4px rgba(44, 38, 33, .05);
-        --shadow-gold-glow: 0 0 0 1px rgba(212, 175, 55, .18), 0 0 14px rgba(212, 175, 55, .10);
+        --shadow-gold-glow: 0 0 0 1px rgba(201, 168, 64, .20), 0 0 14px rgba(201, 168, 64, .12);
 
         color-scheme: light;
     }
