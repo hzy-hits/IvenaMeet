@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
     ChevronDown,
     ChevronRight,
@@ -20,23 +20,16 @@ import {
     UserPlus,
 } from "lucide-react";
 import {
-    AVATAR_MAX_BYTES,
-    CHAT_HISTORY_LIMIT,
-    INVITE_COPY_HINT_MS,
-    SESSION_HEARTBEAT_MS,
-    SESSION_REFRESH_BEFORE_SECONDS,
-    SESSION_REFRESH_POLL_MS,
-} from "../lib/env";
-import {
-    clearCachedAvatar,
-    loadCachedAvatar,
     resolveAvatarSrc,
-    saveCachedAvatar,
 } from "../lib/avatar";
-import { messageTailKey } from "../lib/chat";
 import type { ResolvedTheme, ThemeMode } from "../lib/theme";
 import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 import { ChatMessageRow } from "./chat/ChatMessageRow";
+import { useAvatarState } from "../hooks/sidebar/useAvatarState";
+import { useChatState } from "../hooks/sidebar/useChatState";
+import { usePresenceState } from "../hooks/sidebar/usePresenceState";
+import { useRoomState } from "../hooks/sidebar/useRoomState";
+import { useSessionState } from "../hooks/sidebar/useSessionState";
 
 type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
 
@@ -70,158 +63,6 @@ type Props = {
     setThemeMode: (v: ThemeMode) => void;
 };
 
-const LS_KEYS = {
-    joined: "ivena.meet.joined",
-    appSessionToken: "ivena.meet.app_session_token",
-    hostSessionToken: "ivena.meet.host_session_token",
-} as const;
-let bootReconnectAttempted = false;
-
-function persistableAvatarUrl(raw: string): string | undefined {
-    const v = raw.trim();
-    if (!v) return undefined;
-    if (v.startsWith("https://") || v.startsWith("/api/avatars/") || v.startsWith("/avatars/")) {
-        return v;
-    }
-    return undefined;
-}
-
-function parseInviteFromQuery() {
-    const q = new URLSearchParams(window.location.search);
-    return {
-        room: q.get("room") ?? "",
-        ticket: q.get("ticket") ?? "",
-    };
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("file read error"));
-        reader.readAsDataURL(file);
-    });
-}
-
-function deriveWhipUrl(whipUrl: string, lkUrl?: string): string {
-    const direct = whipUrl.trim();
-    if (direct) return direct;
-    const base = (lkUrl ?? "").trim().replace(/\/+$/, "");
-    if (base.startsWith("wss://")) return `https://${base.slice(6)}/w/`;
-    if (base.startsWith("ws://")) return `http://${base.slice(5)}/w/`;
-    return "";
-}
-
-function deriveObsWhipEndpoint(whipUrl: string, streamKey: string): string {
-    const base = whipUrl.trim().replace(/\/+$/, "");
-    const key = streamKey.trim();
-    if (!base || !key) return "";
-    return `${base}/${key}`;
-}
-
-function createClientId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-        return crypto.randomUUID().replace(/-/g, "");
-    }
-    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function errorText(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    return String(e);
-}
-
-function isIdentityInUseError(message: string): boolean {
-    return message.toLowerCase().includes("identity already in use");
-}
-
-function normalizeMessage(message: MessageItem): MessageItem {
-    return {
-        ...message,
-        pending: message.pending ?? false,
-        failed: message.failed ?? false,
-    };
-}
-
-function mergeMessages(base: MessageItem[], incoming: MessageItem[]): MessageItem[] {
-    if (!incoming.length) return base;
-    const next = [...base];
-    const byId = new Map<number, number>();
-    const byClientId = new Map<string, number>();
-    for (let i = 0; i < next.length; i += 1) {
-        byId.set(next[i].id, i);
-        const existingClientId = next[i].client_id ?? "";
-        if (existingClientId) byClientId.set(existingClientId, i);
-    }
-
-    let changed = false;
-    for (const item of incoming) {
-        const normalized = normalizeMessage(item);
-        const incomingClientId = normalized.client_id ?? "";
-        const idxByClient = incomingClientId ? byClientId.get(incomingClientId) : undefined;
-        const idxById = byId.get(normalized.id);
-        const targetIdx = idxByClient ?? idxById;
-        if (targetIdx === undefined) {
-            next.push(normalized);
-            const newIdx = next.length - 1;
-            byId.set(normalized.id, newIdx);
-            if (incomingClientId) byClientId.set(incomingClientId, newIdx);
-            changed = true;
-            continue;
-        }
-
-        const prev = next[targetIdx];
-        const merged: MessageItem = {
-            ...prev,
-            ...normalized,
-            pending: normalized.pending ?? false,
-            failed: normalized.failed ?? false,
-        };
-        if (JSON.stringify(prev) !== JSON.stringify(merged)) {
-            next[targetIdx] = merged;
-            byId.set(merged.id, targetIdx);
-            const mergedClientId = merged.client_id ?? "";
-            if (mergedClientId) byClientId.set(mergedClientId, targetIdx);
-            changed = true;
-        }
-    }
-    if (!changed) return base;
-    return next.sort((a, b) => {
-        if (a.created_at !== b.created_at) return a.created_at - b.created_at;
-        if (a.id === b.id) return 0;
-        if (a.id < 0 && b.id > 0) return -1;
-        if (a.id > 0 && b.id < 0) return 1;
-        return a.id - b.id;
-    });
-}
-
-function markMessageFailed(base: MessageItem[], clientId: string): MessageItem[] {
-    let changed = false;
-    const out = base.map((m) => {
-        if (m.client_id !== clientId) return m;
-        changed = true;
-        return { ...m, pending: false, failed: true };
-    });
-    return changed ? out : base;
-}
-
-function toRealtimeMessage(payload: RealtimeChatPayload): MessageItem {
-    const syntheticId = -Math.floor(Date.now() * 1000 + Math.random() * 1000);
-    return {
-        id: syntheticId,
-        room_id: payload.room_id,
-        user_name: payload.user_name,
-        nickname: payload.nickname,
-        avatar_url: payload.avatar_url ?? null,
-        role: payload.role,
-        client_id: payload.client_id,
-        text: payload.text,
-        created_at: payload.created_at,
-        pending: true,
-        failed: false,
-    };
-}
-
 export function Sidebar(props: Props) {
     const {
         requireInvite,
@@ -253,784 +94,147 @@ export function Sidebar(props: Props) {
         setThemeMode,
     } = props;
 
-    const [inviteCode, setInviteCode] = useState("");
-    const [inviteTicket, setInviteTicket] = useState("");
-    const [redeemToken, setRedeemToken] = useState("");
-    const [hostTotpCode, setHostTotpCode] = useState("");
-    const [chatText, setChatText] = useState("");
-    const [inviteCopied, setInviteCopied] = useState(false);
-    const [sessionExpireAt, setSessionExpireAt] = useState(0);
-    const [hostSessionExpireAt, setHostSessionExpireAt] = useState(0);
-    const [ingressId, setIngressId] = useState("");
-    const [whipUrl, setWhipUrl] = useState("");
-    const [streamKey, setStreamKey] = useState("");
-    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-    const [joining, setJoining] = useState(false);
-    const [reclaiming, setReclaiming] = useState(false);
-    const [showReclaimCta, setShowReclaimCta] = useState(false);
-    const [actionNotice, setActionNotice] = useState<{
-        kind: "ok" | "error";
-        text: string;
-    } | null>(null);
+    const {
+        openMembers,
+        setOpenMembers,
+        openChat,
+        setOpenChat,
+        openLogs,
+        setOpenLogs,
+        consolePane,
+        setConsolePane,
+    } = usePresenceState(chatPriorityMode);
 
-    const [openMembers, setOpenMembers] = useState(true);
-    const [openChat, setOpenChat] = useState(true);
-    const [openLogs, setOpenLogs] = useState(false);
-    const [consolePane, setConsolePane] = useState<"control" | "members" | "ops">("control");
-    const [hostEntryUnlocked, setHostEntryUnlocked] = useState(false);
+    const {
+        avatarPreview,
+        setAvatarPreview,
+        avatarStatus,
+        setAvatarStatus,
+        avatarEditorOpen,
+        setAvatarEditorOpen,
+        fileInputRef,
+        avatarUploadDataRef,
+        avatarPreviewBlobRef,
+        syncAvatarFromServer,
+        resetAvatarTransient,
+        openAvatarEditor,
+        onPickAvatar,
+        onAvatarFileChange,
+    } = useAvatarState({
+        api,
+        joined,
+        appSessionToken,
+        userName,
+        messages,
+        setMessages,
+        pushLog,
+    });
 
-    const [avatarPreview, setAvatarPreview] = useState<string>(() => loadCachedAvatar(userName));
-    const avatarUploadDataRef = useRef<string>("");
-    const avatarPreviewBlobRef = useRef<string>("");
-    const [avatarStatus, setAvatarStatus] = useState<{
-        kind: "idle" | "ok" | "error";
-        text: string;
-    }>({ kind: "idle", text: "未上传，使用默认头像" });
-    const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const chatScrollRef = useRef<HTMLDivElement>(null);
-    const chatAutoScrollRef = useRef(true);
-    const lastChatTailKeyRef = useRef("empty");
-    const initialReconnectChecked = useRef(false);
-    const lastMessageIdRef = useRef(0);
-    const historySyncErrorLoggedRef = useRef(false);
-    const heartbeatErrorLoggedRef = useRef(false);
-    const reconnectInFlightRef = useRef(false);
-    const [pendingChatHints, setPendingChatHints] = useState(0);
-    const shouldReconnectOnBoot = useRef(
-        Boolean(
-            enableBootReconnect
-                && localStorage.getItem(LS_KEYS.joined)
-                && localStorage.getItem(LS_KEYS.appSessionToken),
-        ),
-    );
-    const lastChatPriorityModeRef = useRef(chatPriorityMode);
-    const inviteMode = Boolean(inviteTicket);
-    const effectiveRole: Role = hostEntryUnlocked ? "host" : inviteMode ? "member" : role;
-    const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
-    const isHost = useMemo(
-        () => (joined?.role ?? effectiveRole) === "host",
-        [joined?.role, effectiveRole],
-    );
-    const obsWhipEndpoint = useMemo(
-        () => deriveObsWhipEndpoint(whipUrl, streamKey),
-        [whipUrl, streamKey],
-    );
+    const {
+        chatText,
+        setChatText,
+        pendingChatHints,
+        chatScrollRef,
+        onChatScroll,
+        scrollChatToBottom,
+        sendChat,
+        resetChatState,
+    } = useChatState({
+        api,
+        joined,
+        appSessionToken,
+        roomId,
+        userName,
+        messages,
+        openChat,
+        setMessages,
+        lastRealtimeChat,
+        realtimeChatSender,
+        pushLog,
+    });
 
-    const showActionNotice = (kind: "ok" | "error", text: string) => {
-        setActionNotice({ kind, text });
-        window.setTimeout(() => setActionNotice(null), 2600);
-    };
+    const {
+        inviteCode,
+        setInviteCode,
+        inviteTicket,
+        setInviteTicket,
+        hostTotpCode,
+        setHostTotpCode,
+        inviteCopied,
+        sessionExpireAt,
+        setSessionExpireAt,
+        hostSessionExpireAt,
+        setHostSessionExpireAt,
+        ingressId,
+        whipUrl,
+        streamKey,
+        setShowBroadcastModal,
+        showBroadcastModal,
+        joining,
+        reclaiming,
+        showReclaimCta,
+        actionNotice,
+        hostEntryUnlocked,
+        setHostEntryUnlocked,
+        inviteMode,
+        effectiveRole,
+        showInviteGate,
+        isHost,
+        obsWhipEndpoint,
+        showActionNotice,
+        clearClientState,
+        leaveRoom,
+        joinRoom,
+        forceReclaimAndRetry,
+        issueInvite,
+        startBroadcast,
+        stopBroadcast,
+        muteAll,
+        muteOne,
+        run,
+    } = useRoomState({
+        requireInvite,
+        api,
+        roomId,
+        setRoomId,
+        userName,
+        role,
+        setRole,
+        joined,
+        appSessionToken,
+        setJoined,
+        setAppSessionToken,
+        setHostSessionToken,
+        setMessages,
+        pushLog,
+        avatarPreview,
+        avatarUploadDataRef,
+        avatarPreviewBlobRef,
+        setAvatarPreview,
+        setAvatarStatus,
+        syncAvatarFromServer,
+        onLeaveCleanup: () => {
+            resetChatState();
+            resetAvatarTransient();
+        },
+    });
 
-    useEffect(() => {
-        if (effectiveRole !== "host" && showReclaimCta) {
-            setShowReclaimCta(false);
-        }
-    }, [effectiveRole, showReclaimCta]);
-
-    useEffect(() => {
-        const was = lastChatPriorityModeRef.current;
-        if (chatPriorityMode && !was) {
-            setOpenChat(true);
-            setOpenMembers(false);
-            setOpenLogs(false);
-        }
-        lastChatPriorityModeRef.current = chatPriorityMode;
-    }, [chatPriorityMode]);
-
-    useEffect(() => {
-        if (consolePane === "members") setOpenMembers(true);
-        if (consolePane === "ops") setOpenLogs(true);
-    }, [consolePane]);
-
-    useEffect(() => {
-        return () => {
-            if (avatarPreviewBlobRef.current) {
-                URL.revokeObjectURL(avatarPreviewBlobRef.current);
-                avatarPreviewBlobRef.current = "";
-            }
-        };
-    }, []);
-
-    useEffect(() => {
-        if (avatarPreviewBlobRef.current) return;
-        const cached = loadCachedAvatar(userName);
-        setAvatarPreview(cached);
-        setAvatarStatus(
-            cached
-                ? { kind: "ok", text: "已加载本地头像缓存" }
-                : { kind: "idle", text: "未上传，使用默认头像" },
-        );
-    }, [userName]);
-
-    useEffect(() => {
-        if (!joined) {
-            setAvatarEditorOpen(false);
-        }
-    }, [joined]);
-
-    useEffect(() => {
-        const parsed = parseInviteFromQuery();
-        if (parsed.room) setRoomId(parsed.room);
-        if (parsed.ticket) {
-            setInviteTicket(parsed.ticket);
-            setRole("member");
-            setHostEntryUnlocked(false);
-        }
-    }, [setRoomId, setRole]);
-
-    useEffect(() => {
-        if (!joined) return;
-        api
-            .listMessages(roomId, CHAT_HISTORY_LIMIT)
-            .then((res) => setMessages(res.items))
-            .catch((e) => pushLog(`history error: ${String(e)}`));
-    }, [joined, roomId, api, setMessages, pushLog]);
-
-    useEffect(() => {
-        const name = userName.trim();
-        if (!name) return;
-        const latestAvatar = [...messages]
-            .reverse()
-            .find((m) => m.user_name === name && !!m.avatar_url)?.avatar_url;
-        if (!latestAvatar) return;
-        saveCachedAvatar(name, latestAvatar);
-        if (!avatarPreviewBlobRef.current && avatarPreview !== latestAvatar) {
-            setAvatarPreview(latestAvatar);
-            setAvatarStatus({ kind: "ok", text: "已同步已上传头像" });
-        }
-    }, [messages, userName, avatarPreview]);
-
-    useEffect(() => {
-        let maxId = 0;
-        for (const item of messages) {
-            if (item.id > maxId) maxId = item.id;
-        }
-        lastMessageIdRef.current = maxId;
-    }, [messages]);
-
-    useEffect(() => {
-        if (!openChat) return;
-        const box = chatScrollRef.current;
-        if (!box) return;
-
-        const nextTail = messageTailKey(messages);
-        if (nextTail === lastChatTailKeyRef.current) return;
-        lastChatTailKeyRef.current = nextTail;
-
-        const distanceToBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
-        const isNearBottom = distanceToBottom <= 56;
-
-        if (chatAutoScrollRef.current || isNearBottom) {
-            const doScroll = () => {
-                const target = chatScrollRef.current;
-                if (!target) return;
-                target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
-            };
-            if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
-                window.requestAnimationFrame(doScroll);
-            } else {
-                doScroll();
-            }
-            chatAutoScrollRef.current = true;
-            setPendingChatHints(0);
-            return;
-        }
-
-        setPendingChatHints((n) => Math.min(n + 1, 99));
-    }, [messages, openChat]);
-
-    const scrollChatToBottom = (behavior: ScrollBehavior = "smooth") => {
-        const box = chatScrollRef.current;
-        if (!box) return;
-        box.scrollTo({ top: box.scrollHeight, behavior });
-        chatAutoScrollRef.current = true;
-        setPendingChatHints(0);
-    };
-
-    const onChatScroll = () => {
-        const box = chatScrollRef.current;
-        if (!box) return;
-        const distanceToBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
-        const isNearBottom = distanceToBottom <= 56;
-        chatAutoScrollRef.current = isNearBottom;
-        if (isNearBottom && pendingChatHints) {
-            setPendingChatHints(0);
-        }
-    };
-
-    useEffect(() => {
-        if (!openChat) return;
-        if (!joined) return;
-        scrollChatToBottom("auto");
-    }, [openChat, joined, roomId]);
-
-    useEffect(() => {
-        if (!joined || !appSessionToken) return;
-        let stopped = false;
-        let closeStream: (() => void) | null = null;
-        let retryDelayMs = 1000;
-
-        const connect = () => {
-            if (stopped) return;
-            const afterId = lastMessageIdRef.current > 0 ? lastMessageIdRef.current : undefined;
-            closeStream = api.streamMessages(
-                roomId,
-                afterId,
-                (item) => {
-                    historySyncErrorLoggedRef.current = false;
-                    setMessages((prev) => mergeMessages(prev, [{ ...item, pending: false, failed: false }]));
-                },
-                (error) => {
-                    if (stopped) return;
-                    if (!historySyncErrorLoggedRef.current) {
-                        historySyncErrorLoggedRef.current = true;
-                        pushLog(`chat stream error: ${error.message}`);
-                    }
-                    if (closeStream) {
-                        closeStream();
-                        closeStream = null;
-                    }
-                    window.setTimeout(connect, retryDelayMs);
-                    retryDelayMs = Math.min(retryDelayMs * 2, 10000);
-                },
-            );
-        };
-
-        connect();
-        return () => {
-            stopped = true;
-            if (closeStream) closeStream();
-        };
-    }, [joined, appSessionToken, roomId, api, setMessages, pushLog]);
-
-    useEffect(() => {
-        if (!joined || !lastRealtimeChat) return;
-        if (lastRealtimeChat.room_id !== roomId.trim()) return;
-        setMessages((prev) => mergeMessages(prev, [toRealtimeMessage(lastRealtimeChat)]));
-    }, [joined, lastRealtimeChat, roomId, setMessages]);
-
-    useEffect(() => {
-        if (initialReconnectChecked.current) return;
-        if (!shouldReconnectOnBoot.current || bootReconnectAttempted) {
-            initialReconnectChecked.current = true;
-            return;
-        }
-        if (!joined || reconnectInFlightRef.current) return;
-        initialReconnectChecked.current = true;
-        reconnectInFlightRef.current = true;
-        bootReconnectAttempted = true;
-        const restored = joined;
-
-        void api
-            .reconnectRoom()
-            .then((res) => {
-                setJoined({ ...restored, ...res });
-                pushLog("session restored after refresh");
-            })
-            .catch((e) => {
-                setJoined(null);
-                setAppSessionToken("");
-                setHostSessionToken("");
-                setHostSessionExpireAt(0);
-                setSessionExpireAt(0);
-                setMessages([]);
-                localStorage.removeItem(LS_KEYS.joined);
-                localStorage.removeItem(LS_KEYS.appSessionToken);
-                localStorage.removeItem(LS_KEYS.hostSessionToken);
-                pushLog(`session restore failed: ${String(e)}`);
-                showActionNotice("error", "会话已失效，请重新加入房间");
-            })
-            .finally(() => {
-                reconnectInFlightRef.current = false;
-            });
-    }, [joined, api, setJoined, setAppSessionToken, setHostSessionToken, setMessages, pushLog]);
-
-    useEffect(() => {
-        if (!joined || !sessionExpireAt) return;
-        const timer = window.setInterval(() => {
-            const now = Math.floor(Date.now() / 1000);
-            if (now >= sessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
-                void api
-                    .refreshSession()
-                    .then((res) => {
-                        setAppSessionToken(res.app_session_token);
-                        setSessionExpireAt(now + res.app_session_expires_in_seconds);
-                        pushLog("app session refreshed");
-                    })
-                    .catch((e) => pushLog(`session refresh failed: ${String(e)}`));
-            }
-        }, SESSION_REFRESH_POLL_MS);
-        return () => window.clearInterval(timer);
-    }, [joined, sessionExpireAt, api, setAppSessionToken, pushLog]);
-
-    useEffect(() => {
-        if (!joined || !appSessionToken) return;
-        const timer = window.setInterval(() => {
-            void api
-                .heartbeatSession()
-                .then(() => {
-                    heartbeatErrorLoggedRef.current = false;
-                })
-                .catch((e) => {
-                    if (heartbeatErrorLoggedRef.current) return;
-                    heartbeatErrorLoggedRef.current = true;
-                    pushLog(`session heartbeat failed: ${errorText(e)}`);
-                });
-        }, SESSION_HEARTBEAT_MS);
-        return () => window.clearInterval(timer);
-    }, [joined, appSessionToken, api, pushLog]);
-
-    useEffect(() => {
-        if (!joined || !isHost || !hostSessionExpireAt) return;
-        const timer = window.setInterval(() => {
-            const now = Math.floor(Date.now() / 1000);
-            if (now >= hostSessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
-                void api
-                    .refreshHostSession()
-                    .then((res) => {
-                        setHostSessionToken(res.host_session_token);
-                        setHostSessionExpireAt(now + res.expires_in_seconds);
-                        pushLog("host session refreshed");
-                    })
-                    .catch((e) => {
-                        setJoined(null);
-                        setAppSessionToken("");
-                        setHostSessionToken("");
-                        setHostSessionExpireAt(0);
-                        setHostTotpCode("");
-                        setMessages([]);
-                        pushLog(`host session refresh failed: ${String(e)}`);
-                        pushLog("主持权限已过期，请重新输入 TOTP");
-                    });
-            }
-        }, SESSION_REFRESH_POLL_MS);
-        return () => window.clearInterval(timer);
-    }, [joined, isHost, hostSessionExpireAt, api, setAppSessionToken, setHostSessionToken, setJoined, setMessages, pushLog]);
-
-    const leaveRoom = async () => {
-        const shouldNotifyLeave = Boolean(joined && appSessionToken);
-        if (shouldNotifyLeave) {
-            try {
-                const res = await api.leaveRoom();
-                pushLog(res.released ? "left room (presence released)" : "left room (presence already cleared)");
-            } catch (e) {
-                pushLog(`leave notify failed: ${String(e)}`);
-            }
-        }
-
-        setJoined(null);
-        setAppSessionToken("");
-        setHostSessionToken("");
-        setHostTotpCode("");
-        setHostSessionExpireAt(0);
-        setSessionExpireAt(0);
-        setShowReclaimCta(false);
-        setPendingChatHints(0);
-        setAvatarEditorOpen(false);
-        chatAutoScrollRef.current = true;
-        lastChatTailKeyRef.current = "empty";
-        avatarUploadDataRef.current = "";
-        if (avatarPreviewBlobRef.current) {
-            URL.revokeObjectURL(avatarPreviewBlobRef.current);
-            avatarPreviewBlobRef.current = "";
-        }
-        setMessages([]);
-        localStorage.removeItem(LS_KEYS.joined);
-        localStorage.removeItem(LS_KEYS.appSessionToken);
-        localStorage.removeItem(LS_KEYS.hostSessionToken);
-        pushLog("left room");
-    };
-
-    const joinRoom = async (options?: { skipAutoReclaim?: boolean }) => {
-        if (joining) return;
-        if (!userName.trim()) throw new Error("name is required");
-
-        setJoining(true);
-        try {
-            if (joined) {
-                await leaveRoom();
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            }
-
-            let token = redeemToken.trim();
-            let joinAuthToken: string | undefined;
-            if ((requireInvite || inviteMode) && effectiveRole === "member" && !token) {
-                if (!inviteCode.trim() || !inviteTicket.trim()) {
-                    throw new Error("invite_code and invite_ticket required");
-                }
-                const redeem = await api.redeemInvite({
-                    room_id: roomId.trim(),
-                    user_name: userName.trim(),
-                    invite_code: inviteCode.trim(),
-                    invite_ticket: inviteTicket.trim(),
-                });
-                token = redeem.redeem_token;
-                setRedeemToken(token);
-                pushLog("invite redeemed");
-            }
-            if (effectiveRole === "host") {
-                const verified = await api.loginHostWithTotp({
-                    room_id: roomId.trim(),
-                    host_identity: userName.trim(),
-                    totp_code: hostTotpCode.trim(),
-                });
-                setHostSessionToken(verified.host_session_token);
-                setHostSessionExpireAt(Math.floor(Date.now() / 1000) + verified.expires_in_seconds);
-                joinAuthToken = verified.host_session_token;
-                pushLog("host login verified");
-            }
-
-            const normalizedUserName = userName.trim();
-            const joinAvatarUrl = persistableAvatarUrl(avatarPreview);
-            const joinPayload = {
-                room_id: roomId.trim(),
-                user_name: normalizedUserName,
-                role: effectiveRole,
-                nickname: normalizedUserName,
-                redeem_token: token || undefined,
-                avatar_url: joinAvatarUrl,
-            };
-
-            let res: JoinResp;
-            try {
-                res = await api.join(joinPayload, joinAuthToken);
-            } catch (e) {
-                const message = errorText(e);
-                const shouldAutoReclaim =
-                    effectiveRole === "host" &&
-                    !options?.skipAutoReclaim &&
-                    isIdentityInUseError(message);
-                if (!shouldAutoReclaim) {
-                    throw e;
-                }
-                const reclaimed = await api.forceReclaimHostLock(
-                    {
-                        room_id: roomId.trim(),
-                        host_identity: userName.trim(),
-                    },
-                    joinAuthToken,
-                );
-                pushLog(
-                    `host reclaim(auto): ${reclaimed.reason} (stale_age=${reclaimed.stale_age_seconds}s)`,
-                );
-                res = await api.join(joinPayload, joinAuthToken);
-            }
-
-            setJoined(res);
-            setShowReclaimCta(false);
-            setAppSessionToken(res.app_session_token);
-            setHostSessionToken(res.host_session_token ?? "");
-            if (res.host_session_token && res.host_session_expires_in_seconds) {
-                setHostSessionExpireAt(Math.floor(Date.now() / 1000) + res.host_session_expires_in_seconds);
-            }
-            setSessionExpireAt(Math.floor(Date.now() / 1000) + res.app_session_expires_in_seconds);
-            pushLog(`joined: ${userName} (${res.role})`);
-            const pendingAvatarUpload = Boolean(avatarUploadDataRef.current);
-            if (!pendingAvatarUpload) {
-                syncAvatarFromServer(normalizedUserName, res.avatar_url);
-            }
-            if (pendingAvatarUpload) {
-                try {
-                    const uploaded = await api.uploadAvatar(avatarUploadDataRef.current, res.app_session_token);
-                    setAvatarStatus({ kind: "ok", text: "头像上传成功" });
-                    setAvatarPreview(uploaded.avatar_url);
-                    saveCachedAvatar(normalizedUserName, uploaded.avatar_url);
-                    avatarUploadDataRef.current = "";
-                    if (avatarPreviewBlobRef.current) {
-                        URL.revokeObjectURL(avatarPreviewBlobRef.current);
-                        avatarPreviewBlobRef.current = "";
-                    }
-                    setMessages((prev) =>
-                        prev.map((m) =>
-                            m.user_name === normalizedUserName ? { ...m, avatar_url: uploaded.avatar_url } : m,
-                        ),
-                    );
-                    pushLog(`avatar uploaded: ${uploaded.avatar_url}`);
-                } catch (e) {
-                    avatarUploadDataRef.current = "";
-                    if (avatarPreviewBlobRef.current) {
-                        URL.revokeObjectURL(avatarPreviewBlobRef.current);
-                        avatarPreviewBlobRef.current = "";
-                    }
-                    syncAvatarFromServer(normalizedUserName, res.avatar_url);
-                    setAvatarStatus({
-                        kind: "error",
-                        text: res.avatar_url
-                            ? "头像上传失败，已回退到已保存头像"
-                            : "头像上传失败，已使用默认头像",
-                    });
-                    pushLog(`avatar upload failed: ${String(e)}`);
-                }
-            }
-        } catch (e) {
-            const message = errorText(e);
-            if (effectiveRole === "host" && isIdentityInUseError(message)) {
-                setShowReclaimCta(true);
-                showActionNotice("error", "主持身份被占用，可一键回收后重试");
-                pushLog("host identity occupied; use force reclaim and retry");
-            }
-            throw e;
-        } finally {
-            setJoining(false);
-        }
-    };
-
-    const forceReclaimAndRetry = async () => {
-        if (reclaiming) return;
-        setReclaiming(true);
-        try {
-            const reclaimed = await api.forceReclaimHostLock({
-                room_id: roomId.trim(),
-                host_identity: userName.trim(),
-            });
-            pushLog(
-                `host reclaim: ${reclaimed.reason} (stale_age=${reclaimed.stale_age_seconds}s)`,
-            );
-            showActionNotice("ok", "已回收残留会话，正在重试");
-            setShowReclaimCta(false);
-            await joinRoom({ skipAutoReclaim: true });
-        } finally {
-            setReclaiming(false);
-        }
-    };
-
-    const issueInvite = async () => {
-        const payload = await api.issueInvite({
-            room_id: roomId.trim(),
-            host_identity: userName.trim(),
-        });
-
-        const expiresAt = new Date(payload.expires_at).toLocaleString();
-        const msg = `房间链接：${payload.invite_url}\n邀请码：${payload.invite_code}\n可使用人数：${payload.invite_max_uses}\n有效期至：${expiresAt}`;
-        await navigator.clipboard.writeText(msg);
-
-        setInviteCode(payload.invite_code);
-        setInviteTicket(payload.invite_ticket);
-        setInviteCopied(true);
-        window.setTimeout(() => setInviteCopied(false), INVITE_COPY_HINT_MS);
-        const hostRoomUrl = `/?room=${encodeURIComponent(roomId.trim())}`;
-        window.history.replaceState({}, "", hostRoomUrl);
-        setRole("host");
-        pushLog("invite issued and copied");
-        pushLog(`switched to host room url: ${hostRoomUrl}`);
-        showActionNotice("ok", "已复制微信群邀请文案");
-    };
-
-    const startBroadcast = async () => {
-        const issue = await api.issueBroadcast({
-            room_id: roomId.trim(),
-            host_identity: userName.trim(),
-        });
-
-        const started = await api.startBroadcast({
-            room_id: roomId.trim(),
-            participant_identity: userName.trim(),
-            participant_name: userName.trim(),
-            start_token: issue.start_token,
-        });
-
-        setIngressId(started.ingress_id);
-        setWhipUrl(deriveWhipUrl(started.whip_url, joined?.lk_url));
-        setStreamKey(started.stream_key);
-        setShowBroadcastModal(true);
-        pushLog("broadcast started");
-        pushLog("echo-safe tip: OBS 只推桌面+系统音，麦克风请走房间语音");
-        showActionNotice("ok", "推流参数已生成");
-    };
-
-    const stopBroadcast = async () => {
-        if (!ingressId.trim()) throw new Error("ingress_id required");
-        await api.stopBroadcast({ ingress_id: ingressId.trim() });
-        pushLog("broadcast stopped");
-        showActionNotice("ok", "推流已停止");
-    };
-
-    const muteAll = async (muted: boolean) => {
-        const res = await api.muteAll({
-            room_id: roomId.trim(),
-            host_identity: userName.trim(),
-            muted,
-        });
-        pushLog(`${muted ? "mute all" : "unmute all"} applied (${res.affected_tracks})`);
-        if (res.affected_tracks === 0) {
-            showActionNotice(
-                "error",
-                muted
-                    ? "未命中可静音麦克风（可能成员未开麦或未发布麦克风）"
-                    : "未命中可解除的麦克风（可能当前都未被服务端静音）",
-            );
-        } else {
-            showActionNotice("ok", `${muted ? "全员静音" : "解除全员静音"}已应用（${res.affected_tracks}）`);
-        }
-    };
-
-    const muteOne = async (targetIdentity: string, muted: boolean) => {
-        const res = await api.muteMember({
-            room_id: roomId.trim(),
-            host_identity: userName.trim(),
-            target_identity: targetIdentity,
-            muted,
-        });
-        pushLog(`${muted ? "mute" : "unmute"} ${targetIdentity} (${res.affected_tracks})`);
-        if (res.affected_tracks === 0) {
-            showActionNotice("error", `未命中 ${targetIdentity} 的麦克风轨道`);
-        } else {
-            showActionNotice(
-                "ok",
-                `${muted ? "已静音" : "已解除静音"} ${targetIdentity}（${res.affected_tracks}）`,
-            );
-        }
-    };
-
-    const sendChat = async () => {
-        const text = chatText.trim();
-        if (!text || !joined) return;
-        chatAutoScrollRef.current = true;
-        setPendingChatHints(0);
-        const clientId = createClientId();
-        const payload: RealtimeChatPayload = {
-            type: "chat.message",
-            room_id: roomId.trim(),
-            client_id: clientId,
-            user_name: userName.trim(),
-            nickname: userName.trim(),
-            avatar_url: null,
-            role: joined.role,
-            text,
-            created_at: Math.floor(Date.now() / 1000),
-        };
-
-        setMessages((prev) => mergeMessages(prev, [toRealtimeMessage(payload)]));
-        if (realtimeChatSender) {
-            try {
-                await realtimeChatSender(payload);
-            } catch (e) {
-                pushLog(`realtime send error: ${String(e)}`);
-            }
-        }
-
-        try {
-            const created = await api.createMessage(roomId.trim(), { text, client_id: clientId });
-            setMessages((prev) =>
-                mergeMessages(prev, [{ ...created, pending: false, failed: false }]),
-            );
-        } catch (e) {
-            setMessages((prev) => markMessageFailed(prev, clientId));
-            throw e;
-        }
-        setChatText("");
-    };
-
-    const openAvatarEditor = () => {
-        if (!joined) return;
-        setAvatarEditorOpen(true);
-    };
-
-    const onPickAvatar = () => fileInputRef.current?.click();
-
-    const onAvatarFileChange = (file?: File) => {
-        if (!file) return;
-        if (!file.type.startsWith("image/")) {
-            setAvatarPreview(loadCachedAvatar(userName));
-            avatarUploadDataRef.current = "";
-            setAvatarStatus({ kind: "error", text: "上传失败：仅支持图片，已使用默认头像" });
-            pushLog("avatar upload failed: only image files are allowed, using default avatar");
-            return;
-        }
-        if (file.size > AVATAR_MAX_BYTES) {
-            setAvatarPreview(loadCachedAvatar(userName));
-            avatarUploadDataRef.current = "";
-            setAvatarStatus({ kind: "error", text: "上传失败：图片超过 2MB，已使用默认头像" });
-            pushLog("avatar upload failed: file must be <= 2MB, using default avatar");
-            return;
-        }
-        if (avatarPreviewBlobRef.current) {
-            URL.revokeObjectURL(avatarPreviewBlobRef.current);
-            avatarPreviewBlobRef.current = "";
-        }
-        const objectUrl = URL.createObjectURL(file);
-        avatarPreviewBlobRef.current = objectUrl;
-        setAvatarPreview(objectUrl);
-
-        void fileToDataUrl(file)
-            .then((data) => {
-                if (!data.startsWith("data:image/")) {
-                    setAvatarPreview(loadCachedAvatar(userName));
-                    avatarUploadDataRef.current = "";
-                    setAvatarStatus({ kind: "error", text: "上传失败：图片编码异常，已使用默认头像" });
-                    pushLog("avatar upload failed: invalid data url");
-                    return;
-                }
-                avatarUploadDataRef.current = data;
-                if (joined && appSessionToken) {
-                    void api
-                        .uploadAvatar(data, appSessionToken)
-                        .then(async (uploaded) => {
-                            setAvatarPreview(uploaded.avatar_url);
-                            saveCachedAvatar(userName.trim(), uploaded.avatar_url);
-                            avatarUploadDataRef.current = "";
-                            if (avatarPreviewBlobRef.current) {
-                                URL.revokeObjectURL(avatarPreviewBlobRef.current);
-                                avatarPreviewBlobRef.current = "";
-                            }
-                            setAvatarStatus({ kind: "ok", text: "头像上传成功" });
-                            setMessages((prev) =>
-                                prev.map((m) =>
-                                    m.user_name === userName.trim() ? { ...m, avatar_url: uploaded.avatar_url } : m,
-                                ),
-                            );
-                            pushLog(`avatar uploaded: ${uploaded.avatar_url}`);
-                        })
-                        .catch((e) => {
-                            setAvatarStatus({ kind: "error", text: "头像上传失败，已使用默认头像" });
-                            pushLog(`avatar upload failed: ${String(e)}`);
-                        });
-                } else {
-                    setAvatarStatus({ kind: "ok", text: "头像已选择，加入后自动上传" });
-                    pushLog("avatar selected");
-                }
-            })
-            .catch(() => {
-                setAvatarPreview(loadCachedAvatar(userName));
-                avatarUploadDataRef.current = "";
-                setAvatarStatus({ kind: "error", text: "上传失败：读取图片失败，已使用默认头像" });
-                pushLog("avatar upload failed: file read error");
-            });
-    };
-
-    const run = (fn: () => Promise<void>) => {
-        void fn().catch((e) => {
-            const message = errorText(e);
-            pushLog(message);
-            if (showReclaimCta && isIdentityInUseError(message)) {
-                return;
-            }
-            showActionNotice("error", message);
-        });
-    };
-
-    const syncAvatarFromServer = (name: string, avatarUrl?: string | null) => {
-        const next = avatarUrl?.trim() ?? "";
-        if (next) {
-            if (!avatarPreviewBlobRef.current) {
-                setAvatarPreview(next);
-            }
-            saveCachedAvatar(name, next);
-            setAvatarStatus({ kind: "ok", text: "已同步已上传头像" });
-        } else {
-            if (!avatarPreviewBlobRef.current) {
-                setAvatarPreview("");
-            }
-            clearCachedAvatar(name);
-            setAvatarStatus({ kind: "idle", text: "未上传，使用默认头像" });
-        }
-        setMessages((prev) =>
-            prev.map((m) =>
-                m.user_name === name ? { ...m, avatar_url: next || null } : m,
-            ),
-        );
-    };
+    useSessionState({
+        api,
+        joined,
+        appSessionToken,
+        isHost,
+        sessionExpireAt,
+        hostSessionExpireAt,
+        setSessionExpireAt,
+        setHostSessionExpireAt,
+        setJoined,
+        clearClientState,
+        setMessages: (items) => setMessages(items),
+        showActionNotice,
+        pushLog,
+        enableBootReconnect,
+    });
 
     return (
         <>
