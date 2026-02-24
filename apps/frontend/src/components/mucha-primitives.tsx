@@ -46,49 +46,37 @@ export function PaperSurface({
    ───────────────────────────────────────────── */
 function MuchaCorner({ className = "", style }: { className?: string, style?: React.CSSProperties }) {
     return (
-        <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            className={`pointer-events-none absolute text-ink/20 ${className}`}
-            style={style}
+        <div
+            className={`pointer-events-none absolute w-8 h-8 bg-current text-ink/30 ${className}`}
+            style={{
+                ...style,
+                WebkitMaskImage: "url('/assets/mucha/corner.png')",
+                maskImage: "url('/assets/mucha/corner.png')",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+            }}
             aria-hidden="true"
-        >
-            {/* Art Nouveau "Whiplash" Corner Ribbon */}
-            <path
-                d="M 2 2 L 6 2 C 12 2 18 8 18 14 L 18 22 M 2 2 L 2 6 C 2 12 8 18 14 18 L 22 18"
-                stroke="currentColor"
-                strokeWidth="0.75"
-                strokeLinecap="round"
-                fill="none"
-            />
-            {/* Corner Node */}
-            <circle cx="4" cy="4" r="1.5" fill="currentColor" opacity="0.7" />
-            <circle cx="8" cy="8" r="0.75" fill="currentColor" opacity="0.4" />
-        </svg>
+        />
     );
 }
 
 export function MuchaArch({ children, className = "" }: { children: ReactNode, className?: string }) {
     return (
         <div className={`relative ${className}`}>
-            <svg
-                className="absolute inset-x-0 top-0 h-12 w-full text-ink/15 pointer-events-none"
-                preserveAspectRatio="none"
-                viewBox="0 0 300 48"
+            <div
+                className="absolute inset-x-0 top-0 h-16 w-full bg-current text-ink/25 pointer-events-none"
+                style={{
+                    WebkitMaskImage: "url('/assets/mucha/arch.png')",
+                    maskImage: "url('/assets/mucha/arch.png')",
+                    WebkitMaskSize: "100% 100%",
+                    maskSize: "100% 100%",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskRepeat: "no-repeat",
+                }}
                 aria-hidden="true"
-            >
-                {/* Mucha Arch - classic semi-circle + shoulder lines */}
-                <path
-                    d="M 0 47 L 20 47 Q 40 47 60 27 T 150 4 T 240 27 Q 260 47 300 47"
-                    stroke="currentColor"
-                    strokeWidth="0.75"
-                    fill="none"
-                />
-                <circle cx="150" cy="4" r="2" fill="currentColor" opacity="0.6" />
-                <circle cx="150" cy="12" r="1" fill="currentColor" opacity="0.3" />
-            </svg>
+            />
             <div className="relative z-10 pt-4">
                 {children}
             </div>
@@ -98,37 +86,20 @@ export function MuchaArch({ children, className = "" }: { children: ReactNode, c
 
 export function MuchaHalo({ className = "" }: { className?: string }) {
     return (
-        <svg
-            className={`pointer-events-none ${className}`}
-            viewBox="0 0 200 200"
-            fill="none"
+        <div
+            className={`pointer-events-none bg-current ${className}`}
+            style={{
+                WebkitMaskImage: "url('/assets/mucha/halo.png')",
+                maskImage: "url('/assets/mucha/halo.png')",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskPosition: "center",
+                maskPosition: "center",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+            }}
             aria-hidden="true"
-        >
-            {/* Outer thick ring */}
-            <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-
-            {/* Inner thin ring */}
-            <circle cx="100" cy="100" r="82" stroke="currentColor" strokeWidth="0.5" opacity="0.6" />
-
-            {/* Geometric star/floral pattern inside */}
-            <path
-                d="M 100 18 L 115 80 L 180 100 L 115 120 L 100 182 L 85 120 L 18 100 L 85 80 Z"
-                stroke="currentColor"
-                strokeWidth="0.5"
-                fill="none"
-                opacity="0.2"
-            />
-            <circle cx="100" cy="18" r="4" fill="currentColor" opacity="0.6" />
-            <circle cx="182" cy="100" r="4" fill="currentColor" opacity="0.6" />
-            <circle cx="100" cy="182" r="4" fill="currentColor" opacity="0.6" />
-            <circle cx="18" cy="100" r="4" fill="currentColor" opacity="0.6" />
-
-            {/* Intricate dots */}
-            <circle cx="158" cy="42" r="1.5" fill="currentColor" opacity="0.4" />
-            <circle cx="42" cy="42" r="1.5" fill="currentColor" opacity="0.4" />
-            <circle cx="158" cy="158" r="1.5" fill="currentColor" opacity="0.4" />
-            <circle cx="42" cy="158" r="1.5" fill="currentColor" opacity="0.4" />
-        </svg>
+        />
     );
 }
 
