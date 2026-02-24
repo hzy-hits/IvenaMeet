@@ -25,6 +25,8 @@ export interface JoinResp {
   token: string;
   expires_in_seconds: number;
   role: Role;
+  nickname: string;
+  avatar_url?: string | null;
   app_session_token: string;
   app_session_expires_in_seconds: number;
   host_session_token?: string;

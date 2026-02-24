@@ -5,22 +5,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Discord-like Core Backgrounds
         bg: {
-          dark: "#1E1F22", // App Background
-          panel: "#2B2D31", // Sidebar/Cards Background
-          light: "#313338", // Hover/Input Background
+          dark: "rgb(var(--bg-dark) / <alpha-value>)",
+          panel: "rgb(var(--bg-panel) / <alpha-value>)",
+          light: "rgb(var(--bg-light) / <alpha-value>)",
         },
-        // Accents
         accent: {
-          DEFAULT: "#5865F2", // Discord Blurple
-          hover: "#4752C4",
-          neon: "#00f0ff", // Sci-fi pop
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          hover: "rgb(var(--accent-hover) / <alpha-value>)",
+          neon: "rgb(var(--accent-neon) / <alpha-value>)",
         },
-        // Status Colors
-        ok: "#23a559", // Online / Success
-        warn: "#FEE75C",
-        error: "#DA373C",
+        ok: "rgb(var(--ok) / <alpha-value>)",
+        warn: "rgb(var(--warn) / <alpha-value>)",
+        error: "rgb(var(--error) / <alpha-value>)",
       },
       fontFamily: {
         space: ["Space Grotesk", "sans-serif"],

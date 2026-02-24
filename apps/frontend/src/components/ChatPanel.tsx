@@ -9,34 +9,63 @@ type Props = {
   roomId: string;
   userName: string;
   onlineCount: number;
-  stageFocused: boolean;
   messages: MessageItem[];
   onSend: (text: string) => Promise<void>;
 };
 
+const AVATAR_CACHE_PREFIX = "ivena.meet.avatar.";
+
+function avatarCacheKey(userName: string): string {
+  return `${AVATAR_CACHE_PREFIX}${userName.trim().toLowerCase()}`;
+}
+
+function loadCachedAvatar(userName: string): string {
+  const key = avatarCacheKey(userName);
+  if (!key || key === AVATAR_CACHE_PREFIX) return "";
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function resolveMessageAvatar(
+  avatarUrl: string | null | undefined,
+  userName: string,
+): string {
+  const direct = avatarUrl?.trim() ?? "";
+  if (direct) return direct;
+  return loadCachedAvatar(userName);
+}
+
 function resolveAvatarSrc(raw: string | null | undefined): string {
   if (!raw) return "";
-  if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) {
-    return raw;
+  const normalized = raw.startsWith("/avatars/") ? `/api${raw}` : raw;
+  if (
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://") ||
+    normalized.startsWith("data:")
+  ) {
+    return normalized;
   }
   const base = API_BASE_URL.replace(/\/+$/, "");
-  if (raw.startsWith("/api/")) {
+  if (normalized.startsWith("/api/")) {
     if (base.startsWith("http://") || base.startsWith("https://")) {
-      if (base.endsWith("/api")) return `${base}${raw.slice(4)}`;
-      return `${base}${raw}`;
+      if (base.endsWith("/api")) return `${base}${normalized.slice(4)}`;
+      return `${base}${normalized}`;
     }
-    return raw;
+    return normalized;
   }
-  if (raw.startsWith("/")) {
+  if (normalized.startsWith("/")) {
     if (base.startsWith("http://") || base.startsWith("https://")) {
-      return `${base}${raw}`;
+      return `${base}${normalized}`;
     }
-    return raw;
+    return normalized;
   }
   if (base.startsWith("http://") || base.startsWith("https://")) {
-    return `${base}/${raw.replace(/^\/+/, "")}`;
+    return `${base}/${normalized.replace(/^\/+/, "")}`;
   }
-  return raw;
+  return normalized;
 }
 
 function formatChatTime(epochSeconds: number): string {
@@ -64,7 +93,6 @@ export function ChatPanel({
   roomId,
   userName,
   onlineCount,
-  stageFocused,
   messages,
   onSend,
 }: Props) {
@@ -156,15 +184,6 @@ export function ChatPanel({
             <span className="rounded-full border border-white/15 bg-black/25 px-2.5 py-1 text-white/70">
               online {onlineCount}
             </span>
-            <span
-              className={`rounded-full border px-2.5 py-1 ${
-                stageFocused
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-white/15 bg-black/25 text-white/70"
-              }`}
-            >
-              {stageFocused ? "stage active" : "chat focus"}
-            </span>
             <span className="rounded-full border border-white/15 bg-black/25 px-2.5 py-1 text-white/70">
               msgs {messages.length}
             </span>
@@ -191,6 +210,7 @@ export function ChatPanel({
               ) : (
                 messages.map((m) => {
                   const isMine = m.user_name === userName.trim();
+                  const messageAvatar = resolveMessageAvatar(m.avatar_url, m.user_name);
                   return (
                     <div
                       key={m.client_id ?? m.id}
@@ -205,9 +225,9 @@ export function ChatPanel({
                           <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
                             {m.nickname.slice(0, 1).toUpperCase()}
                           </div>
-                          {m.avatar_url ? (
+                          {messageAvatar ? (
                             <img
-                              src={resolveAvatarSrc(m.avatar_url)}
+                              src={resolveAvatarSrc(messageAvatar)}
                               alt={m.nickname}
                               className="absolute inset-0 h-full w-full object-cover"
                               onError={(e) => {

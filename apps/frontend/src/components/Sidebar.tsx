@@ -18,13 +18,7 @@ import {
     Ticket,
     Users,
     UserPlus,
-    Camera,
-    CameraOff,
-    Monitor,
-    MonitorOff,
 } from "lucide-react";
-import { useLocalParticipant } from "@livekit/components-react";
-import type { AudioCaptureOptions, ScreenShareCaptureOptions } from "livekit-client";
 import {
     API_BASE_URL,
     AVATAR_MAX_BYTES,
@@ -34,89 +28,10 @@ import {
     SESSION_REFRESH_BEFORE_SECONDS,
     SESSION_REFRESH_POLL_MS,
 } from "../lib/env";
+import type { ResolvedTheme, ThemeMode } from "../lib/theme";
 import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 
 type ApiClient = ReturnType<typeof import("../lib/api").createApi>;
-
-const MIC_CAPTURE_OPTIONS: AudioCaptureOptions = {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-    channelCount: 1,
-};
-
-const SCREEN_SHARE_CAPTURE_OPTIONS: ScreenShareCaptureOptions = {
-    audio: false,
-    systemAudio: "exclude",
-};
-
-function MediaControls({ role, pushLog }: { role: string; pushLog: (msg: string) => void }) {
-    const { localParticipant } = useLocalParticipant();
-    const micOn = !!localParticipant?.isMicrophoneEnabled;
-    const camOn = !!localParticipant?.isCameraEnabled;
-    const shareOn = !!localParticipant?.isScreenShareEnabled;
-
-    const toggleMic = async () => {
-        try {
-            await localParticipant?.setMicrophoneEnabled(!micOn, MIC_CAPTURE_OPTIONS);
-            pushLog(!micOn ? "Microphone enabled" : "Microphone disabled");
-        } catch (e) {
-            pushLog(`Mic error: ${e instanceof Error ? e.message : String(e)}`);
-        }
-    };
-
-    const toggleCamera = async () => {
-        try {
-            await localParticipant?.setCameraEnabled(!camOn);
-            pushLog(!camOn ? "Camera enabled" : "Camera disabled");
-        } catch (e) {
-            pushLog(`Camera error: ${e instanceof Error ? e.message : String(e)}`);
-        }
-    };
-
-    const toggleShare = async () => {
-        if (role !== "host") {
-            pushLog("Only hosts can share screen.");
-            return;
-        }
-        if (!navigator.mediaDevices || !("getDisplayMedia" in navigator.mediaDevices)) {
-            pushLog("Screen share not supported on this device/browser.");
-            return;
-        }
-        try {
-            await localParticipant?.setScreenShareEnabled(!shareOn, SCREEN_SHARE_CAPTURE_OPTIONS);
-            pushLog(!shareOn ? "Screen sharing started" : "Screen sharing stopped");
-        } catch (e) {
-            pushLog(`Share error: ${e instanceof Error ? e.message : String(e)}`);
-        }
-    };
-
-    return (
-        <div className="flex items-center gap-0.5 shrink-0">
-            <button
-                className={`p-2 rounded-lg transition-colors ${micOn ? 'text-ok hover:bg-ok/20' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}
-                title="Toggle Microphone"
-                onClick={() => { void toggleMic() }}
-            >
-                {micOn ? <Mic size={18} /> : <MicOff size={18} />}
-            </button>
-            <button
-                className={`p-2 rounded-lg transition-colors ${camOn ? 'text-accent hover:bg-accent/20' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}
-                title="Toggle Camera"
-                onClick={() => { void toggleCamera() }}
-            >
-                {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
-            </button>
-            <button
-                className={`p-2 rounded-lg transition-colors ${shareOn ? 'text-accent hover:bg-accent/20' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}
-                title="Share Screen"
-                onClick={() => { void toggleShare() }}
-            >
-                {shareOn ? <Monitor size={18} /> : <MonitorOff size={18} />}
-            </button>
-        </div>
-    );
-}
 
 type Props = {
     requireInvite: boolean;
@@ -141,6 +56,11 @@ type Props = {
     pushLog: (s: string) => void;
     chatPriorityMode?: boolean;
     hideDesktopChat?: boolean;
+    hideChatSectionCompletely?: boolean;
+    enableBootReconnect?: boolean;
+    themeMode: ThemeMode;
+    resolvedTheme: ResolvedTheme;
+    setThemeMode: (v: ThemeMode) => void;
 };
 
 const LS_KEYS = {
@@ -149,6 +69,7 @@ const LS_KEYS = {
     hostSessionToken: "ivena.meet.host_session_token",
 } as const;
 const AVATAR_CACHE_PREFIX = "ivena.meet.avatar.";
+let bootReconnectAttempted = false;
 
 function avatarCacheKey(userName: string): string {
     return `${AVATAR_CACHE_PREFIX}${userName.trim().toLowerCase()}`;
@@ -175,6 +96,25 @@ function saveCachedAvatar(userName: string, avatarUrl: string): void {
     }
 }
 
+function clearCachedAvatar(userName: string): void {
+    const name = userName.trim();
+    if (!name) return;
+    try {
+        localStorage.removeItem(avatarCacheKey(name));
+    } catch {
+        // Ignore storage quota/privacy mode failures.
+    }
+}
+
+function persistableAvatarUrl(raw: string): string | undefined {
+    const v = raw.trim();
+    if (!v) return undefined;
+    if (v.startsWith("https://") || v.startsWith("/api/avatars/") || v.startsWith("/avatars/")) {
+        return v;
+    }
+    return undefined;
+}
+
 function parseInviteFromQuery() {
     const q = new URLSearchParams(window.location.search);
     return {
@@ -185,28 +125,39 @@ function parseInviteFromQuery() {
 
 function resolveAvatarSrc(raw: string | null | undefined): string {
     if (!raw) return "";
-    if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) {
-        return raw;
+    const normalized = raw.startsWith("/avatars/") ? `/api${raw}` : raw;
+    if (
+        normalized.startsWith("http://") ||
+        normalized.startsWith("https://") ||
+        normalized.startsWith("data:")
+    ) {
+        return normalized;
     }
     const base = API_BASE_URL.replace(/\/+$/, "");
-    if (raw.startsWith("/api/")) {
+    if (normalized.startsWith("/api/")) {
         if (base.startsWith("http://") || base.startsWith("https://")) {
             // If base already includes /api, avoid duplicating it; otherwise keep raw path intact.
-            if (base.endsWith("/api")) return `${base}${raw.slice(4)}`;
-            return `${base}${raw}`;
+            if (base.endsWith("/api")) return `${base}${normalized.slice(4)}`;
+            return `${base}${normalized}`;
         }
-        return raw;
+        return normalized;
     }
-    if (raw.startsWith("/")) {
+    if (normalized.startsWith("/")) {
         if (base.startsWith("http://") || base.startsWith("https://")) {
-            return `${base}${raw}`;
+            return `${base}${normalized}`;
         }
-        return raw;
+        return normalized;
     }
     if (base.startsWith("http://") || base.startsWith("https://")) {
-        return `${base}/${raw.replace(/^\/+/, "")}`;
+        return `${base}/${normalized.replace(/^\/+/, "")}`;
     }
-    return raw;
+    return normalized;
+}
+
+function resolveMessageAvatar(rawAvatar: string | null | undefined, messageUserName: string): string {
+    const direct = rawAvatar?.trim() ?? "";
+    if (direct) return direct;
+    return loadCachedAvatar(messageUserName);
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -375,6 +326,11 @@ export function Sidebar(props: Props) {
         pushLog,
         chatPriorityMode = false,
         hideDesktopChat = false,
+        hideChatSectionCompletely = false,
+        enableBootReconnect = true,
+        themeMode,
+        resolvedTheme,
+        setThemeMode,
     } = props;
 
     const [inviteCode, setInviteCode] = useState("");
@@ -410,6 +366,7 @@ export function Sidebar(props: Props) {
         kind: "idle" | "ok" | "error";
         text: string;
     }>({ kind: "idle", text: "未上传，使用默认头像" });
+    const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatAutoScrollRef = useRef(true);
@@ -418,9 +375,14 @@ export function Sidebar(props: Props) {
     const lastMessageIdRef = useRef(0);
     const historySyncErrorLoggedRef = useRef(false);
     const heartbeatErrorLoggedRef = useRef(false);
+    const reconnectInFlightRef = useRef(false);
     const [pendingChatHints, setPendingChatHints] = useState(0);
     const shouldReconnectOnBoot = useRef(
-        Boolean(localStorage.getItem(LS_KEYS.joined) && localStorage.getItem(LS_KEYS.appSessionToken)),
+        Boolean(
+            enableBootReconnect
+                && localStorage.getItem(LS_KEYS.joined)
+                && localStorage.getItem(LS_KEYS.appSessionToken),
+        ),
     );
     const lastChatPriorityModeRef = useRef(chatPriorityMode);
     const inviteMode = Boolean(inviteTicket);
@@ -472,8 +434,20 @@ export function Sidebar(props: Props) {
 
     useEffect(() => {
         if (avatarPreviewBlobRef.current) return;
-        setAvatarPreview(loadCachedAvatar(userName));
+        const cached = loadCachedAvatar(userName);
+        setAvatarPreview(cached);
+        setAvatarStatus(
+            cached
+                ? { kind: "ok", text: "已加载本地头像缓存" }
+                : { kind: "idle", text: "未上传，使用默认头像" },
+        );
     }, [userName]);
+
+    useEffect(() => {
+        if (!joined) {
+            setAvatarEditorOpen(false);
+        }
+    }, [joined]);
 
     useEffect(() => {
         const parsed = parseInviteFromQuery();
@@ -503,6 +477,7 @@ export function Sidebar(props: Props) {
         saveCachedAvatar(name, latestAvatar);
         if (!avatarPreviewBlobRef.current && avatarPreview !== latestAvatar) {
             setAvatarPreview(latestAvatar);
+            setAvatarStatus({ kind: "ok", text: "已同步已上传头像" });
         }
     }, [messages, userName, avatarPreview]);
 
@@ -617,15 +592,15 @@ export function Sidebar(props: Props) {
 
     useEffect(() => {
         if (initialReconnectChecked.current) return;
-        if (!shouldReconnectOnBoot.current) {
+        if (!shouldReconnectOnBoot.current || bootReconnectAttempted) {
             initialReconnectChecked.current = true;
             return;
         }
-        if (!joined) return;
+        if (!joined || reconnectInFlightRef.current) return;
         initialReconnectChecked.current = true;
+        reconnectInFlightRef.current = true;
+        bootReconnectAttempted = true;
         const restored = joined;
-        // Avoid duplicate room connect with stale token before reconnect returns.
-        setJoined(null);
 
         void api
             .reconnectRoom()
@@ -645,6 +620,9 @@ export function Sidebar(props: Props) {
                 localStorage.removeItem(LS_KEYS.hostSessionToken);
                 pushLog(`session restore failed: ${String(e)}`);
                 showActionNotice("error", "会话已失效，请重新加入房间");
+            })
+            .finally(() => {
+                reconnectInFlightRef.current = false;
             });
     }, [joined, api, setJoined, setAppSessionToken, setHostSessionToken, setMessages, pushLog]);
 
@@ -729,6 +707,7 @@ export function Sidebar(props: Props) {
         setSessionExpireAt(0);
         setShowReclaimCta(false);
         setPendingChatHints(0);
+        setAvatarEditorOpen(false);
         chatAutoScrollRef.current = true;
         lastChatTailKeyRef.current = "empty";
         avatarUploadDataRef.current = "";
@@ -782,15 +761,20 @@ export function Sidebar(props: Props) {
                 pushLog("host login verified");
             }
 
+            const normalizedUserName = userName.trim();
+            const joinAvatarUrl = persistableAvatarUrl(avatarPreview);
+            const joinPayload = {
+                room_id: roomId.trim(),
+                user_name: normalizedUserName,
+                role: effectiveRole,
+                nickname: normalizedUserName,
+                redeem_token: token || undefined,
+                avatar_url: joinAvatarUrl,
+            };
+
             let res: JoinResp;
             try {
-                res = await api.join({
-                    room_id: roomId.trim(),
-                    user_name: userName.trim(),
-                    role: effectiveRole,
-                    nickname: userName.trim(),
-                    redeem_token: token || undefined,
-                }, joinAuthToken);
+                res = await api.join(joinPayload, joinAuthToken);
             } catch (e) {
                 const message = errorText(e);
                 const shouldAutoReclaim =
@@ -810,13 +794,7 @@ export function Sidebar(props: Props) {
                 pushLog(
                     `host reclaim(auto): ${reclaimed.reason} (stale_age=${reclaimed.stale_age_seconds}s)`,
                 );
-                res = await api.join({
-                    room_id: roomId.trim(),
-                    user_name: userName.trim(),
-                    role: effectiveRole,
-                    nickname: userName.trim(),
-                    redeem_token: token || undefined,
-                }, joinAuthToken);
+                res = await api.join(joinPayload, joinAuthToken);
             }
 
             setJoined(res);
@@ -828,12 +806,16 @@ export function Sidebar(props: Props) {
             }
             setSessionExpireAt(Math.floor(Date.now() / 1000) + res.app_session_expires_in_seconds);
             pushLog(`joined: ${userName} (${res.role})`);
-            if (avatarUploadDataRef.current) {
+            const pendingAvatarUpload = Boolean(avatarUploadDataRef.current);
+            if (!pendingAvatarUpload) {
+                syncAvatarFromServer(normalizedUserName, res.avatar_url);
+            }
+            if (pendingAvatarUpload) {
                 try {
                     const uploaded = await api.uploadAvatar(avatarUploadDataRef.current, res.app_session_token);
                     setAvatarStatus({ kind: "ok", text: "头像上传成功" });
                     setAvatarPreview(uploaded.avatar_url);
-                    saveCachedAvatar(userName.trim(), uploaded.avatar_url);
+                    saveCachedAvatar(normalizedUserName, uploaded.avatar_url);
                     avatarUploadDataRef.current = "";
                     if (avatarPreviewBlobRef.current) {
                         URL.revokeObjectURL(avatarPreviewBlobRef.current);
@@ -841,12 +823,23 @@ export function Sidebar(props: Props) {
                     }
                     setMessages((prev) =>
                         prev.map((m) =>
-                            m.user_name === userName.trim() ? { ...m, avatar_url: uploaded.avatar_url } : m,
+                            m.user_name === normalizedUserName ? { ...m, avatar_url: uploaded.avatar_url } : m,
                         ),
                     );
                     pushLog(`avatar uploaded: ${uploaded.avatar_url}`);
                 } catch (e) {
-                    setAvatarStatus({ kind: "error", text: "头像上传失败，已使用默认头像" });
+                    avatarUploadDataRef.current = "";
+                    if (avatarPreviewBlobRef.current) {
+                        URL.revokeObjectURL(avatarPreviewBlobRef.current);
+                        avatarPreviewBlobRef.current = "";
+                    }
+                    syncAvatarFromServer(normalizedUserName, res.avatar_url);
+                    setAvatarStatus({
+                        kind: "error",
+                        text: res.avatar_url
+                            ? "头像上传失败，已回退到已保存头像"
+                            : "头像上传失败，已使用默认头像",
+                    });
                     pushLog(`avatar upload failed: ${String(e)}`);
                 }
             }
@@ -1009,6 +1002,11 @@ export function Sidebar(props: Props) {
         setChatText("");
     };
 
+    const openAvatarEditor = () => {
+        if (!joined) return;
+        setAvatarEditorOpen(true);
+    };
+
     const onPickAvatar = () => fileInputRef.current?.click();
 
     const onAvatarFileChange = (file?: File) => {
@@ -1092,9 +1090,31 @@ export function Sidebar(props: Props) {
         });
     };
 
+    const syncAvatarFromServer = (name: string, avatarUrl?: string | null) => {
+        const next = avatarUrl?.trim() ?? "";
+        if (next) {
+            if (!avatarPreviewBlobRef.current) {
+                setAvatarPreview(next);
+            }
+            saveCachedAvatar(name, next);
+            setAvatarStatus({ kind: "ok", text: "已同步已上传头像" });
+        } else {
+            if (!avatarPreviewBlobRef.current) {
+                setAvatarPreview("");
+            }
+            clearCachedAvatar(name);
+            setAvatarStatus({ kind: "idle", text: "未上传，使用默认头像" });
+        }
+        setMessages((prev) =>
+            prev.map((m) =>
+                m.user_name === name ? { ...m, avatar_url: next || null } : m,
+            ),
+        );
+    };
+
     return (
         <>
-            <aside className="flex h-full min-h-0 flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,35,48,0.92),rgba(10,20,28,0.88))] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-md lg:p-4">
+      <aside className="hidden h-full min-h-0 flex-col gap-3 overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,35,48,0.92),rgba(10,20,28,0.88))] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-md lg:flex lg:p-4">
                 <section className="bg-bg-panel p-4 flex flex-col shrink-0 border-b border-bg-light">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -1114,6 +1134,7 @@ export function Sidebar(props: Props) {
                     </div>
                 </section>
 
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
                 <section className="px-4 py-2 shrink-0">
                     <p className="px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 mb-2">Navigator</p>
                     <div className="mt-2 grid grid-cols-3 gap-2">
@@ -1150,13 +1171,13 @@ export function Sidebar(props: Props) {
                     </div>
                 </section>
 
-                {joined && consolePane === "control" ? (
+                {joined && consolePane === "control" && !isHost ? (
                     <section className="rounded-2xl border border-white/10 bg-card/80 p-3 backdrop-blur-md">
                         <h3 className="mb-2 text-sm font-semibold">Profile</h3>
                         <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                             <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
                                 {avatarPreview ? (
-                                    <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+                                    <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="grid h-full w-full place-items-center text-white/60">
                                         <Image size={14} />
@@ -1170,13 +1191,6 @@ export function Sidebar(props: Props) {
                             >
                                 <ImagePlus size={16} /> 上传头像
                             </button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
-                                className="hidden"
-                            />
                         </div>
                         <p
                             className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
@@ -1287,7 +1301,9 @@ export function Sidebar(props: Props) {
 
                 <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
                     <div
-                        className={`min-h-0 flex-1 flex flex-col rounded-xl border border-white/5 bg-black/20 p-2 ${hideDesktopChat ? "xl:hidden" : ""}`}
+                        className={`min-h-0 flex-1 flex flex-col rounded-xl border border-white/5 bg-black/20 p-2 ${
+                            hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
+                        }`}
                     >
                         <button
                             onClick={() => setOpenChat((v) => !v)}
@@ -1320,6 +1336,7 @@ export function Sidebar(props: Props) {
                                         ) : (
                                             messages.map((m) => {
                                                 const isMine = m.user_name === userName.trim();
+                                                const messageAvatar = resolveMessageAvatar(m.avatar_url, m.user_name);
                                                 return (
                                                     <div
                                                         key={m.client_id ?? m.id}
@@ -1333,9 +1350,9 @@ export function Sidebar(props: Props) {
                                                                 <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
                                                                     {m.nickname.slice(0, 1).toUpperCase()}
                                                                 </div>
-                                                                {m.avatar_url ? (
+                                                                {messageAvatar ? (
                                                                     <img
-                                                                        src={resolveAvatarSrc(m.avatar_url)}
+                                                                        src={resolveAvatarSrc(messageAvatar)}
                                                                         alt={m.nickname}
                                                                         className="absolute inset-0 h-full w-full object-cover"
                                                                         onError={(e) => {
@@ -1408,6 +1425,29 @@ export function Sidebar(props: Props) {
                     </div>
 
                     <div className={`rounded-xl border border-white/5 bg-black/20 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">Visual Theme</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(["system", "dark", "light"] as ThemeMode[]).map((mode) => (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setThemeMode(mode)}
+                                    className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide ${
+                                        themeMode === mode
+                                            ? "border-accent/45 bg-accent/15 text-accent"
+                                            : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"
+                                    }`}
+                                >
+                                    {mode}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-[11px] text-white/55">
+                            active: <span className="font-mono text-white/80">{resolvedTheme}</span>
+                        </p>
+                    </div>
+
+                    <div className={`rounded-xl border border-white/5 bg-black/20 p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                         <button
                             onClick={() => setOpenLogs((v) => !v)}
                             className="mb-2 flex w-full items-center justify-between text-left text-sm font-semibold"
@@ -1426,15 +1466,20 @@ export function Sidebar(props: Props) {
                         )}
                     </div>
                 </section>
+                </div>
 
                 {/* Bottom Anchor: User Status & Media Controls (Discord Style) */}
                 {joined ? (
-                    <div className="mt-auto shrink-0 bg-bg-dark rounded-xl p-2 flex items-center justify-between shadow-inner">
-                        {/* User Info */}
-                        <div className="flex items-center gap-2 overflow-hidden px-1">
+                    <div className="shrink-0 bg-bg-dark rounded-xl p-2 flex items-center justify-between shadow-inner">
+                        <button
+                            type="button"
+                            onClick={openAvatarEditor}
+                            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg px-1 py-1 text-left transition hover:bg-white/5"
+                            title="修改头像"
+                        >
                             <div className="relative h-8 w-8 shrink-0 rounded-full bg-black/40 border border-white/10 overflow-hidden">
                                 {avatarPreview ? (
-                                    <img src={avatarPreview} alt="me" className="h-full w-full object-cover" />
+                                    <img src={resolveAvatarSrc(avatarPreview)} alt="me" className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="grid h-full w-full place-items-center text-xs font-bold text-white/70">
                                         {userName.slice(0, 1).toUpperCase()}
@@ -1450,13 +1495,69 @@ export function Sidebar(props: Props) {
                                     {joined.role}
                                 </span>
                             </div>
-                        </div>
+                        </button>
 
-                        {/* Media Controls */}
-                        <MediaControls role={joined.role} pushLog={pushLog} />
+                        <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/55">
+                            媒体控制在主舞台区域
+                        </div>
                     </div>
                 ) : null}
             </aside>
+
+            {joined && avatarEditorOpen ? (
+                <div
+                    className="fixed inset-0 z-[72] grid place-items-center bg-black/65 p-4"
+                    onClick={() => setAvatarEditorOpen(false)}
+                >
+                    <section
+                        className="w-full max-w-sm rounded-2xl border border-white/10 bg-card/90 p-4 backdrop-blur-md"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold">修改头像</h3>
+                            <button
+                                type="button"
+                                onClick={() => setAvatarEditorOpen(false)}
+                                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/75 hover:bg-white/10"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                            <div className="h-12 w-12 overflow-hidden rounded-full border border-white/20 bg-black/30">
+                                {avatarPreview ? (
+                                    <img src={resolveAvatarSrc(avatarPreview)} alt="avatar preview" className="h-full w-full object-cover" />
+                                ) : (
+                                    <div className="grid h-full w-full place-items-center text-white/60">
+                                        <Image size={16} />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-white">{userName}</p>
+                                <p className="text-xs text-white/55">点击下方按钮选择新头像</p>
+                            </div>
+                        </div>
+                        <p
+                            className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
+                                ? "text-ok"
+                                : avatarStatus.kind === "error"
+                                    ? "text-red-300"
+                                    : "text-white/50"
+                                }`}
+                        >
+                            {avatarStatus.text}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={onPickAvatar}
+                            className="mt-3 w-full rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-[#06211f]"
+                        >
+                            选择并上传头像
+                        </button>
+                    </section>
+                </div>
+            ) : null}
 
             {showInviteGate ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
@@ -1513,7 +1614,7 @@ export function Sidebar(props: Props) {
                                     <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                                         <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/30">
                                             {avatarPreview ? (
-                                                <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+                                                <img src={resolveAvatarSrc(avatarPreview)} alt="avatar" className="h-full w-full object-cover" />
                                             ) : (
                                                 <div className="grid h-full w-full place-items-center text-white/60">
                                                     <Image size={14} />
@@ -1527,13 +1628,6 @@ export function Sidebar(props: Props) {
                                         >
                                             <ImagePlus size={16} /> 上传头像
                                         </button>
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            accept="image/png,image/jpeg,image/webp"
-                                            onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
-                                            className="hidden"
-                                        />
                                     </div>
                                     <p
                                         className={`font-mono text-[11px] ${avatarStatus.kind === "ok"
@@ -1548,7 +1642,7 @@ export function Sidebar(props: Props) {
                                 </>
                             ) : (
                                 <p className="font-mono text-[11px] text-white/50">
-                                    主持人请先成功加入房间，再在侧边栏上传头像。
+                                    主持人模式默认沿用已保存头像。
                                 </p>
                             )}
 
@@ -1686,6 +1780,13 @@ export function Sidebar(props: Props) {
                     </div>
                 </div>
             ) : null}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
+                className="hidden"
+            />
         </>
     );
 }

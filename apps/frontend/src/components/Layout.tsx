@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JoinResp, MemberItem, MessageItem, RealtimeChatPayload, Role } from "../lib/types";
 import {
     API_BASE_URL,
@@ -9,10 +9,17 @@ import {
     REQUIRE_INVITE,
 } from "../lib/env";
 import { createApi } from "../lib/api";
+import {
+    applyResolvedTheme,
+    readThemeMode,
+    resolveTheme,
+    THEME_LS_KEY,
+    type ResolvedTheme,
+    type ThemeMode,
+} from "../lib/theme";
 import { Sidebar } from "./Sidebar";
 import { MainStage } from "./MainStage";
 import { ChatPanel } from "./ChatPanel";
-import { LiveKitRoom } from "@livekit/components-react";
 
 const LS_KEYS = {
     roomId: "ivena.meet.room_id",
@@ -24,6 +31,7 @@ const LS_KEYS = {
 } as const;
 
 export function Layout() {
+    const layoutRef = useRef<HTMLDivElement>(null);
     const [hostSessionToken, setHostSessionToken] = useState(
         () => localStorage.getItem(LS_KEYS.hostSessionToken) ?? "",
     );
@@ -54,9 +62,22 @@ export function Layout() {
     const [members, setMembers] = useState<MemberItem[]>([]);
     const [messages, setMessages] = useState<MessageItem[]>([]);
     const [hasVisualMedia, setHasVisualMedia] = useState(false);
+    const [theaterMode, setTheaterMode] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [localScreenShareActive, setLocalScreenShareActive] = useState(false);
+    const [chatDominant, setChatDominant] = useState(false);
+    const [theaterControlOpen, setTheaterControlOpen] = useState(false);
+    const [theaterChatOpen, setTheaterChatOpen] = useState(false);
     const [lastRealtimeChat, setLastRealtimeChat] = useState<RealtimeChatPayload | null>(null);
     const [realtimeChatSender, setRealtimeChatSender] = useState<((payload: RealtimeChatPayload) => Promise<void>) | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
+    const [themeMode, setThemeMode] = useState<ThemeMode>(() => readThemeMode());
+    const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+        resolveTheme(
+            readThemeMode(),
+            typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches,
+        ),
+    );
 
     const sortMessages = (items: MessageItem[]): MessageItem[] =>
         [...items].sort((a, b) => {
@@ -101,6 +122,12 @@ export function Layout() {
         setLogs((prev) => [...prev.slice(-(LOG_MAX_LINES - 1)), `[${new Date().toLocaleTimeString()}] ${line}`]);
     }, []);
 
+    const inTheaterMode = Boolean(joined && hasVisualMedia && theaterMode);
+    const isHostView = (joined?.role ?? role) === "host";
+    const chatPriorityMode = Boolean(joined && (chatDominant || !hasVisualMedia));
+    const stagePriorityMode = Boolean(joined && hasVisualMedia && !chatDominant);
+    const centerPaneClass = inTheaterMode ? "flex min-h-0 flex-1" : "flex min-h-0 flex-1 gap-2";
+
     useEffect(() => {
         localStorage.setItem(LS_KEYS.roomId, roomId);
     }, [roomId]);
@@ -122,16 +149,78 @@ export function Layout() {
         if (hostSessionToken) localStorage.setItem(LS_KEYS.hostSessionToken, hostSessionToken);
         else localStorage.removeItem(LS_KEYS.hostSessionToken);
     }, [hostSessionToken]);
+    useEffect(() => {
+        try {
+            localStorage.setItem(THEME_LS_KEY, themeMode);
+        } catch {
+            // Ignore storage quota/privacy mode failures.
+        }
+    }, [themeMode]);
+    useEffect(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const apply = () => {
+            const next = resolveTheme(themeMode, mq.matches);
+            setResolvedTheme(next);
+            applyResolvedTheme(next);
+        };
+        apply();
+        if (themeMode !== "system") return;
+        const onChange = () => apply();
+        if (typeof mq.addEventListener === "function") {
+            mq.addEventListener("change", onChange);
+        } else {
+            (mq as MediaQueryList & { addListener?: (cb: () => void) => void }).addListener?.(onChange);
+        }
+        return () => {
+            if (typeof mq.removeEventListener === "function") {
+                mq.removeEventListener("change", onChange);
+                return;
+            }
+            (mq as MediaQueryList & { removeListener?: (cb: () => void) => void }).removeListener?.(onChange);
+        };
+    }, [themeMode]);
 
     useEffect(() => {
-        if (!joined) setHasVisualMedia(false);
+        if (!joined) {
+            setHasVisualMedia(false);
+            setChatDominant(false);
+        }
     }, [joined]);
 
-    const chatPriorityMode = Boolean(joined && !hasVisualMedia);
-    const stagePriorityMode = Boolean(joined && hasVisualMedia);
-    const desktopGridClass = stagePriorityMode
-        ? "lg:grid-cols-[300px_1fr]"
-        : "lg:grid-cols-[320px_1fr] xl:grid-cols-[300px_minmax(620px,1.08fr)_minmax(520px,0.92fr)]";
+    useEffect(() => {
+        if (!joined) setLocalScreenShareActive(false);
+    }, [joined]);
+
+    useEffect(() => {
+        if (!joined || !hasVisualMedia) {
+            setTheaterMode(false);
+        }
+    }, [joined, hasVisualMedia]);
+
+    useEffect(() => {
+        if (!inTheaterMode) {
+            setTheaterControlOpen(false);
+            setTheaterChatOpen(false);
+        }
+    }, [inTheaterMode]);
+
+    useEffect(() => {
+        if (!hasVisualMedia) {
+            setChatDominant(false);
+        }
+    }, [joined, hasVisualMedia]);
+
+    useEffect(() => {
+        const onFullscreenChange = () => {
+            const active = Boolean(document.fullscreenElement);
+            setIsFullscreen(active);
+            if (!active) setTheaterMode(false);
+        };
+        document.addEventListener("fullscreenchange", onFullscreenChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", onFullscreenChange);
+        };
+    }, []);
 
     const handleSendChat = useCallback(
         async (text: string) => {
@@ -195,43 +284,96 @@ export function Layout() {
         [api, joined, roomId, userName, realtimeChatSender, upsertMessage, pushLog],
     );
 
+    const toggleFullscreenStage = useCallback(async () => {
+        if (!joined || !hasVisualMedia) return;
+        const isHostSession = (joined?.role ?? role) === "host";
+        try {
+            if (localScreenShareActive || isHostSession) {
+                // Never use browser fullscreen API for host/local share to avoid capture interruptions.
+                setChatDominant(false);
+                setTheaterMode((v) => !v);
+                return;
+            }
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+                setTheaterMode(false);
+                return;
+            }
+            setChatDominant(false);
+            setTheaterMode(true);
+            await (layoutRef.current ?? document.documentElement).requestFullscreen();
+            setIsFullscreen(true);
+        } catch (e) {
+            pushLog(`fullscreen failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }, [joined, role, hasVisualMedia, localScreenShareActive, pushLog]);
+
+    const toggleChatFocusLayout = useCallback(async () => {
+        if (!joined || !hasVisualMedia) return;
+        if (chatDominant) {
+            setChatDominant(false);
+            return;
+        }
+        const isHostSession = (joined?.role ?? role) === "host";
+        try {
+            if (document.fullscreenElement && !localScreenShareActive && !isHostSession) {
+                await document.exitFullscreen();
+            }
+        } catch (e) {
+            pushLog(`exit fullscreen failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        setIsFullscreen(false);
+        setTheaterMode(false);
+        setChatDominant(true);
+    }, [joined, role, hasVisualMedia, chatDominant, localScreenShareActive, pushLog]);
+
     const content = (
         <div className="relative flex h-full w-full mx-auto max-w-[2000px]">
             {/* We won't need the header row since discord/slack typically puts server info in the sidebar */}
-            <div className={`flex w-full h-full gap-2 p-2`}>
+            <div className={`flex h-full w-full ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}>
 
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
-                <div className="w-[340px] flex-shrink-0 flex flex-col hidden lg:flex">
-                    <Sidebar
-                        requireInvite={REQUIRE_INVITE}
-                        api={api}
-                        roomId={roomId}
-                        setRoomId={setRoomId}
-                        userName={userName}
-                        setUserName={setUserName}
-                        role={role}
-                        setRole={setRole}
-                        joined={joined}
-                        appSessionToken={appSessionToken}
-                        setJoined={setJoined}
-                        setAppSessionToken={setAppSessionToken}
-                        setHostSessionToken={setHostSessionToken}
-                        members={members}
-                        messages={messages}
-                        setMessages={setMessages}
-                        lastRealtimeChat={lastRealtimeChat}
-                        realtimeChatSender={realtimeChatSender}
-                        logs={logs}
-                        pushLog={pushLog}
-                        chatPriorityMode={chatPriorityMode}
-                        hideDesktopChat={!stagePriorityMode}
-                    />
-                </div>
+                {!inTheaterMode ? (
+                    <div className="flex w-0 flex-col lg:w-[340px] lg:flex-shrink-0">
+                        <Sidebar
+                            requireInvite={REQUIRE_INVITE}
+                            api={api}
+                            roomId={roomId}
+                            setRoomId={setRoomId}
+                            userName={userName}
+                            setUserName={setUserName}
+                            role={role}
+                            setRole={setRole}
+                            joined={joined}
+                            appSessionToken={appSessionToken}
+                            setJoined={setJoined}
+                            setAppSessionToken={setAppSessionToken}
+                            setHostSessionToken={setHostSessionToken}
+                            members={members}
+                            messages={messages}
+                            setMessages={setMessages}
+                            lastRealtimeChat={lastRealtimeChat}
+                            realtimeChatSender={realtimeChatSender}
+                            logs={logs}
+                            pushLog={pushLog}
+                            chatPriorityMode={chatPriorityMode}
+                            hideDesktopChat={!stagePriorityMode}
+                            enableBootReconnect
+                            themeMode={themeMode}
+                            resolvedTheme={resolvedTheme}
+                            setThemeMode={setThemeMode}
+                        />
+                    </div>
+                ) : null}
 
                 {/* Main Stage Output */}
-                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                <div className={`min-w-0 flex-1 ${inTheaterMode ? "flex flex-col" : "flex flex-col gap-2"}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
-                    <header className="shrink-0 flex items-center justify-between bg-bg-panel/40 rounded-xl px-4 py-3 border border-bg-light">
+                    <header
+                        className={`shrink-0 flex items-center justify-between border border-bg-light bg-bg-panel/40 ${
+                            inTheaterMode ? "rounded-none px-3 py-2" : "rounded-xl px-4 py-3"
+                        }`}
+                    >
                         <div className="flex items-center gap-3">
                             <h1 className="text-lg font-semibold tracking-tight text-white hover:text-accent transition-colors cursor-default">
                                 Ivena Meet
@@ -242,6 +384,42 @@ export function Layout() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs font-mono">
+                            {joined && hasVisualMedia ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        void toggleChatFocusLayout();
+                                    }}
+                                    className={`rounded border px-2 py-1 ${
+                                        chatDominant
+                                            ? "border-accent/45 bg-accent/15 text-accent"
+                                            : "border-white/20 bg-black/25 text-white/80"
+                                    }`}
+                                >
+                                    {chatDominant ? "EXIT_CHAT_FOCUS" : "CHAT_FOCUS"}
+                                </button>
+                            ) : null}
+                            {joined && hasVisualMedia ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        void toggleFullscreenStage();
+                                    }}
+                                    className={`rounded border px-2 py-1 ${
+                                        isFullscreen || inTheaterMode
+                                            ? "border-accent/45 bg-accent/15 text-accent"
+                                            : "border-white/20 bg-black/25 text-white/80"
+                                    }`}
+                                >
+                                    {isHostView || localScreenShareActive
+                                        ? inTheaterMode
+                                            ? "EXIT_STAGE"
+                                            : "STAGE_FOCUS"
+                                        : isFullscreen
+                                          ? "EXIT_FULLSCREEN"
+                                          : "FULLSCREEN"}
+                                </button>
+                            ) : null}
                             <span className="rounded bg-bg-light/60 px-2 py-1 text-accent border border-accent/20">
                                 {joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY"}
                             </span>
@@ -251,57 +429,138 @@ export function Layout() {
                         </div>
                     </header>
 
-                    <div className={`flex flex-1 min-h-0 gap-2 ${desktopGridClass}`}>
-                        <MainStage
-                            joined={joined}
-                            roomId={roomId}
-                            userName={userName}
-                            role={joined?.role ?? role}
-                            compact={chatPriorityMode}
-                            onMembersChange={setMembers}
-                            onRealtimeChatMessage={setLastRealtimeChat}
-                            onRealtimeChatSenderReady={handleRealtimeChatSenderReady}
-                            onVisualMediaChange={setHasVisualMedia}
-                            onLog={pushLog}
-                        />
+                    <div className={centerPaneClass}>
+                        <div className="min-h-0 min-w-0 flex-1">
+                            <MainStage
+                                joined={joined}
+                                roomId={roomId}
+                                userName={userName}
+                                role={joined?.role ?? role}
+                                compact={chatPriorityMode}
+                                immersive={inTheaterMode}
+                                onMembersChange={setMembers}
+                                onRealtimeChatMessage={setLastRealtimeChat}
+                                onRealtimeChatSenderReady={handleRealtimeChatSenderReady}
+                                onVisualMediaChange={setHasVisualMedia}
+                                onLocalScreenShareChange={setLocalScreenShareActive}
+                                onLog={pushLog}
+                            />
+                        </div>
 
                         {/* Chat Panel - Only show if not stage priority, or if we force it */}
-                        {!stagePriorityMode ? (
+                        {!inTheaterMode && chatPriorityMode ? (
                             <ChatPanel
                                 joined={joined}
                                 roomId={roomId}
                                 userName={userName}
                                 onlineCount={members.length}
-                                stageFocused={!chatPriorityMode}
                                 messages={messages}
                                 onSend={handleSendChat}
-                                className="xl:flex w-[340px] flex-shrink-0"
+                                className="hidden xl:flex w-[340px] flex-shrink-0"
                             />
                         ) : null}
                     </div>
                 </div>
+
+                {inTheaterMode ? (
+                    <>
+                        <div
+                            className="pointer-events-none absolute inset-y-0 z-[60] hidden items-center lg:flex"
+                            style={{ left: theaterControlOpen ? 322 : 0 }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setTheaterControlOpen((v) => !v)}
+                                className="pointer-events-auto ml-1 rounded-r-xl border border-white/20 bg-black/45 px-2 py-3 text-[11px] font-mono text-white/80 backdrop-blur-md hover:bg-black/60"
+                            >
+                                {theaterControlOpen ? "HIDE CTRL" : "CTRL"}
+                            </button>
+                        </div>
+                        <div
+                            className="pointer-events-none absolute inset-y-0 z-[60] hidden items-center lg:flex"
+                            style={{ right: theaterChatOpen ? 362 : 0 }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setTheaterChatOpen((v) => !v)}
+                                className="pointer-events-auto mr-1 rounded-l-xl border border-white/20 bg-black/45 px-2 py-3 text-[11px] font-mono text-white/80 backdrop-blur-md hover:bg-black/60"
+                            >
+                                {theaterChatOpen ? "HIDE CHAT" : "CHAT"}
+                            </button>
+                        </div>
+
+                        {theaterControlOpen ? (
+                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] lg:block">
+                                <button
+                                    type="button"
+                                    onClick={() => setTheaterControlOpen(false)}
+                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-black/30 text-xs text-white/60 transition-all hover:bg-black/55 hover:text-white/90"
+                                    aria-label="close control drawer"
+                                >
+                                    ×
+                                </button>
+                                <Sidebar
+                                    requireInvite={REQUIRE_INVITE}
+                                    api={api}
+                                    roomId={roomId}
+                                    setRoomId={setRoomId}
+                                    userName={userName}
+                                    setUserName={setUserName}
+                                    role={role}
+                                    setRole={setRole}
+                                    joined={joined}
+                                    appSessionToken={appSessionToken}
+                                    setJoined={setJoined}
+                                    setAppSessionToken={setAppSessionToken}
+                                    setHostSessionToken={setHostSessionToken}
+                                    members={members}
+                                    messages={messages}
+                                    setMessages={setMessages}
+                                    lastRealtimeChat={lastRealtimeChat}
+                                    realtimeChatSender={realtimeChatSender}
+                                    logs={logs}
+                                    pushLog={pushLog}
+                                    chatPriorityMode={false}
+                                    hideDesktopChat
+                                    hideChatSectionCompletely
+                                    enableBootReconnect={false}
+                                    themeMode={themeMode}
+                                    resolvedTheme={resolvedTheme}
+                                    setThemeMode={setThemeMode}
+                                />
+                            </div>
+                        ) : null}
+
+                        {theaterChatOpen ? (
+                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] lg:block">
+                                <button
+                                    type="button"
+                                    onClick={() => setTheaterChatOpen(false)}
+                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-black/30 text-xs text-white/60 transition-all hover:bg-black/55 hover:text-white/90"
+                                    aria-label="close chat drawer"
+                                >
+                                    ×
+                                </button>
+                                <ChatPanel
+                                    joined={joined}
+                                    roomId={roomId}
+                                    userName={userName}
+                                    onlineCount={members.length}
+                                    messages={messages}
+                                    onSend={handleSendChat}
+                                    className="!flex h-full w-full rounded-2xl border border-white/15 bg-[linear-gradient(180deg,rgba(18,35,48,0.86),rgba(10,20,28,0.82))]"
+                                />
+                            </div>
+                        ) : null}
+                    </>
+                ) : null}
             </div>
         </div>
     );
 
     return (
-        <div className="relative h-screen overflow-hidden bg-bg-dark font-space text-gray-200 flex">
-            {joined ? (
-                <LiveKitRoom
-                    key={joined.token}
-                    token={joined.token}
-                    serverUrl={joined.lk_url}
-                    connect
-                    options={{ adaptiveStream: true, dynacast: true }}
-                    audio={false}
-                    video={false}
-                    onConnected={() => pushLog(`livekit connected: ${roomId} as ${userName}`)}
-                    onDisconnected={() => pushLog("livekit disconnected")}
-                    onError={(e: Error) => pushLog(`livekit error: ${e?.message ?? String(e)}`)}
-                >
-                    {content}
-                </LiveKitRoom>
-            ) : content}
+        <div ref={layoutRef} className="relative h-screen overflow-hidden bg-bg-dark font-space text-gray-200 flex">
+            {content}
         </div>
     );
 };

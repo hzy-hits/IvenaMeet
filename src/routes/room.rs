@@ -46,6 +46,8 @@ pub struct JoinResp {
     pub token: String,
     pub expires_in_seconds: u64,
     pub role: String,
+    pub nickname: String,
+    pub avatar_url: Option<String>,
     pub app_session_token: String,
     pub app_session_expires_in_seconds: u64,
     pub host_session_token: Option<String>,
@@ -320,19 +322,37 @@ async fn join_room(
         .map(validation::nickname)
         .transpose()?
         .unwrap_or_else(|| user_name.clone());
-    let avatar_url = validation::avatar_url(req.avatar_url)?;
+    let requested_avatar_url = validation::avatar_url(req.avatar_url)?;
+    let existing_avatar_url = if requested_avatar_url.is_none() {
+        match state.storage_service.get_user(user_name.clone()).await {
+            Ok(existing) => existing.and_then(|u| u.avatar_url),
+            Err(e) => {
+                let _ = state
+                    .presence_service
+                    .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+                    .await;
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+    let avatar_url = resolved_join_avatar_url(requested_avatar_url, existing_avatar_url);
 
-    if let Err(e) = state
+    let profile = match state
         .storage_service
         .upsert_user(user_name.clone(), nickname, avatar_url)
         .await
     {
-        let _ = state
-            .presence_service
-            .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
-            .await;
-        return Err(e);
-    }
+        Ok(v) => v,
+        Err(e) => {
+            let _ = state
+                .presence_service
+                .release_if_owner(&mut redis, &room_id, &user_name, &join_owner)
+                .await;
+            return Err(e);
+        }
+    };
 
     let token = match state
         .livekit_service
@@ -476,6 +496,8 @@ async fn join_room(
             UserRole::Host => "host".to_string(),
             UserRole::Member => "member".to_string(),
         },
+        nickname: profile.nickname,
+        avatar_url: profile.avatar_url,
         app_session_token,
         app_session_expires_in_seconds: state.config.session_ttl_seconds,
         host_session_token,
@@ -746,4 +768,31 @@ fn now_ts() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+fn resolved_join_avatar_url(
+    requested_avatar_url: Option<String>,
+    existing_avatar_url: Option<String>,
+) -> Option<String> {
+    requested_avatar_url.or(existing_avatar_url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolved_join_avatar_url;
+
+    #[test]
+    fn join_avatar_keeps_existing_when_request_omits_avatar() {
+        let got = resolved_join_avatar_url(None, Some("/api/avatars/a.webp".to_string()));
+        assert_eq!(got.as_deref(), Some("/api/avatars/a.webp"));
+    }
+
+    #[test]
+    fn join_avatar_uses_requested_when_provided() {
+        let got = resolved_join_avatar_url(
+            Some("/api/avatars/new.webp".to_string()),
+            Some("/api/avatars/old.webp".to_string()),
+        );
+        assert_eq!(got.as_deref(), Some("/api/avatars/new.webp"));
+    }
 }

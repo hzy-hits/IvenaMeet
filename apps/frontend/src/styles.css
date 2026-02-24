@@ -3,8 +3,35 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-dark: 30 31 34;
+    --bg-panel: 43 45 49;
+    --bg-light: 49 51 56;
+    --accent: 88 101 242;
+    --accent-hover: 71 82 196;
+    --accent-neon: 0 240 255;
+    --ok: 35 165 89;
+    --warn: 254 231 92;
+    --error: 218 55 60;
+  }
+
+  html[data-theme="light"] {
+    --bg-dark: 46 54 64;
+    --bg-panel: 56 66 78;
+    --bg-light: 74 86 102;
+    --accent: 77 151 255;
+    --accent-hover: 55 129 232;
+    --accent-neon: 66 228 255;
+    --ok: 44 186 118;
+    --warn: 248 210 96;
+    --error: 233 96 102;
+  }
+}
+
+@layer base {
   body {
     @apply bg-bg-dark text-gray-200 antialiased;
+    transition: background-color 180ms ease, color 180ms ease;
   }
 }
 

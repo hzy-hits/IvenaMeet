@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+    LiveKitRoom,
     AudioTrack,
     VideoTrack,
     useLocalParticipant,
@@ -11,7 +12,17 @@ import type { TrackReference, TrackReferenceOrPlaceholder } from "@livekit/compo
 import {
     RoomEvent,
     Track,
+    type AudioCaptureOptions,
+    type ScreenShareCaptureOptions,
 } from "livekit-client";
+import {
+    Camera,
+    CameraOff,
+    Mic,
+    MicOff,
+    Monitor,
+    MonitorOff,
+} from "lucide-react";
 import type { JoinResp, MemberItem, RealtimeChatPayload, Role } from "../lib/types";
 
 type Props = {
@@ -20,6 +31,8 @@ type Props = {
     userName: string;
     role: Role;
     compact?: boolean;
+    immersive?: boolean;
+    onLocalScreenShareChange?: (enabled: boolean) => void;
     onMembersChange: (members: MemberItem[]) => void;
     onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
     onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
@@ -32,6 +45,16 @@ function isIngressIdentity(identity: string): boolean {
 }
 
 const CHAT_TOPIC = "chat.message.v1";
+const MIC_CAPTURE_OPTIONS: AudioCaptureOptions = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+};
+const SCREEN_SHARE_CAPTURE_OPTIONS: ScreenShareCaptureOptions = {
+    audio: false,
+    systemAudio: "exclude",
+};
 
 function parseRealtimeChatPayload(payload: Uint8Array): RealtimeChatPayload | null {
     try {
@@ -65,6 +88,9 @@ function StageScene({
     onRealtimeChatMessage,
     onRealtimeChatSenderReady,
     onVisualMediaChange,
+    onLocalScreenShareChange,
+    onLog,
+    immersive = false,
 }: {
     role: Role;
     roomId: string;
@@ -72,10 +98,14 @@ function StageScene({
     onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
     onRealtimeChatSenderReady: ((sender: ((payload: RealtimeChatPayload) => Promise<void>) | null) => void);
     onVisualMediaChange?: (hasVisualMedia: boolean) => void;
+    onLocalScreenShareChange?: (enabled: boolean) => void;
+    onLog: (msg: string) => void;
+    immersive?: boolean;
 }) {
     const participants = useParticipants();
     const { localParticipant } = useLocalParticipant();
     const room = useRoomContext();
+    const [stageNotice, setStageNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
     const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
     const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: false }]);
@@ -88,15 +118,25 @@ function StageScene({
     const screenTrack = pickTrackRef(screenTracks);
     const cameraTrack = pickTrackRef(cameraTracks);
     const heroTrack = screenTrack ?? cameraTrack;
-    const hasStageMedia = Boolean(
-        screenTrack || (cameraTrack && isIngressIdentity(cameraTrack.participant.identity)),
-    );
+    const hasStageMedia = Boolean(screenTrack || cameraTrack);
     const hasIngressParticipant = participants.some((p) => isIngressIdentity(p.identity));
     const activeParticipantCount = participants.filter((p) => !isIngressIdentity(p.identity)).length;
+    const micOn = !!localParticipant?.isMicrophoneEnabled;
+    const camOn = !!localParticipant?.isCameraEnabled;
+    const shareOn = !!localParticipant?.isScreenShareEnabled;
+
+    const showStageNotice = (kind: "ok" | "error", text: string) => {
+        setStageNotice({ kind, text });
+        window.setTimeout(() => setStageNotice(null), 2200);
+    };
 
     useEffect(() => {
         onVisualMediaChange?.(hasStageMedia);
     }, [hasStageMedia, onVisualMediaChange]);
+
+    useEffect(() => {
+        onLocalScreenShareChange?.(shareOn);
+    }, [shareOn, onLocalScreenShareChange]);
 
     useEffect(() => {
         // Enter room with mic muted by default; user can enable from control bar.
@@ -144,8 +184,69 @@ function StageScene({
         return () => onRealtimeChatSenderReady(null);
     }, [localParticipant, onRealtimeChatSenderReady]);
 
+    const toggleMic = async () => {
+        try {
+            await localParticipant?.setMicrophoneEnabled(!micOn, MIC_CAPTURE_OPTIONS);
+            const text = !micOn ? "麦克风已开启" : "麦克风已关闭";
+            showStageNotice("ok", text);
+            onLog(text);
+        } catch (e) {
+            const text = `麦克风操作失败：${e instanceof Error ? e.message : String(e)}`;
+            showStageNotice("error", text);
+            onLog(text);
+        }
+    };
+
+    const toggleCamera = async () => {
+        try {
+            await localParticipant?.setCameraEnabled(!camOn);
+            const text = !camOn ? "摄像头已开启" : "摄像头已关闭";
+            showStageNotice("ok", text);
+            onLog(text);
+        } catch (e) {
+            const text = `摄像头操作失败：${e instanceof Error ? e.message : String(e)}`;
+            showStageNotice("error", text);
+            onLog(text);
+        }
+    };
+
+    const toggleShare = async () => {
+        if (role !== "host") {
+            const text = "仅主持人可共享屏幕";
+            showStageNotice("error", text);
+            onLog(text);
+            return;
+        }
+        if (hasIngressParticipant && !shareOn) {
+            const text = "OBS 推流中，请勿开启浏览器共享，避免回声";
+            showStageNotice("error", text);
+            onLog(text);
+            return;
+        }
+        if (!navigator.mediaDevices || !("getDisplayMedia" in navigator.mediaDevices)) {
+            const text = "当前设备/浏览器不支持屏幕共享";
+            showStageNotice("error", text);
+            onLog(text);
+            return;
+        }
+        try {
+            await localParticipant?.setScreenShareEnabled(!shareOn, SCREEN_SHARE_CAPTURE_OPTIONS);
+            const text = !shareOn ? "已开始共享屏幕（不含系统音）" : "已停止共享屏幕";
+            showStageNotice("ok", text);
+            onLog(text);
+        } catch (e) {
+            const text = `共享屏幕失败：${e instanceof Error ? e.message : String(e)}`;
+            showStageNotice("error", text);
+            onLog(text);
+        }
+    };
+
     return (
-        <div className="relative h-full w-full overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(78,205,196,0.14),rgba(8,17,24,0.96)_42%)]">
+        <div
+            className={`relative h-full w-full overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(78,205,196,0.14),rgba(8,17,24,0.96)_42%)] ${
+                immersive ? "rounded-none border-0" : "rounded-[26px] border border-white/10"
+            }`}
+        >
             <div className="absolute inset-0">
                 {heroTrack ? (
                     <VideoTrack
@@ -186,6 +287,49 @@ function StageScene({
                 </div>
             </div>
 
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-white/10 bg-bg-panel/80 p-1.5 backdrop-blur-md">
+                <div className="flex items-center gap-1">
+                    <button
+                        className={`rounded-xl p-2 transition-colors ${micOn ? "text-ok bg-ok/15" : "text-white/75 hover:bg-white/10"}`}
+                        onClick={() => {
+                            void toggleMic();
+                        }}
+                        title="麦克风"
+                    >
+                        {micOn ? <Mic size={18} /> : <MicOff size={18} />}
+                    </button>
+                    <button
+                        className={`rounded-xl p-2 transition-colors ${camOn ? "text-accent bg-accent/15" : "text-white/75 hover:bg-white/10"}`}
+                        onClick={() => {
+                            void toggleCamera();
+                        }}
+                        title="摄像头"
+                    >
+                        {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
+                    </button>
+                    <button
+                        className={`rounded-xl p-2 transition-colors ${shareOn ? "text-accent bg-accent/15" : "text-white/75 hover:bg-white/10"}`}
+                        onClick={() => {
+                            void toggleShare();
+                        }}
+                        title="共享屏幕"
+                    >
+                        {shareOn ? <Monitor size={18} /> : <MonitorOff size={18} />}
+                    </button>
+                </div>
+            </div>
+
+            {stageNotice ? (
+                <div
+                    className={`absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-xl border px-3 py-2 text-xs ${stageNotice.kind === "ok"
+                        ? "border-ok/40 bg-ok/10 text-ok"
+                        : "border-red-300/40 bg-red-500/20 text-red-100"
+                        }`}
+                >
+                    {stageNotice.text}
+                </div>
+            ) : null}
+
             {audioTracks.map((trackRef) => {
                 if (!("publication" in trackRef) || !trackRef.publication) return null;
                 const identity = trackRef.participant.identity;
@@ -209,6 +353,8 @@ export function MainStage({
     userName,
     role,
     compact = false,
+    immersive = false,
+    onLocalScreenShareChange,
     onMembersChange,
     onRealtimeChatMessage,
     onRealtimeChatSenderReady,
@@ -235,9 +381,17 @@ export function MainStage({
         if (!joined) onVisualMediaChange?.(false);
     }, [joined, onVisualMediaChange]);
 
-    useEffect(() => {
-        if (!joined) onVisualMediaChange?.(false);
-    }, [joined, onVisualMediaChange]);
+    const handleConnected = () => {
+        onLogRef.current(`livekit connected: ${roomIdRef.current} as ${userNameRef.current}`);
+    };
+
+    const handleDisconnected = () => {
+        onLogRef.current("livekit disconnected");
+    };
+
+    const handleError = (e: Error) => {
+        onLogRef.current(`livekit error: ${e?.message ?? String(e)}`);
+    };
 
     if (!joined) {
         return (
@@ -252,17 +406,36 @@ export function MainStage({
 
     return (
         <main
-            className={`relative h-full min-h-0 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))] p-2 shadow-[0_20px_70px_rgba(0,0,0,0.38)] backdrop-blur-md lg:p-3 ${compact ? "xl:min-h-[420px]" : ""
-                }`}
+            className={`relative h-full min-h-0 bg-[linear-gradient(180deg,rgba(14,26,35,0.92),rgba(8,17,24,0.92))] ${
+                immersive
+                    ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
+                    : "rounded-[26px] border border-white/10 p-2 shadow-[0_20px_70px_rgba(0,0,0,0.38)] backdrop-blur-md lg:p-3"
+            } ${compact && !immersive ? "xl:min-h-[420px]" : ""}`}
         >
-            <StageScene
-                role={role}
-                roomId={roomId}
-                onMembersChange={onMembersChange}
-                onRealtimeChatMessage={onRealtimeChatMessage}
-                onRealtimeChatSenderReady={onRealtimeChatSenderReady}
-                onVisualMediaChange={onVisualMediaChange}
-            />
+            <LiveKitRoom
+                key={joined.token}
+                token={joined.token}
+                serverUrl={joined.lk_url}
+                connect
+                options={{ adaptiveStream: true, dynacast: true }}
+                audio={false}
+                video={false}
+                onConnected={handleConnected}
+                onDisconnected={handleDisconnected}
+                onError={handleError}
+            >
+                <StageScene
+                    role={role}
+                    roomId={roomId}
+                    onMembersChange={onMembersChange}
+                    onRealtimeChatMessage={onRealtimeChatMessage}
+                    onRealtimeChatSenderReady={onRealtimeChatSenderReady}
+                    onVisualMediaChange={onVisualMediaChange}
+                    onLocalScreenShareChange={onLocalScreenShareChange}
+                    onLog={onLogRef.current}
+                    immersive={immersive}
+                />
+            </LiveKitRoom>
         </main>
     );
 }
