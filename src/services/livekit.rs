@@ -83,7 +83,11 @@ impl LiveKitService {
                 "microphone".to_string(),
                 "screen_share".to_string(),
             ],
-            UserRole::Member => vec!["microphone".to_string()],
+            UserRole::Member => vec![
+                "camera".to_string(),
+                "microphone".to_string(),
+                "screen_share".to_string(),
+            ],
         };
 
         AccessToken::with_api_key(&self.api_key, &self.api_secret)

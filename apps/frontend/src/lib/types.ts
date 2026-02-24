@@ -175,6 +175,30 @@ export interface RealtimeChatPayload {
   created_at: number;
 }
 
+export type StageFeature = "camera" | "screen_share";
+
+export interface StageRequestPayload {
+  type: "stage.request";
+  room_id: string;
+  request_id: string;
+  target_user: string;
+  feature: StageFeature;
+  created_at: number;
+}
+
+export interface StageDecisionPayload {
+  type: "stage.decision";
+  room_id: string;
+  request_id: string;
+  target_user: string;
+  feature: StageFeature;
+  approved: boolean;
+  decided_by: string;
+  created_at: number;
+}
+
+export type StageControlPayload = StageRequestPayload | StageDecisionPayload;
+
 export interface UploadAvatarResp {
   avatar_url: string;
 }
