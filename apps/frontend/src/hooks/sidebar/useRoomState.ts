@@ -122,7 +122,7 @@ export function useRoomState({
 
   const inviteMode = Boolean(inviteTicket);
   const effectiveRole: Role = hostEntryUnlocked ? "host" : inviteMode ? "member" : role;
-  const showInviteGate = !joined && !inviteMode && !hostEntryUnlocked;
+  const showInviteGate = Boolean(requireInvite) && !joined && !inviteMode && !hostEntryUnlocked;
   const isHost = useMemo(
     () => (joined?.role ?? effectiveRole) === "host",
     [joined?.role, effectiveRole],

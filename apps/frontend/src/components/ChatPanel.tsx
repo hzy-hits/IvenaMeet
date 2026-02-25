@@ -100,7 +100,7 @@ export function ChatPanel({
 
     return (
         <OrnamentFrame
-            className={`paper-grain mucha-surface hidden h-full min-h-0 flex-col shadow-mucha xl:flex ${className ?? ""}`}
+            className={`paper-grain mucha-surface flex h-full min-h-0 flex-col shadow-mucha ${className ?? ""}`}
         >
             {/* Header */}
             <section className="px-5 pt-5 pb-0 shrink-0">
@@ -156,6 +156,7 @@ export function ChatPanel({
                         {pendingHints > 0 ? (
                             <button
                                 type="button"
+                                aria-label={pendingHints > 1 ? `${pendingHints} 条未读消息，回到最新` : "1 条未读消息，回到最新"}
                                 onClick={() => scrollToBottom("smooth")}
                                 className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-chip border border-gold/50 bg-parchment/90 px-3 py-1 font-body text-xs font-medium text-gold shadow-gold-glow backdrop-blur-md"
                             >
@@ -170,21 +171,29 @@ export function ChatPanel({
                             value={chatText}
                             onChange={(e) => setChatText(e.target.value)}
                             placeholder="输入消息，按 Enter 发送"
+                            aria-label="输入聊天消息"
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") void send();
+                                const keyboard = e.nativeEvent as KeyboardEvent;
+                                if (e.key === "Enter" && !e.shiftKey && !keyboard.isComposing) {
+                                    e.preventDefault();
+                                    void send();
+                                }
                             }}
                             className="min-w-0 flex-1 bg-transparent px-2 py-2 font-body text-sm text-ink outline-none placeholder:text-ink/35 focus:ring-1 focus:ring-gold/50 focus:rounded-chip"
                         />
                         <button
+                            type="button"
+                            aria-label={chatText.trim() ? "发送聊天消息" : "请输入聊天内容后发送"}
                             onClick={() => void send()}
                             disabled={sending || !chatText.trim()}
+                            aria-busy={sending}
                             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-all ease-mucha hover:bg-gold/85 hover:shadow-gold-glow press-feedback"
                         >
                             <Send size={16} />
                         </button>
                     </div>
                     {actionError ? (
-                        <p className="mt-1 font-mono text-xs text-coral">{actionError}</p>
+                        <p role="alert" className="mt-1 font-mono text-xs text-coral">{actionError}</p>
                     ) : null}
                 </>
             )}

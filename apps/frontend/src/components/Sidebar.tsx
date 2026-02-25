@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useRef } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
     ChevronDown,
     ChevronRight,
@@ -62,6 +63,82 @@ type Props = {
     themeMode: ThemeMode;
     resolvedTheme: ResolvedTheme;
     setThemeMode: (v: ThemeMode) => void;
+};
+
+const DIALOG_FOCUSABLE_SELECTOR =
+    "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+
+const getFocusableElements = (root: HTMLElement): HTMLElement[] =>
+    Array.from(root.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR));
+
+type UseDialogFocusOptions = {
+    isOpen: boolean;
+    rootRef: RefObject<HTMLDivElement | null>;
+    onClose?: () => void;
+    getInitialFocus?: () => HTMLElement | null;
+};
+
+const useDialogFocus = ({
+    isOpen,
+    rootRef,
+    onClose,
+    getInitialFocus,
+}: UseDialogFocusOptions) => {
+    const previousFocusRef = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const dialog = rootRef.current;
+        if (!dialog) return;
+
+        previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const focusable = getFocusableElements(dialog);
+        const explicitInitial = getInitialFocus?.();
+        const initial = (explicitInitial && dialog.contains(explicitInitial)) ? explicitInitial : (focusable[0] ?? dialog);
+        initial.focus({ preventScroll: true });
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                if (!onClose) return;
+                event.preventDefault();
+                onClose();
+                return;
+            }
+            if (event.key !== "Tab") return;
+
+            const focusableElements = getFocusableElements(dialog);
+            if (!focusableElements.length) {
+                event.preventDefault();
+                return;
+            }
+
+            const first = focusableElements[0];
+            const last = focusableElements[focusableElements.length - 1];
+            const active = document.activeElement;
+
+            if (event.shiftKey) {
+                if (!active || active === first || !dialog.contains(active)) {
+                    event.preventDefault();
+                    last.focus({ preventScroll: true });
+                }
+                return;
+            }
+
+            if (active === last) {
+                event.preventDefault();
+                first.focus({ preventScroll: true });
+            }
+        };
+
+        dialog.addEventListener("keydown", onKeyDown);
+        return () => {
+            dialog.removeEventListener("keydown", onKeyDown);
+            const previousFocus = previousFocusRef.current;
+            if (previousFocus?.isConnected) {
+                previousFocus.focus({ preventScroll: true });
+            }
+        };
+    }, [isOpen, onClose, rootRef, getInitialFocus]);
 };
 
 export function Sidebar(props: Props) {
@@ -238,9 +315,44 @@ export function Sidebar(props: Props) {
         enableBootReconnect,
     });
 
+    const requiresInviteCode = (requireInvite || inviteMode) && effectiveRole === "member";
+    const canJoin = Boolean(roomId.trim() && userName.trim()) && (!requiresInviteCode || Boolean(inviteCode.trim() && inviteTicket.trim()));
+
+    const avatarEditorDialogRef = useRef<HTMLDivElement>(null);
+    const inviteGateDialogRef = useRef<HTMLDivElement>(null);
+    const joinDialogRef = useRef<HTMLDivElement>(null);
+    const whipDialogRef = useRef<HTMLDivElement>(null);
+
+    const avatarEditorUploadButtonRef = useRef<HTMLButtonElement>(null);
+    const roomIdInputRef = useRef<HTMLInputElement>(null);
+
+    useDialogFocus({
+        isOpen: avatarEditorOpen,
+        rootRef: avatarEditorDialogRef,
+        onClose: () => setAvatarEditorOpen(false),
+        getInitialFocus: () => avatarEditorUploadButtonRef.current,
+    });
+
+    useDialogFocus({
+        isOpen: showInviteGate,
+        rootRef: inviteGateDialogRef,
+    });
+
+    useDialogFocus({
+        isOpen: !joined && !showInviteGate,
+        rootRef: joinDialogRef,
+        getInitialFocus: () => roomIdInputRef.current,
+    });
+
+    useDialogFocus({
+        isOpen: showBroadcastModal,
+        rootRef: whipDialogRef,
+        onClose: () => setShowBroadcastModal(false),
+    });
+
     return (
         <>
-            <OrnamentFrame className="paper-grain mucha-surface hidden h-full min-h-0 flex-col gap-3 shadow-mucha lg:flex">
+            <OrnamentFrame className="paper-grain mucha-surface flex h-full min-h-0 flex-col gap-3 shadow-mucha">
                 <section className="px-5 pt-5 pb-0 flex flex-col shrink-0">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -251,6 +363,8 @@ export function Sidebar(props: Props) {
                         </div>
                         {joined ? (
                             <button
+                                type="button"
+                                aria-label="离开房间"
                                 onClick={() => run(leaveRoom)}
                                 className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                             >
@@ -267,6 +381,7 @@ export function Sidebar(props: Props) {
                         <div className="mt-2 grid grid-cols-3 gap-2">
                             <button
                                 type="button"
+                                aria-label="切换到控制面板"
                                 onClick={() => setConsolePane("control")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
@@ -277,6 +392,7 @@ export function Sidebar(props: Props) {
                             </button>
                             <button
                                 type="button"
+                                aria-label="切换到成员列表"
                                 onClick={() => setConsolePane("members")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
@@ -287,6 +403,7 @@ export function Sidebar(props: Props) {
                             </button>
                             <button
                                 type="button"
+                                aria-label="切换到系统面板"
                                 onClick={() => setConsolePane("ops")}
                                 className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
@@ -313,6 +430,7 @@ export function Sidebar(props: Props) {
                                 </div>
                                 <button
                                     type="button"
+                                    aria-label="打开个人页头像上传"
                                     onClick={onPickAvatar}
                                     className="inline-flex items-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                                 >
@@ -334,6 +452,9 @@ export function Sidebar(props: Props) {
 
                     {actionNotice ? (
                         <section
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
                             className={`rounded-panel border px-3 py-2 font-body text-sm ${actionNotice.kind === "ok"
                                 ? "border-teal/40 bg-teal/10 text-teal"
                                 : "border-coral/40 bg-coral/12 text-coral"
@@ -348,30 +469,40 @@ export function Sidebar(props: Props) {
                             <h3 className="mb-2 font-display text-sm font-semibold text-ink">主持工具</h3>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
+                                    type="button"
+                                    aria-label="复制邀请链接"
                                     onClick={() => run(issueInvite)}
                                     className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
                                     <UserPlus size={16} /> 复制邀请
                                 </button>
                                 <button
+                                    type="button"
+                                    aria-label="开始广播"
                                     onClick={() => run(startBroadcast)}
                                     className="inline-flex items-center justify-center gap-2 rounded-chip bg-gold px-3 py-2 text-sm font-semibold text-canvas transition-colors ease-mucha hover:bg-gold/85"
                                 >
                                     <Radio size={16} /> Broadcast
                                 </button>
                                 <button
+                                    type="button"
+                                    aria-label="停止广播"
                                     onClick={() => run(stopBroadcast)}
                                     className="col-span-2 inline-flex items-center justify-center gap-2 rounded-chip bg-coral/80 px-3 py-2 text-sm text-canvas transition-colors ease-mucha hover:bg-coral/70"
                                 >
                                     <CircleStop size={16} /> Stop Broadcast
                                 </button>
                                 <button
+                                    type="button"
+                                    aria-label="静音所有成员"
                                     onClick={() => run(() => muteAll(true))}
                                     className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
                                     全员静音
                                 </button>
                                 <button
+                                    type="button"
+                                    aria-label="解除所有成员静音"
                                     onClick={() => run(() => muteAll(false))}
                                     className="inline-flex items-center justify-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-ink/15"
                                 >
@@ -390,6 +521,8 @@ export function Sidebar(props: Props) {
                         <section className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2">
                             {/* Members list */}
                             <button
+                                type="button"
+                                aria-label={openMembers ? "折叠成员列表" : "展开成员列表"}
                                 onClick={() => setOpenMembers((v) => !v)}
                                 className="flex w-full items-center justify-between text-left font-display text-xs font-bold uppercase tracking-wider text-ink/50 hover:text-ink/80 px-2 py-1 transition-colors ease-mucha"
                             >
@@ -414,6 +547,8 @@ export function Sidebar(props: Props) {
                                             {isHost && !m.isLocal ? (
                                                 <div className="mt-2 grid grid-cols-3 gap-1">
                                                     <button
+                                                        type="button"
+                                                        aria-label={m.micEnabled ? `禁用 ${m.identity} 麦克风` : `开启 ${m.identity} 麦克风`}
                                                         onClick={() => run(() => muteOne(m.identity, m.micEnabled))}
                                                         className="rounded-chip bg-canvas/60 border border-ink/8 px-2 py-1 text-[11px] text-ink/65 transition-colors ease-mucha hover:border-ink/12"
                                                     >
@@ -421,6 +556,8 @@ export function Sidebar(props: Props) {
                                                     </button>
                                                     {m.cameraEnabled ? (
                                                         <button
+                                                            type="button"
+                                                            aria-label={`禁用 ${m.identity} 摄像头`}
                                                             onClick={() => run(() => setMemberMediaPermission(m.identity, "camera", false))}
                                                             className="rounded-chip border border-coral/35 bg-coral/15 px-2 py-1 text-[11px] text-coral"
                                                         >
@@ -433,6 +570,8 @@ export function Sidebar(props: Props) {
                                                     )}
                                                     {m.screenShareEnabled ? (
                                                         <button
+                                                            type="button"
+                                                            aria-label={`禁用 ${m.identity} 屏幕共享`}
                                                             onClick={() => run(() => setMemberMediaPermission(m.identity, "screen_share", false))}
                                                             className="rounded-chip border border-coral/35 bg-coral/15 px-2 py-1 text-[11px] text-coral"
                                                         >
@@ -458,6 +597,8 @@ export function Sidebar(props: Props) {
                                 }`}
                         >
                             <button
+                                type="button"
+                                aria-label={openChat ? "收起聊天面板" : "展开聊天面板"}
                                 onClick={() => setOpenChat((v) => !v)}
                                 className="flex w-full items-center justify-between text-left font-display text-xs font-bold uppercase tracking-wider text-ink/50 hover:text-ink/80 px-2 py-1 transition-colors ease-mucha mb-2"
                             >
@@ -499,6 +640,7 @@ export function Sidebar(props: Props) {
                                         {pendingChatHints > 0 ? (
                                             <button
                                                 type="button"
+                                                aria-label={pendingChatHints > 1 ? `${pendingChatHints} 条未读消息，点击回到最新` : "1 条未读消息，点击回到最新"}
                                                 onClick={() => scrollChatToBottom("smooth")}
                                                 className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-chip border border-gold/50 bg-parchment/90 px-3 py-1 text-xs font-medium text-gold shadow-gold-glow backdrop-blur-md"
                                             >
@@ -510,13 +652,20 @@ export function Sidebar(props: Props) {
                                         <input
                                             value={chatText}
                                             onChange={(e) => setChatText(e.target.value)}
+                                            aria-label="发送侧边栏聊天消息"
                                             placeholder="输入消息，按 Enter 发送"
                                             onKeyDown={(e) => {
-                                                if (e.key === "Enter") run(sendChat);
+                                                const keyboard = e.nativeEvent as KeyboardEvent;
+                                                if (e.key === "Enter" && !e.shiftKey && !keyboard.isComposing) {
+                                                    e.preventDefault();
+                                                    run(sendChat);
+                                                }
                                             }}
                                             className="min-w-0 flex-1 bg-transparent px-2 py-2 font-body text-sm text-ink outline-none placeholder:text-ink/35"
                                         />
                                         <button
+                                            type="button"
+                                            aria-label={chatText.trim() ? "发送侧边栏聊天消息" : "请输入聊天内容后发送"}
                                             onClick={() => run(sendChat)}
                                             disabled={!chatText.trim()}
                                             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-all ease-mucha hover:bg-gold/85 hover:shadow-gold-glow press-feedback"
@@ -535,6 +684,7 @@ export function Sidebar(props: Props) {
                                     <button
                                         key={mode}
                                         type="button"
+                                        aria-label={`切换主题：${mode}`}
                                         onClick={() => setThemeMode(mode)}
                                         className={`rounded-chip border px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide transition-colors ease-mucha ${themeMode === mode
                                             ? "border-gold/55 bg-ink/8 text-ink/70"
@@ -552,6 +702,8 @@ export function Sidebar(props: Props) {
 
                         <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
                             <button
+                                type="button"
+                                aria-label={openLogs ? "折叠系统日志" : "展开系统日志"}
                                 onClick={() => setOpenLogs((v) => !v)}
                                 className="mb-2 flex w-full items-center justify-between text-left font-display text-sm font-semibold text-ink"
                             >
@@ -576,9 +728,9 @@ export function Sidebar(props: Props) {
                     <div className="shrink-0 bg-rail rounded-chip p-2 flex items-center justify-between">
                         <button
                             type="button"
+                            aria-label="打开头像编辑器"
                             onClick={openAvatarEditor}
                             className="flex min-w-0 items-center gap-2 overflow-hidden rounded-chip px-1 py-1 text-left transition-colors ease-mucha hover:mucha-panel"
-                            title="修改头像"
                         >
                             <div className="relative h-8 w-8 shrink-0 rounded-full mucha-panel border border-ink/10 overflow-hidden">
                                 {avatarPreview ? (
@@ -613,6 +765,11 @@ export function Sidebar(props: Props) {
                     onClick={() => setAvatarEditorOpen(false)}
                 >
                     <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="修改头像"
+                        ref={avatarEditorDialogRef}
+                        tabIndex={-1}
                         className="w-full max-w-sm rounded-panel border border-ink/10 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -620,10 +777,11 @@ export function Sidebar(props: Props) {
                             <h3 className="text-sm font-semibold">修改头像</h3>
                             <button
                                 type="button"
+                                aria-label="关闭头像编辑器"
                                 onClick={() => setAvatarEditorOpen(false)}
                                 className="rounded-chip border border-ink/8 mucha-panel px-2 py-1 text-xs text-ink/65 hover:border-ink/12"
                             >
-                                Close
+                                关闭
                             </button>
                         </div>
                         <div className="mt-3 flex items-center gap-3 rounded-chip border border-ink/10 mucha-panel px-3 py-3">
@@ -653,6 +811,7 @@ export function Sidebar(props: Props) {
                         </p>
                         <button
                             type="button"
+                            aria-label="选择并上传头像"
                             onClick={onPickAvatar}
                             className="mt-3 w-full rounded-chip bg-gold px-3 py-2 text-sm font-semibold text-canvas"
                         >
@@ -664,7 +823,14 @@ export function Sidebar(props: Props) {
 
             {showInviteGate ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
-                    <div className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="邀请码入口"
+                        ref={inviteGateDialogRef}
+                        tabIndex={-1}
+                        className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md"
+                    >
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
                         <p className="mt-1 text-sm text-ink/50">
                             需要邀请链接才能进入房间。若你是主持人，请走主持人入口。
@@ -673,6 +839,7 @@ export function Sidebar(props: Props) {
                             <button
                                 type="button"
                                 onClick={() => setHostEntryUnlocked(true)}
+                                aria-label="切换到主持人模式加入"
                                 className="rounded-chip bg-gold px-3 py-2 font-semibold text-canvas"
                             >
                                 主持人入口
@@ -680,6 +847,7 @@ export function Sidebar(props: Props) {
                             <button
                                 type="button"
                                 onClick={() => window.location.reload()}
+                                aria-label="使用邀请码地址重新进入"
                                 className="rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             >
                                 我有邀请链接
@@ -694,7 +862,14 @@ export function Sidebar(props: Props) {
 
             {!joined && !showInviteGate ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-ink/60 p-4">
-                    <div className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="加入会议"
+                        ref={joinDialogRef}
+                        tabIndex={-1}
+                        className="w-full max-w-lg rounded-panel border border-ink/10 bg-parchment/95 p-5 shadow-mucha backdrop-blur-md"
+                    >
                         <h2 className="text-xl font-semibold">Enter Ivena Meet</h2>
                         <p className="mt-1 text-sm text-ink/50">先完成鉴权和房间配置，才能继续进入会话。</p>
 
@@ -702,12 +877,15 @@ export function Sidebar(props: Props) {
                             <input
                                 value={roomId}
                                 onChange={(e) => setRoomId(e.target.value)}
+                                ref={roomIdInputRef}
+                                aria-label="房间名"
                                 placeholder="room_id"
                                 className="w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             />
                             <input
                                 value={userName}
                                 onChange={(e) => setUserName(e.target.value)}
+                                aria-label="用户名"
                                 placeholder="name"
                                 className="w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink"
                             />
@@ -754,6 +932,7 @@ export function Sidebar(props: Props) {
                                     <span>host mode</span>
                                     <button
                                         type="button"
+                                        aria-label="提交新的加入请求"
                                         onClick={() => setHostEntryUnlocked(false)}
                                         className="rounded-chip border border-ink/8 mucha-panel px-2 py-1 text-xs text-ink/65"
                                     >
@@ -769,6 +948,7 @@ export function Sidebar(props: Props) {
                                     <span>invite mode: member</span>
                                     <button
                                         type="button"
+                                        aria-label="切换到主持人入口"
                                         onClick={() => setHostEntryUnlocked(true)}
                                         className="rounded-chip bg-gold/90 px-2 py-1 text-xs font-semibold text-canvas"
                                     >
@@ -784,6 +964,7 @@ export function Sidebar(props: Props) {
                                         <input
                                             value={inviteCode}
                                             onChange={(e) => setInviteCode(e.target.value)}
+                                            aria-label="invite_code"
                                             placeholder="invite_code"
                                             className="w-full rounded-chip border border-ink/10 mucha-panel py-2 pl-9 pr-3 text-ink"
                                         />
@@ -791,6 +972,7 @@ export function Sidebar(props: Props) {
                                     <input
                                         value={inviteTicket}
                                         onChange={(e) => setInviteTicket(e.target.value)}
+                                        aria-label="invite_ticket"
                                         placeholder="invite_ticket"
                                         className="font-mono w-full rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-ink text-xs"
                                     />
@@ -804,6 +986,7 @@ export function Sidebar(props: Props) {
                                         <input
                                             value={hostTotpCode}
                                             onChange={(e) => setHostTotpCode(e.target.value)}
+                                            aria-label="TOTP 动态码（6位）"
                                             type="password"
                                             placeholder="TOTP 动态码（6位）"
                                             className="font-mono w-full rounded-chip border border-ink/10 mucha-panel py-2 pl-9 pr-3 text-ink text-xs"
@@ -824,16 +1007,23 @@ export function Sidebar(props: Props) {
                         </div>
 
                         <button
-                            disabled={joining}
+                            type="button"
+                            disabled={joining || !canJoin}
+                            aria-busy={joining}
+                            aria-label={joining ? "正在加入房间" : canJoin ? "加入房间" : "请补全必填信息后加入"}
                             onClick={() => run(joinRoom)}
                             className="mt-4 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas disabled:opacity-60 press-feedback"
                         >
-                            {joining ? (<span className="inline-flex items-center gap-2"><span className="mucha-spinner" /><span>Joining...</span></span>) : "Join Room"}
+                            {joining ? (
+                                <span className="inline-flex items-center gap-2"><span className="mucha-spinner" /><span>Joining...</span></span>
+                            ) : canJoin ? "Join Room" : "请先填写必填项"}
                         </button>
 
                         {effectiveRole === "host" && showReclaimCta ? (
                             <button
+                                type="button"
                                 disabled={reclaiming}
+                                aria-label={reclaiming ? "正在回收旧会话" : "房间被占用，回收后重试"}
                                 onClick={() => run(forceReclaimAndRetry)}
                                 className="mt-2 w-full rounded-xl border border-ok/40 bg-ok/15 px-3 py-2 font-semibold text-ok disabled:opacity-60"
                             >
@@ -846,7 +1036,14 @@ export function Sidebar(props: Props) {
 
             {showBroadcastModal ? (
                 <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-4">
-                    <div className="w-full max-w-xl rounded-panel border border-ink/10 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="WHIP Broadcast 凭证"
+                        ref={whipDialogRef}
+                        tabIndex={-1}
+                        className="w-full max-w-xl rounded-panel border border-ink/10 bg-parchment/95 p-4 shadow-mucha backdrop-blur-md"
+                    >
                         <h3 className="mb-3 text-lg font-semibold">WHIP Broadcast Credentials</h3>
                         <div className="font-mono space-y-2 text-xs">
                             <div className="rounded-chip border border-ink/8 mucha-panel p-2">
@@ -874,12 +1071,14 @@ export function Sidebar(props: Props) {
                             防回声建议：OBS 只保留“桌面/窗口 + 系统音频”，不要添加麦克风音源；
                             麦克风请使用本页面的语音按钮单独上麦。
                         </p>
-                        <button
-                            onClick={() => setShowBroadcastModal(false)}
-                            className="mt-3 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas"
-                        >
-                            Close
-                        </button>
+                            <button
+                                type="button"
+                                aria-label="关闭广播信息"
+                                onClick={() => setShowBroadcastModal(false)}
+                                className="mt-3 w-full rounded-chip bg-gold px-3 py-2 font-semibold text-canvas"
+                            >
+                                关闭
+                            </button>
                     </div>
                 </div>
             ) : null}
@@ -887,6 +1086,7 @@ export function Sidebar(props: Props) {
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                aria-label="头像文件上传"
                 onChange={(e) => onAvatarFileChange(e.target.files?.[0])}
                 className="hidden"
             />

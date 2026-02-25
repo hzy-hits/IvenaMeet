@@ -133,7 +133,9 @@ export function Layout() {
     const isHostView = (joined?.role ?? role) === "host";
     const chatPriorityMode = Boolean(joined && (chatDominant || !hasVisualMedia));
     const stagePriorityMode = Boolean(joined && hasVisualMedia && !chatDominant);
-    const centerPaneClass = inTheaterMode ? "flex min-h-0 flex-1" : "flex min-h-0 flex-1 gap-2";
+    const centerPaneClass = inTheaterMode
+        ? "flex min-h-0 flex-col flex-1"
+        : "flex min-h-0 flex-col lg:flex-row flex-1 gap-2";
 
     useEffect(() => {
         localStorage.setItem(LS_KEYS.roomId, roomId);
@@ -363,11 +365,13 @@ export function Layout() {
     const content = (
         <div className="relative flex h-full w-full mx-auto max-w-[2000px]">
             {/* We won't need the header row since discord/slack typically puts server info in the sidebar */}
-            <div className={`flex h-full w-full ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}>
+            <div
+                className={`flex h-full w-full flex-col lg:flex-row ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}
+            >
 
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
                 {!inTheaterMode ? (
-                    <div className="flex w-0 flex-col lg:w-[340px] lg:flex-shrink-0">
+                    <div className="flex w-full flex-col lg:w-[340px] lg:flex-shrink-0">
                         <Sidebar
                             requireInvite={REQUIRE_INVITE}
                             api={api}
@@ -419,6 +423,7 @@ export function Layout() {
                             {joined && hasVisualMedia ? (
                                 <button
                                     type="button"
+                                    aria-label={chatDominant ? "退出聊天聚焦布局" : "开启聊天聚焦布局"}
                                     onClick={() => {
                                         void toggleChatFocusLayout();
                                     }}
@@ -433,6 +438,13 @@ export function Layout() {
                             {joined && hasVisualMedia ? (
                                 <button
                                     type="button"
+                                    aria-label={isHostView || localScreenShareActive
+                                        ? inTheaterMode
+                                            ? "退出舞台聚焦"
+                                            : "开启舞台聚焦"
+                                        : isFullscreen
+                                            ? "退出全屏"
+                                            : "进入全屏"}
                                     onClick={() => {
                                         void toggleFullscreenStage();
                                     }}
@@ -487,7 +499,7 @@ export function Layout() {
                                 onlineCount={members.length}
                                 messages={messages}
                                 onSend={handleSendChat}
-                                className="hidden xl:flex w-[340px] flex-shrink-0"
+                                className="w-full lg:w-[340px] flex-shrink-0"
                             />
                         ) : null}
                     </div>
@@ -501,6 +513,7 @@ export function Layout() {
                         >
                             <button
                                 type="button"
+                                aria-label={theaterControlOpen ? "收起舞台控制器" : "展开舞台控制器"}
                                 onClick={() => setTheaterControlOpen((v) => !v)}
                                 className="pointer-events-auto ml-1 rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
@@ -513,6 +526,7 @@ export function Layout() {
                         >
                             <button
                                 type="button"
+                                aria-label={theaterChatOpen ? "收起舞台聊天栏" : "展开舞台聊天栏"}
                                 onClick={() => setTheaterChatOpen((v) => !v)}
                                 className="pointer-events-auto mr-1 rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
@@ -526,7 +540,7 @@ export function Layout() {
                                     type="button"
                                     onClick={() => setTheaterControlOpen(false)}
                                     className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
-                                    aria-label="close control drawer"
+                                    aria-label="关闭控制面板抽屉"
                                 >
                                     ×
                                 </button>
@@ -568,7 +582,7 @@ export function Layout() {
                                     type="button"
                                     onClick={() => setTheaterChatOpen(false)}
                                     className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
-                                    aria-label="close chat drawer"
+                                    aria-label="关闭舞台聊天栏"
                                 >
                                     ×
                                 </button>

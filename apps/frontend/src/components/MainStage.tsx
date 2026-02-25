@@ -570,6 +570,7 @@ function StageScene({
                     {pinnedIdentity ? (
                         <button
                             type="button"
+                            aria-label="取消固定舞台焦点成员"
                             onClick={() => setPinnedIdentity(null)}
                             className="inline-flex items-center gap-1 rounded-chip border border-gold/55 bg-ink/6 px-2.5 py-1 text-gold transition-colors ease-mucha"
                             title="取消固定"
@@ -594,21 +595,23 @@ function StageScene({
                                 <div className="mt-2 flex items-center gap-1.5">
                                     <button
                                         type="button"
+                                        aria-label="批准该舞台请求"
                                         onClick={() => {
                                             void decideStageAccess(request, true);
                                         }}
                                         className="rounded-chip border border-teal/40 bg-teal/15 px-2 py-1 text-[11px] text-teal hover:bg-teal/25"
                                     >
-                                        allow
+                                        批准
                                     </button>
                                     <button
                                         type="button"
+                                        aria-label="拒绝该舞台请求"
                                         onClick={() => {
                                             void decideStageAccess(request, false);
                                         }}
                                         className="rounded-chip border border-coral/40 bg-coral/15 px-2 py-1 text-[11px] text-coral hover:bg-coral/25"
                                     >
-                                        deny
+                                        拒绝
                                     </button>
                                 </div>
                             </div>
@@ -626,6 +629,7 @@ function StageScene({
                             <button
                                 key={`${identity}:${trackRef.publication.trackSid}`}
                                 type="button"
+                                aria-label={pinned ? `取消固定 ${identity}` : `固定 ${identity}`}
                                 onClick={() => {
                                     setPinnedIdentity((current) => (current === identity ? null : identity));
                                 }}
@@ -650,6 +654,7 @@ function StageScene({
                         onClick={() => {
                             void toggleMic();
                         }}
+                        aria-label={micOn ? "关闭麦克风" : "开启麦克风"}
                         title="麦克风"
                     >
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
@@ -659,6 +664,11 @@ function StageScene({
                         onClick={() => {
                             void toggleCamera();
                         }}
+                        aria-label={
+                            !isHost && !stagePermission.camera && !camOn
+                                ? "申请开启摄像头"
+                                : camOn ? "关闭摄像头" : "开启摄像头"
+                        }
                         title={
                             !isHost && !stagePermission.camera && !camOn
                                 ? "申请开启摄像头"
@@ -672,6 +682,11 @@ function StageScene({
                         onClick={() => {
                             void toggleShare();
                         }}
+                        aria-label={
+                            !isHost && !stagePermission.screen_share && !shareOn
+                                ? "申请共享屏幕"
+                                : shareOn ? "关闭共享屏幕" : "开启共享屏幕"
+                        }
                         title={
                             !isHost && !stagePermission.screen_share && !shareOn
                                 ? "申请共享屏幕"
@@ -689,6 +704,9 @@ function StageScene({
                         ? "border-teal/40 bg-teal/10 text-teal"
                         : "border-coral/40 bg-coral/15 text-coral"
                         }`}
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
                 >
                     {stageNotice.text}
                 </div>
