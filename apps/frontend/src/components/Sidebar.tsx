@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
     ChevronDown,
@@ -63,6 +63,13 @@ type Props = {
     themeMode: ThemeMode;
     resolvedTheme: ResolvedTheme;
     setThemeMode: (v: ThemeMode) => void;
+};
+
+type MeetingTimelineItem = {
+    id: string;
+    at: number;
+    kind: "presence" | "audio" | "video" | "broadcast" | "moderation";
+    text: string;
 };
 
 const DIALOG_FOCUSABLE_SELECTOR =
@@ -323,6 +330,130 @@ export function Sidebar(props: Props) {
         enableBootReconnect,
     });
 
+    const [openTimeline, setOpenTimeline] = useState(true);
+    const [timelineItems, setTimelineItems] = useState<MeetingTimelineItem[]>([]);
+    const memberSnapshotRef = useRef<Map<string, { mic: boolean; camera: boolean; screen: boolean }>>(
+        new Map(),
+    );
+    const memberSnapshotReadyRef = useRef(false);
+    const lastLogIndexRef = useRef(0);
+    const lastIngressIdRef = useRef("");
+
+    const appendTimeline = (
+        kind: MeetingTimelineItem["kind"],
+        text: string,
+    ) => {
+        setTimelineItems((prev) => {
+            const next: MeetingTimelineItem = {
+                id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+                at: Date.now(),
+                kind,
+                text,
+            };
+            return [next, ...prev].slice(0, 120);
+        });
+    };
+
+    useEffect(() => {
+        if (joined) {
+            lastLogIndexRef.current = logs.length;
+            return;
+        }
+        lastLogIndexRef.current = logs.length;
+        lastIngressIdRef.current = "";
+        memberSnapshotRef.current.clear();
+        memberSnapshotReadyRef.current = false;
+        setTimelineItems([]);
+    }, [joined]);
+
+    useEffect(() => {
+        if (!joined) return;
+        const nextSnapshot = new Map<string, { mic: boolean; camera: boolean; screen: boolean }>();
+        for (const member of members) {
+            nextSnapshot.set(member.identity, {
+                mic: member.micEnabled,
+                camera: member.cameraEnabled,
+                screen: member.screenShareEnabled,
+            });
+        }
+        if (!memberSnapshotReadyRef.current) {
+            memberSnapshotRef.current = nextSnapshot;
+            memberSnapshotReadyRef.current = true;
+            return;
+        }
+
+        const prevSnapshot = memberSnapshotRef.current;
+        for (const member of members) {
+            const prev = prevSnapshot.get(member.identity);
+            if (!prev) {
+                appendTimeline("presence", `${member.identity} 加入语音`);
+                continue;
+            }
+            if (prev.mic !== member.micEnabled) {
+                appendTimeline("audio", `${member.identity}${member.micEnabled ? " 上麦" : " 静音"}`);
+            }
+            if (prev.camera !== member.cameraEnabled) {
+                appendTimeline("video", `${member.identity}${member.cameraEnabled ? " 打开摄像头" : " 关闭摄像头"}`);
+            }
+            if (prev.screen !== member.screenShareEnabled) {
+                appendTimeline("video", `${member.identity}${member.screenShareEnabled ? " 开启投屏" : " 关闭投屏"}`);
+            }
+        }
+        for (const identity of prevSnapshot.keys()) {
+            if (!nextSnapshot.has(identity)) {
+                appendTimeline("presence", `${identity} 离开语音`);
+            }
+        }
+        memberSnapshotRef.current = nextSnapshot;
+    }, [joined, members]);
+
+    useEffect(() => {
+        if (!joined) return;
+        const prev = lastIngressIdRef.current.trim();
+        const next = ingressId.trim();
+        if (!prev && next) {
+            appendTimeline("broadcast", `${userName} 开始广播`);
+        } else if (prev && !next) {
+            appendTimeline("broadcast", `${userName} 停止广播`);
+        }
+        lastIngressIdRef.current = next;
+    }, [joined, ingressId, userName]);
+
+    useEffect(() => {
+        if (!joined) return;
+        const start = lastLogIndexRef.current;
+        if (start >= logs.length) return;
+        const freshLogs = logs.slice(start);
+        lastLogIndexRef.current = logs.length;
+        for (const raw of freshLogs) {
+            const text = raw.replace(/^\[[^\]]+\]\s*/, "");
+            if (text.startsWith("mute all applied")) {
+                appendTimeline("moderation", "主持人开启全员静音");
+                continue;
+            }
+            if (text.startsWith("unmute all applied")) {
+                appendTimeline("moderation", "主持人解除全员静音");
+                continue;
+            }
+            const muteOne = text.match(/^mute\s+(.+?)\s+\(/i);
+            if (muteOne) {
+                appendTimeline("moderation", `主持人静音 ${muteOne[1]}`);
+                continue;
+            }
+            const unmuteOne = text.match(/^unmute\s+(.+?)\s+\(/i);
+            if (unmuteOne) {
+                appendTimeline("moderation", `主持人解除静音 ${unmuteOne[1]}`);
+                continue;
+            }
+            const stagePermission = text.match(/^(allow|deny)\s+(camera|screen_share)\s+(.+?)\s+\(/i);
+            if (stagePermission) {
+                const action = stagePermission[1].toLowerCase() === "allow" ? "允许" : "关闭";
+                const feature = stagePermission[2].toLowerCase() === "camera" ? "摄像头" : "投屏";
+                appendTimeline("moderation", `主持人${action} ${stagePermission[3]} 的${feature}`);
+            }
+        }
+    }, [joined, logs]);
+
     const requiresInviteCode = (requireInvite || inviteMode) && effectiveRole === "member";
     const canJoin = Boolean(roomId.trim() && userName.trim()) && (!requiresInviteCode || Boolean(inviteCode.trim() && inviteTicket.trim()));
 
@@ -343,6 +474,7 @@ export function Sidebar(props: Props) {
     const chatSectionId = `${sidebarInstanceId}-sidebar-chat-section`;
     const chatMessageListId = `${sidebarInstanceId}-sidebar-chat-message-list`;
     const logsSectionId = `${sidebarInstanceId}-sidebar-logs-section`;
+    const timelineSectionId = `${sidebarInstanceId}-sidebar-timeline-section`;
     const chatInputId = `${sidebarInstanceId}-sidebar-chat-input`;
     const membersListId = `${sidebarInstanceId}-sidebar-members-list`;
     const chatUnreadHintId = `${sidebarInstanceId}-sidebar-chat-unread-hint`;
@@ -812,6 +944,50 @@ export function Sidebar(props: Props) {
                                 </div>
                             ) : (
                                 <p className="font-mono text-xs text-ink/40">点击展开查看系统日志</p>
+                            )}
+                        </div>
+
+                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                            <button
+                                type="button"
+                                aria-label={openTimeline ? "折叠会议事件时间线" : "展开会议事件时间线"}
+                                aria-expanded={openTimeline}
+                                aria-controls={timelineSectionId}
+                                onClick={() => setOpenTimeline((v) => !v)}
+                                className="mb-2 flex w-full items-center justify-between text-left font-display text-sm font-semibold text-ink"
+                            >
+                                <span>Timeline</span>
+                                {openTimeline ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </button>
+                            {openTimeline ? (
+                                <div id={timelineSectionId} className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                                    {!timelineItems.length ? (
+                                        <p className="font-mono text-xs text-ink/40">暂无会议事件</p>
+                                    ) : (
+                                        timelineItems.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="rounded-chip border border-ink/10 bg-canvas/65 px-2 py-2 text-xs"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="inline-flex min-w-0 items-center gap-1.5 text-ink/70">
+                                                        {item.kind === "presence" ? <Users size={12} /> : null}
+                                                        {item.kind === "audio" ? <Mic size={12} /> : null}
+                                                        {item.kind === "video" ? <Image size={12} /> : null}
+                                                        {item.kind === "broadcast" ? <Radio size={12} /> : null}
+                                                        {item.kind === "moderation" ? <ShieldCheck size={12} /> : null}
+                                                        <span className="truncate">{item.text}</span>
+                                                    </div>
+                                                    <span className="shrink-0 font-mono text-[10px] text-ink/45">
+                                                        {new Date(item.at).toLocaleTimeString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="font-mono text-xs text-ink/40">点击展开查看关键事件</p>
                             )}
                         </div>
                     </section>
