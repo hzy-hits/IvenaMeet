@@ -262,9 +262,10 @@ export function createApi(baseURL: string, getters: TokenGetters) {
       try {
         const params: { limit: number; after_id?: number } = { limit };
         if (afterId && afterId > 0) params.after_id = afterId;
-        const { data } = await raw.get<ListMessagesResp>(`/rooms/${encodeURIComponent(roomId)}/messages`, {
-          params,
-        });
+        const { data } = await withAppSession.get<ListMessagesResp>(
+          `/rooms/${encodeURIComponent(roomId)}/messages`,
+          { params },
+        );
         return data;
       } catch (e) {
         toError(e);

@@ -1,18 +1,19 @@
 use crate::error::{AppError, AppResult};
 use crate::request_meta;
+use crate::services::session::SessionClaims;
 use crate::services::storage::ChatMessage;
 use crate::state::AppState;
 use crate::validation;
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     http::{HeaderMap, header::AUTHORIZATION},
     response::sse::{Event, KeepAlive, Sse},
     routing::{get, post},
 };
 use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{convert::Infallible, time::Duration};
+use std::{convert::Infallible, net::SocketAddr, time::Duration};
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tracing::{info, warn};
 
@@ -66,6 +67,14 @@ async fn list_messages(
 ) -> AppResult<Json<ListMessagesResp>> {
     let request_id = request_meta::request_id(&headers);
     let room_id = validation::room_id(&room_id)?;
+    let claims = verify_app_session_in_room(
+        &state,
+        &headers,
+        &room_id,
+        &request_id,
+        "/rooms/:room_id/messages [GET]",
+    )
+    .await?;
 
     let _room = state
         .storage_service
@@ -82,6 +91,7 @@ async fn list_messages(
     info!(
         request_id,
         route = "/rooms/:room_id/messages [GET]",
+        user_name = claims.user_name,
         limit,
         after_id = after_id.unwrap_or(0),
         result = "ok",
@@ -95,6 +105,7 @@ async fn list_messages(
 
 async fn create_message(
     State(state): State<AppState>,
+    peer: ConnectInfo<SocketAddr>,
     Path(room_id): Path<String>,
     headers: HeaderMap,
     Json(req): Json<CreateMessageReq>,
@@ -104,33 +115,33 @@ async fn create_message(
     let text = validation::message_text(&req.text)?;
     let client_id = validation::client_id(req.client_id)?;
 
+    let ip = request_meta::client_ip(&state.config.trusted_proxy_ips, &headers, peer);
+    let mut redis = state.redis.clone();
+    state
+        .rate_limit_service
+        .check(
+            &mut redis,
+            "chat_message",
+            &ip,
+            state.config.rate_limit_chat_message,
+            state.config.rate_limit_window_seconds,
+        )
+        .await?;
+
+    let claims = verify_app_session_in_room(
+        &state,
+        &headers,
+        &room_id,
+        &request_id,
+        "/rooms/:room_id/messages [POST]",
+    )
+    .await?;
+
     let _room = state
         .storage_service
         .get_room_active(room_id.clone())
         .await?
         .ok_or_else(|| AppError::BadRequest("room not active or expired".to_string()))?;
-
-    let app_session_token = bearer_from_headers(&headers)
-        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
-    let mut redis = state.redis.clone();
-    let claims = state
-        .session_service
-        .verify(&mut redis, app_session_token)
-        .await?;
-    if claims.room_id != room_id {
-        warn!(
-            request_id,
-            route = "/rooms/:room_id/messages [POST]",
-            user_name = claims.user_name,
-            token_room_id = claims.room_id,
-            path_room_id = room_id,
-            result = "denied",
-            "room mismatch for session token"
-        );
-        return Err(AppError::Unauthorized(
-            "app session does not match room".to_string(),
-        ));
-    }
 
     let profile = state
         .storage_service
@@ -152,6 +163,7 @@ async fn create_message(
         route = "/rooms/:room_id/messages [POST]",
         room_id = m.room_id,
         user_name = m.user_name,
+        ip,
         result = "ok",
         "message created"
     );
@@ -168,28 +180,14 @@ async fn stream_messages(
     let request_id = request_meta::request_id(&headers);
     let room_id = validation::room_id(&room_id)?;
     let after_id = query.after_id.filter(|v| *v > 0).unwrap_or(0);
-
-    let app_session_token = bearer_from_headers(&headers)
-        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
-    let mut redis = state.redis.clone();
-    let claims = state
-        .session_service
-        .verify(&mut redis, app_session_token)
-        .await?;
-    if claims.room_id != room_id {
-        warn!(
-            request_id,
-            route = "/rooms/:room_id/messages/stream [GET]",
-            user_name = claims.user_name,
-            token_room_id = claims.room_id,
-            path_room_id = room_id,
-            result = "denied",
-            "room mismatch for session token"
-        );
-        return Err(AppError::Unauthorized(
-            "app session does not match room".to_string(),
-        ));
-    }
+    let claims = verify_app_session_in_room(
+        &state,
+        &headers,
+        &room_id,
+        &request_id,
+        "/rooms/:room_id/messages/stream [GET]",
+    )
+    .await?;
 
     let _room = state
         .storage_service
@@ -246,6 +244,37 @@ fn bearer_from_headers(headers: &HeaderMap) -> Option<&str> {
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
+}
+
+async fn verify_app_session_in_room(
+    state: &AppState,
+    headers: &HeaderMap,
+    room_id: &str,
+    request_id: &str,
+    route: &'static str,
+) -> AppResult<SessionClaims> {
+    let app_session_token = bearer_from_headers(headers)
+        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, app_session_token)
+        .await?;
+    if claims.room_id != room_id {
+        warn!(
+            request_id,
+            route,
+            user_name = claims.user_name.as_str(),
+            token_room_id = claims.room_id.as_str(),
+            path_room_id = room_id,
+            result = "denied",
+            "room mismatch for session token"
+        );
+        return Err(AppError::Unauthorized(
+            "app session does not match room".to_string(),
+        ));
+    }
+    Ok(claims)
 }
 
 fn message_item(m: ChatMessage) -> MessageItem {

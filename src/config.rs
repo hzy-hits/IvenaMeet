@@ -32,6 +32,7 @@ pub struct Config {
     pub rate_limit_invite_redeem: u64,
     pub rate_limit_host_login_totp: u64,
     pub rate_limit_broadcast_start: u64,
+    pub rate_limit_chat_message: u64,
     pub avatar_upload_limit_per_minute: u64,
     pub avatar_upload_limit_per_day: u64,
     pub avatar_storage_quota_bytes: u64,
@@ -71,6 +72,7 @@ impl Config {
             rate_limit_invite_redeem: parse_env_u64("RATE_LIMIT_INVITE_REDEEM", 12)?,
             rate_limit_host_login_totp: parse_env_u64("RATE_LIMIT_HOST_LOGIN_TOTP", 12)?,
             rate_limit_broadcast_start: parse_env_u64("RATE_LIMIT_BROADCAST_START", 3)?,
+            rate_limit_chat_message: parse_env_u64("RATE_LIMIT_CHAT_MESSAGE", 30)?,
             avatar_upload_limit_per_minute: parse_env_u64(
                 "RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE",
                 2,
