@@ -571,6 +571,7 @@ function StageScene({
                         <button
                             type="button"
                             aria-label="取消固定舞台焦点成员"
+                            aria-pressed={Boolean(pinnedIdentity)}
                             onClick={() => setPinnedIdentity(null)}
                             className="inline-flex items-center gap-1 rounded-chip border border-gold/55 bg-ink/6 px-2.5 py-1 text-gold transition-colors ease-mucha"
                             title="取消固定"
@@ -630,6 +631,7 @@ function StageScene({
                                 key={`${identity}:${trackRef.publication.trackSid}`}
                                 type="button"
                                 aria-label={pinned ? `取消固定 ${identity}` : `固定 ${identity}`}
+                                aria-pressed={pinned}
                                 onClick={() => {
                                     setPinnedIdentity((current) => (current === identity ? null : identity));
                                 }}
@@ -650,17 +652,18 @@ function StageScene({
             <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-ink/10 bg-white/12 backdrop-blur-md p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-white/60 hover:mucha-panel"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleMic();
                         }}
                         aria-label={micOn ? "关闭麦克风" : "开启麦克风"}
+                        aria-pressed={micOn}
                         title="麦克风"
                     >
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                     </button>
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-ink/8" : "text-white/60 hover:mucha-panel"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-ink/8" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleCamera();
                         }}
@@ -669,6 +672,7 @@ function StageScene({
                                 ? "申请开启摄像头"
                                 : camOn ? "关闭摄像头" : "开启摄像头"
                         }
+                        aria-pressed={camOn}
                         title={
                             !isHost && !stagePermission.camera && !camOn
                                 ? "申请开启摄像头"
@@ -678,7 +682,7 @@ function StageScene({
                         {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
                     </button>
                     <button
-                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-ink/8" : "text-white/60 hover:mucha-panel"}`}
+                        className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-ink/8" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleShare();
                         }}
@@ -687,6 +691,7 @@ function StageScene({
                                 ? "申请共享屏幕"
                                 : shareOn ? "关闭共享屏幕" : "开启共享屏幕"
                         }
+                        aria-pressed={shareOn}
                         title={
                             !isHost && !stagePermission.screen_share && !shareOn
                                 ? "申请共享屏幕"

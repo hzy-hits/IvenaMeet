@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import type { JoinResp, MessageItem } from "../lib/types";
 import { messageTailKey } from "../lib/chat";
@@ -33,6 +33,10 @@ export function ChatPanel({
     const [sending, setSending] = useState(false);
     const [actionError, setActionError] = useState("");
     const [pendingHints, setPendingHints] = useState(0);
+    const panelId = useId();
+    const chatInputId = `${panelId}-chat-input`;
+    const chatListId = `${panelId}-chat-list`;
+    const chatUnreadHintId = `${panelId}-chat-unread-hint`;
 
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const autoScrollRef = useRef(true);
@@ -136,6 +140,9 @@ export function ChatPanel({
                         <div
                             ref={chatScrollRef}
                             onScroll={onScroll}
+                            id={chatListId}
+                            role="log"
+                            aria-live="polite"
                             className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
                         >
                             {!messages.length ? (
@@ -153,25 +160,35 @@ export function ChatPanel({
                                 ))
                             )}
                         </div>
+                        <span id={chatUnreadHintId} className="sr-only">
+                            {pendingHints > 0 ? `${pendingHints > 1 ? `${pendingHints} 条未读消息` : "1 条未读消息"}` : "当前无未读消息"}
+                        </span>
                         {pendingHints > 0 ? (
-                            <button
-                                type="button"
-                                aria-label={pendingHints > 1 ? `${pendingHints} 条未读消息，回到最新` : "1 条未读消息，回到最新"}
-                                onClick={() => scrollToBottom("smooth")}
-                                className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-chip border border-gold/50 bg-parchment/90 px-3 py-1 font-body text-xs font-medium text-gold shadow-gold-glow backdrop-blur-md"
-                            >
-                                {pendingHints > 1 ? `${pendingHints} 条新消息` : "1 条新消息"}，点击查看
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    aria-label={pendingHints > 1 ? `${pendingHints} 条未读消息，点击回到最新` : "1 条未读消息，点击回到最新"}
+                                    onClick={() => scrollToBottom("smooth")}
+                                    aria-controls={chatListId}
+                                    aria-describedby={chatUnreadHintId}
+                                    className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-chip border border-gold/50 bg-parchment/90 px-3 py-1 font-body text-xs font-medium text-gold shadow-gold-glow backdrop-blur-md"
+                                >
+                                    {pendingHints > 1 ? `${pendingHints} 条新消息` : "1 条新消息"}，点击查看
+                                </button>
+                            </>
                         ) : null}
                     </div>
 
                     {/* Input Console */}
                     <div className="mt-2 flex items-center gap-2 rounded-panel mucha-contour mucha-panel p-1.5">
+                        <label htmlFor={chatInputId} className="sr-only">输入聊天消息</label>
                         <input
+                            id={chatInputId}
                             value={chatText}
                             onChange={(e) => setChatText(e.target.value)}
                             placeholder="输入消息，按 Enter 发送"
                             aria-label="输入聊天消息"
+                            aria-describedby={chatUnreadHintId}
                             onKeyDown={(e) => {
                                 const keyboard = e.nativeEvent as KeyboardEvent;
                                 if (e.key === "Enter" && !e.shiftKey && !keyboard.isComposing) {
@@ -184,6 +201,7 @@ export function ChatPanel({
                         <button
                             type="button"
                             aria-label={chatText.trim() ? "发送聊天消息" : "请输入聊天内容后发送"}
+                            aria-describedby={chatUnreadHintId}
                             onClick={() => void send()}
                             disabled={sending || !chatText.trim()}
                             aria-busy={sending}

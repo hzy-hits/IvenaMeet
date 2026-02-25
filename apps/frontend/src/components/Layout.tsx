@@ -424,6 +424,7 @@ export function Layout() {
                                 <button
                                     type="button"
                                     aria-label={chatDominant ? "退出聊天聚焦布局" : "开启聊天聚焦布局"}
+                                    aria-pressed={chatDominant}
                                     onClick={() => {
                                         void toggleChatFocusLayout();
                                     }}
@@ -438,6 +439,9 @@ export function Layout() {
                             {joined && hasVisualMedia ? (
                                 <button
                                     type="button"
+                                    aria-pressed={isHostView || localScreenShareActive
+                                        ? inTheaterMode
+                                        : isFullscreen}
                                     aria-label={isHostView || localScreenShareActive
                                         ? inTheaterMode
                                             ? "退出舞台聚焦"
@@ -514,6 +518,7 @@ export function Layout() {
                             <button
                                 type="button"
                                 aria-label={theaterControlOpen ? "收起舞台控制器" : "展开舞台控制器"}
+                                aria-pressed={theaterControlOpen}
                                 onClick={() => setTheaterControlOpen((v) => !v)}
                                 className="pointer-events-auto ml-1 rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
@@ -527,6 +532,7 @@ export function Layout() {
                             <button
                                 type="button"
                                 aria-label={theaterChatOpen ? "收起舞台聊天栏" : "展开舞台聊天栏"}
+                                aria-pressed={theaterChatOpen}
                                 onClick={() => setTheaterChatOpen((v) => !v)}
                                 className="pointer-events-auto mr-1 rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
