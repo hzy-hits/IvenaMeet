@@ -14,7 +14,8 @@ use axum::{
 use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{convert::Infallible, net::SocketAddr, time::Duration};
-use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
+use tokio::sync::broadcast::error::RecvError;
+use tokio::time::MissedTickBehavior;
 use tracing::{info, warn};
 
 pub fn router() -> Router<AppState> {
@@ -33,6 +34,17 @@ struct ListQuery {
 #[derive(Debug, Deserialize)]
 struct StreamQuery {
     after_id: Option<i64>,
+}
+
+struct LiveStreamState {
+    state: AppState,
+    room_id: String,
+    request_id: String,
+    route: &'static str,
+    after_id: i64,
+    app_session_token: String,
+    rx: tokio::sync::broadcast::Receiver<ChatMessage>,
+    auth_check_interval: tokio::time::Interval,
 }
 
 #[derive(Debug, Serialize)]
@@ -177,17 +189,34 @@ async fn stream_messages(
     headers: HeaderMap,
     Query(query): Query<StreamQuery>,
 ) -> AppResult<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>>> {
+    const STREAM_ROUTE: &str = "/rooms/:room_id/messages/stream [GET]";
+
     let request_id = request_meta::request_id(&headers);
     let room_id = validation::room_id(&room_id)?;
     let after_id = query.after_id.filter(|v| *v > 0).unwrap_or(0);
-    let claims = verify_app_session_in_room(
-        &state,
-        &headers,
-        &room_id,
-        &request_id,
-        "/rooms/:room_id/messages/stream [GET]",
-    )
-    .await?;
+
+    let app_session_token = bearer_from_headers(&headers)
+        .ok_or_else(|| AppError::Unauthorized("missing app session token".to_string()))?;
+    let app_session_token = app_session_token.to_string();
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, &app_session_token)
+        .await?;
+    if claims.room_id != room_id {
+        warn!(
+            request_id,
+            route = STREAM_ROUTE,
+            user_name = claims.user_name,
+            token_room_id = claims.room_id,
+            path_room_id = room_id,
+            result = "denied",
+            "room mismatch for session token"
+        );
+        return Err(AppError::Unauthorized(
+            "app session does not match room".to_string(),
+        ));
+    }
 
     let _room = state
         .storage_service
@@ -205,26 +234,99 @@ async fn stream_messages(
             .map(|m| Ok::<Event, Infallible>(message_event(m))),
     );
 
-    let room_for_live = room_id.clone();
-    let rx = state.chat_bus.subscribe();
-    let live = BroadcastStream::new(rx).filter_map(move |next| {
-        let room_for_live = room_for_live.clone();
-        async move {
-            match next {
-                Ok(m) if m.room_id == room_for_live && m.id > after_id => {
-                    Some(Ok::<Event, Infallible>(message_event(m)))
+    let mut auth_check_interval = tokio::time::interval(Duration::from_secs(10));
+    auth_check_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let live = futures_util::stream::unfold(
+        LiveStreamState {
+            state: state.clone(),
+            room_id: room_id.clone(),
+            request_id: request_id.clone(),
+            route: STREAM_ROUTE,
+            after_id,
+            app_session_token,
+            rx: state.chat_bus.subscribe(),
+            auth_check_interval,
+        },
+        |mut live_state| async move {
+            loop {
+                tokio::select! {
+                    _ = live_state.auth_check_interval.tick() => {
+                        if let Err(err) = ensure_stream_session_active(
+                            &live_state.state,
+                            &live_state.app_session_token,
+                            &live_state.room_id,
+                        ).await {
+                            warn!(
+                                request_id = live_state.request_id.as_str(),
+                                route = live_state.route,
+                                room_id = live_state.room_id.as_str(),
+                                error = %err,
+                                result = "closed",
+                                "message stream closed due invalid app session"
+                            );
+                            return None;
+                        }
+                    }
+                    next = live_state.rx.recv() => match next {
+                        Ok(m)
+                            if m.room_id.as_str() == live_state.room_id.as_str()
+                                && m.id > live_state.after_id =>
+                        {
+                            if let Err(err) = ensure_stream_session_active(
+                                &live_state.state,
+                                &live_state.app_session_token,
+                                &live_state.room_id,
+                            )
+                            .await
+                            {
+                                warn!(
+                                    request_id = live_state.request_id.as_str(),
+                                    route = live_state.route,
+                                    room_id = live_state.room_id.as_str(),
+                                    error = %err,
+                                    result = "closed",
+                                    "message stream closed due invalid app session"
+                                );
+                                return None;
+                            }
+                            return Some((Ok::<Event, Infallible>(message_event(m)), live_state));
+                        }
+                        Ok(_) => {}
+                        Err(RecvError::Lagged(skipped)) => {
+                            if let Err(err) = ensure_stream_session_active(
+                                &live_state.state,
+                                &live_state.app_session_token,
+                                &live_state.room_id,
+                            )
+                            .await
+                            {
+                                warn!(
+                                    request_id = live_state.request_id.as_str(),
+                                    route = live_state.route,
+                                    room_id = live_state.room_id.as_str(),
+                                    error = %err,
+                                    result = "closed",
+                                    "message stream closed due invalid app session"
+                                );
+                                return None;
+                            }
+                            return Some((
+                                Ok::<Event, Infallible>(
+                                    Event::default().event("lagged").data(skipped.to_string()),
+                                ),
+                                live_state,
+                            ));
+                        }
+                        Err(RecvError::Closed) => return None,
+                    },
                 }
-                Ok(_) => None,
-                Err(BroadcastStreamRecvError::Lagged(skipped)) => Some(Ok::<Event, Infallible>(
-                    Event::default().event("lagged").data(skipped.to_string()),
-                )),
             }
-        }
-    });
+        },
+    );
 
     info!(
         request_id,
-        route = "/rooms/:room_id/messages/stream [GET]",
+        route = STREAM_ROUTE,
         room_id,
         user_name = claims.user_name,
         after_id,
@@ -275,6 +377,24 @@ async fn verify_app_session_in_room(
         ));
     }
     Ok(claims)
+}
+
+async fn ensure_stream_session_active(
+    state: &AppState,
+    app_session_token: &str,
+    room_id: &str,
+) -> AppResult<()> {
+    let mut redis = state.redis.clone();
+    let claims = state
+        .session_service
+        .verify(&mut redis, app_session_token)
+        .await?;
+    if claims.room_id != room_id {
+        return Err(AppError::Unauthorized(
+            "app session does not match room".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn message_item(m: ChatMessage) -> MessageItem {
