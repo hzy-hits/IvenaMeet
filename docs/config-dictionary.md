@@ -35,6 +35,7 @@ This file is the single reference for runtime config in this repo.
 | `RATE_LIMIT_INVITE_REDEEM` | `12` | Max invite redeem/login attempts per window per IP | `8-12` |
 | `RATE_LIMIT_HOST_LOGIN_TOTP` | `12` | Max host TOTP login attempts per window per IP | `6-12` |
 | `RATE_LIMIT_BROADCAST_START` | `3` | Max broadcast starts per window per IP | `3` |
+| `RATE_LIMIT_CHAT_MESSAGE` | `30` | Max chat messages created per window per IP | `20-40` |
 | `TRUSTED_PROXY_IPS` | `127.0.0.1,192.168.1.20` (example) | Only these peer IPs may provide trusted forwarded IP headers | List only your reverse proxies |
 | `RUST_LOG` | `info` | Log level/filter | `info` or `warn` for production |
 
