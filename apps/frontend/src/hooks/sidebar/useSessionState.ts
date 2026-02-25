@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SESSION_HEARTBEAT_MS,
   SESSION_REFRESH_BEFORE_SECONDS,
@@ -32,6 +32,8 @@ type Params = {
   enableBootReconnect: boolean;
 };
 
+export type SessionConnectionStatus = "connected" | "reconnecting" | "disconnected";
+
 export function useSessionState({
   api,
   joined,
@@ -48,9 +50,17 @@ export function useSessionState({
   pushLog,
   enableBootReconnect,
 }: Params) {
+  const [sessionConnectionStatus, setSessionConnectionStatus] =
+    useState<SessionConnectionStatus>("disconnected");
+  const [sessionReconnectInSeconds, setSessionReconnectInSeconds] = useState(0);
   const initialReconnectChecked = useRef(false);
+  const refreshErrorLoggedRef = useRef(false);
   const heartbeatErrorLoggedRef = useRef(false);
   const reconnectInFlightRef = useRef(false);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectTickRef = useRef<number | null>(null);
+  const joinedSnapshotRef = useRef<JoinResp | null>(joined);
+  const sessionConnectionStatusRef = useRef<SessionConnectionStatus>("disconnected");
   const shouldReconnectOnBoot = useRef(
     Boolean(
       enableBootReconnect
@@ -58,6 +68,132 @@ export function useSessionState({
       && localStorage.getItem(LS_KEYS.appSessionToken),
     ),
   );
+
+  const applySessionConnectionStatus = useCallback((next: SessionConnectionStatus) => {
+    sessionConnectionStatusRef.current = next;
+    setSessionConnectionStatus(next);
+  }, []);
+
+  const clearReconnectTimers = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    if (reconnectTickRef.current) {
+      window.clearInterval(reconnectTickRef.current);
+      reconnectTickRef.current = null;
+    }
+    setSessionReconnectInSeconds(0);
+  }, []);
+
+  const rejoinSession = useCallback(() => {
+    clearReconnectTimers();
+    applySessionConnectionStatus("disconnected");
+    clearClientState({ clearHostTotp: isHost, clearMessages: true });
+    setMessages([]);
+    showActionNotice("error", "会话不可用，请重新加入房间");
+  }, [
+    applySessionConnectionStatus,
+    clearClientState,
+    clearReconnectTimers,
+    isHost,
+    setMessages,
+    showActionNotice,
+  ]);
+
+  const attemptSessionReconnect = useCallback(
+    async (reason: "boot" | "refresh" | "heartbeat" | "manual") => {
+      if (!joinedSnapshotRef.current || !appSessionToken || reconnectInFlightRef.current) return;
+      reconnectInFlightRef.current = true;
+      clearReconnectTimers();
+      applySessionConnectionStatus("reconnecting");
+      const restored = joinedSnapshotRef.current;
+      try {
+        const res = await api.reconnectRoom();
+        setJoined({ ...restored, ...res });
+        refreshErrorLoggedRef.current = false;
+        heartbeatErrorLoggedRef.current = false;
+        applySessionConnectionStatus("connected");
+        if (reason !== "boot") {
+          pushLog(`session recovered (${reason})`);
+          showActionNotice("ok", "连接已恢复");
+        }
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : String(e);
+        pushLog(`session reconnect failed: ${detail}`);
+        applySessionConnectionStatus("disconnected");
+        if (/invalid or expired app session/i.test(detail)) {
+          rejoinSession();
+          return;
+        }
+        showActionNotice("error", "连接恢复失败，请重新连接或重新加入");
+      } finally {
+        reconnectInFlightRef.current = false;
+      }
+    },
+    [
+      api,
+      appSessionToken,
+      applySessionConnectionStatus,
+      clearReconnectTimers,
+      pushLog,
+      rejoinSession,
+      setJoined,
+      showActionNotice,
+    ],
+  );
+
+  const scheduleSessionReconnect = useCallback(
+    (delaySeconds: number, reason: "refresh" | "heartbeat") => {
+      if (!joinedSnapshotRef.current || !appSessionToken || reconnectInFlightRef.current) return;
+      if (reconnectTimerRef.current || reconnectTickRef.current) return;
+      applySessionConnectionStatus("reconnecting");
+      setSessionReconnectInSeconds(delaySeconds);
+      reconnectTickRef.current = window.setInterval(() => {
+        setSessionReconnectInSeconds((prev) => {
+          if (prev <= 1) {
+            if (reconnectTickRef.current) {
+              window.clearInterval(reconnectTickRef.current);
+              reconnectTickRef.current = null;
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        void attemptSessionReconnect(reason);
+      }, delaySeconds * 1000);
+    },
+    [appSessionToken, applySessionConnectionStatus, attemptSessionReconnect],
+  );
+
+  const retrySessionRecovery = useCallback(() => {
+    clearReconnectTimers();
+    void attemptSessionReconnect("manual");
+  }, [attemptSessionReconnect, clearReconnectTimers]);
+
+  useEffect(() => {
+    joinedSnapshotRef.current = joined;
+    if (joined && appSessionToken) {
+      if (sessionConnectionStatusRef.current === "disconnected") {
+        applySessionConnectionStatus("connected");
+      }
+      return;
+    }
+    clearReconnectTimers();
+    applySessionConnectionStatus("disconnected");
+    refreshErrorLoggedRef.current = false;
+    heartbeatErrorLoggedRef.current = false;
+  }, [
+    appSessionToken,
+    applySessionConnectionStatus,
+    clearReconnectTimers,
+    joined,
+  ]);
+
+  useEffect(() => () => clearReconnectTimers(), [clearReconnectTimers]);
 
   useEffect(() => {
     if (initialReconnectChecked.current) return;
@@ -69,15 +205,18 @@ export function useSessionState({
     initialReconnectChecked.current = true;
     reconnectInFlightRef.current = true;
     bootReconnectAttempted = true;
+    applySessionConnectionStatus("reconnecting");
     const restored = joined;
 
     void api
       .reconnectRoom()
       .then((res) => {
         setJoined({ ...restored, ...res });
+        applySessionConnectionStatus("connected");
         pushLog("session restored after refresh");
       })
       .catch((e) => {
+        applySessionConnectionStatus("disconnected");
         clearClientState({ clearHostTotp: false, clearMessages: true });
         setMessages([]);
         pushLog(`session restore failed: ${String(e)}`);
@@ -86,7 +225,16 @@ export function useSessionState({
       .finally(() => {
         reconnectInFlightRef.current = false;
       });
-  }, [joined, api, setJoined, clearClientState, setMessages, pushLog, showActionNotice]);
+  }, [
+    api,
+    applySessionConnectionStatus,
+    clearClientState,
+    joined,
+    pushLog,
+    setJoined,
+    setMessages,
+    showActionNotice,
+  ]);
 
   useEffect(() => {
     if (!joined || !sessionExpireAt) return;
@@ -97,13 +245,33 @@ export function useSessionState({
           .refreshSession()
           .then((res) => {
             setSessionExpireAt(now + res.app_session_expires_in_seconds);
+            refreshErrorLoggedRef.current = false;
+            clearReconnectTimers();
+            applySessionConnectionStatus("connected");
             pushLog("app session refreshed");
           })
-          .catch((e) => pushLog(`session refresh failed: ${String(e)}`));
+          .catch((e) => {
+            if (!refreshErrorLoggedRef.current) {
+              refreshErrorLoggedRef.current = true;
+              pushLog(`session refresh failed: ${String(e)}`);
+              showActionNotice("error", "会话续期失败，正在重连");
+            }
+            scheduleSessionReconnect(3, "refresh");
+          });
       }
     }, SESSION_REFRESH_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [joined, sessionExpireAt, api, setSessionExpireAt, pushLog]);
+  }, [
+    api,
+    applySessionConnectionStatus,
+    clearReconnectTimers,
+    joined,
+    pushLog,
+    scheduleSessionReconnect,
+    sessionExpireAt,
+    setSessionExpireAt,
+    showActionNotice,
+  ]);
 
   useEffect(() => {
     if (!joined || !appSessionToken) return;
@@ -111,16 +279,29 @@ export function useSessionState({
       void api
         .heartbeatSession()
         .then(() => {
+          clearReconnectTimers();
+          applySessionConnectionStatus("connected");
           heartbeatErrorLoggedRef.current = false;
         })
         .catch((e) => {
           if (heartbeatErrorLoggedRef.current) return;
           heartbeatErrorLoggedRef.current = true;
           pushLog(`session heartbeat failed: ${e instanceof Error ? e.message : String(e)}`);
+          showActionNotice("error", "连接异常，正在尝试恢复");
+          scheduleSessionReconnect(3, "heartbeat");
         });
     }, SESSION_HEARTBEAT_MS);
     return () => window.clearInterval(timer);
-  }, [joined, appSessionToken, api, pushLog]);
+  }, [
+    api,
+    appSessionToken,
+    applySessionConnectionStatus,
+    clearReconnectTimers,
+    joined,
+    pushLog,
+    scheduleSessionReconnect,
+    showActionNotice,
+  ]);
 
   useEffect(() => {
     if (!joined || !isHost || !hostSessionExpireAt) return;
@@ -137,13 +318,16 @@ export function useSessionState({
             clearClientState({ clearHostTotp: true, clearMessages: true });
             setHostSessionExpireAt(0);
             setSessionExpireAt(0);
+            applySessionConnectionStatus("disconnected");
             pushLog(`host session refresh failed: ${String(e)}`);
             pushLog("主持权限已过期，请重新输入 TOTP");
+            showActionNotice("error", "主持会话已过期，请重新加入并验证");
           });
       }
     }, SESSION_REFRESH_POLL_MS);
     return () => window.clearInterval(timer);
   }, [
+    applySessionConnectionStatus,
     joined,
     isHost,
     hostSessionExpireAt,
@@ -152,5 +336,13 @@ export function useSessionState({
     setHostSessionExpireAt,
     setSessionExpireAt,
     pushLog,
+    showActionNotice,
   ]);
+
+  return {
+    sessionConnectionStatus,
+    sessionReconnectInSeconds,
+    retrySessionRecovery,
+    rejoinSession,
+  };
 }

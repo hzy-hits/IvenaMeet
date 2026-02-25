@@ -306,7 +306,12 @@ export function Sidebar(props: Props) {
         },
     });
 
-    useSessionState({
+    const {
+        sessionConnectionStatus,
+        sessionReconnectInSeconds,
+        retrySessionRecovery,
+        rejoinSession,
+    } = useSessionState({
         api,
         joined,
         appSessionToken,
@@ -517,6 +522,53 @@ export function Sidebar(props: Props) {
                                 }`}
                         >
                             {actionNotice.text}
+                        </section>
+                    ) : null}
+
+                    {joined ? (
+                        <section
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            className={`rounded-panel border px-3 py-2 ${sessionConnectionStatus === "connected"
+                                ? "border-teal/35 bg-teal/10 text-teal"
+                                : sessionConnectionStatus === "reconnecting"
+                                    ? "border-gold/45 bg-gold/10 text-gold"
+                                    : "border-coral/40 bg-coral/12 text-coral"
+                                }`}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="font-mono text-xs">
+                                    连接状态
+                                </p>
+                                <span className="font-mono text-xs">
+                                    {sessionConnectionStatus === "connected"
+                                        ? "已连接"
+                                        : sessionConnectionStatus === "reconnecting"
+                                            ? `重连中${sessionReconnectInSeconds > 0 ? ` (${sessionReconnectInSeconds}s)` : ""}`
+                                            : "已断开"}
+                                </span>
+                            </div>
+                            {sessionConnectionStatus !== "connected" ? (
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        aria-label="立即尝试恢复连接"
+                                        onClick={retrySessionRecovery}
+                                        className="rounded-chip border border-ink/15 bg-canvas/70 px-2 py-1.5 text-xs text-ink/75 transition-colors ease-mucha hover:border-ink/12"
+                                    >
+                                        重新连接
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label={isHost ? "重新加入并重新验证主持身份" : "重新加入房间"}
+                                        onClick={rejoinSession}
+                                        className="rounded-chip border border-coral/40 bg-coral/12 px-2 py-1.5 text-xs text-coral transition-colors ease-mucha hover:bg-coral/18"
+                                    >
+                                        重新加入
+                                    </button>
+                                </div>
+                            ) : null}
                         </section>
                     ) : null}
 
