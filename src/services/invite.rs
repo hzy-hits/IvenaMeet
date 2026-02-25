@@ -1,6 +1,7 @@
 use crate::error::{AppError, AppResult};
 use redis::{AsyncCommands, Script, aio::ConnectionLike};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct InviteService {
@@ -50,6 +51,18 @@ impl InviteService {
             .query_async(conn)
             .await
             .map_err(|e| AppError::Redis(e.to_string()))?;
+        let _: () = redis::cmd("SADD")
+            .arg(self.room_tickets_key(room_id))
+            .arg(&ticket)
+            .query_async(conn)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        let _: () = redis::cmd("EXPIRE")
+            .arg(self.room_tickets_key(room_id))
+            .arg(self.ttl_seconds)
+            .query_async(conn)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
 
         Ok(IssuedInvite {
             invite_ticket: ticket,
@@ -75,9 +88,12 @@ impl InviteService {
         let script = Script::new(
             r#"
 local key = KEYS[1]
+local room_set_key = KEYS[2]
 local want_room = ARGV[1]
 local want_code = ARGV[2]
+local ticket = ARGV[3]
 if redis.call("EXISTS", key) == 0 then
+  redis.call("SREM", room_set_key, ticket)
   return {0, 0}
 end
 local key_type = redis.call("TYPE", key)
@@ -87,6 +103,7 @@ if type(key_type) == "table" then
 end
 if key_type_name ~= "hash" then
   redis.call("DEL", key)
+  redis.call("SREM", room_set_key, ticket)
   return {0, 0}
 end
 local room = redis.call("HGET", key, "room_id")
@@ -100,11 +117,13 @@ if code ~= want_code then
 end
 if remaining <= 0 then
   redis.call("DEL", key)
+  redis.call("SREM", room_set_key, ticket)
   return {0, 0}
 end
 remaining = remaining - 1
 if remaining <= 0 then
   redis.call("DEL", key)
+  redis.call("SREM", room_set_key, ticket)
 else
   redis.call("HSET", key, "remaining_uses", tostring(remaining))
 end
@@ -113,8 +132,10 @@ return {1, remaining}
         );
         let (status, remaining_after): (i64, i64) = script
             .key(&key)
+            .key(self.room_tickets_key(room_id))
             .arg(room_id)
             .arg(code)
+            .arg(ticket)
             .invoke_async(conn)
             .await
             .map_err(|e| AppError::Redis(e.to_string()))?;
@@ -145,6 +166,103 @@ return {1, remaining}
             redeem_token,
             remaining_uses: remaining_after.max(0) as u64,
         })
+    }
+
+    pub async fn list_tickets<C>(&self, conn: &mut C, room_id: &str) -> AppResult<Vec<InviteTicketInfo>>
+    where
+        C: AsyncCommands + ConnectionLike + Send,
+    {
+        let set_key = self.room_tickets_key(room_id);
+        let tickets: Vec<String> = conn
+            .smembers(&set_key)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        let mut items = Vec::new();
+
+        for ticket in tickets {
+            let key = self.ticket_key(&ticket);
+            let exists: bool = conn
+                .exists(&key)
+                .await
+                .map_err(|e| AppError::Redis(e.to_string()))?;
+            if !exists {
+                let _: i64 = conn
+                    .srem(&set_key, &ticket)
+                    .await
+                    .map_err(|e| AppError::Redis(e.to_string()))?;
+                continue;
+            }
+
+            let raw: HashMap<String, String> = redis::cmd("HGETALL")
+                .arg(&key)
+                .query_async(conn)
+                .await
+                .map_err(|e| AppError::Redis(e.to_string()))?;
+            if raw.is_empty() {
+                let _: i64 = conn
+                    .srem(&set_key, &ticket)
+                    .await
+                    .map_err(|e| AppError::Redis(e.to_string()))?;
+                continue;
+            }
+            if raw.get("room_id").map(String::as_str) != Some(room_id) {
+                continue;
+            }
+
+            let invite_code = raw.get("invite_code").cloned().unwrap_or_default();
+            let remaining_uses = raw
+                .get("remaining_uses")
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0);
+            let ttl_seconds: i64 = conn
+                .ttl(&key)
+                .await
+                .map_err(|e| AppError::Redis(e.to_string()))?;
+            items.push(InviteTicketInfo {
+                invite_ticket: ticket,
+                invite_code,
+                remaining_uses,
+                expires_in_seconds: ttl_seconds.max(0) as u64,
+            });
+        }
+        items.sort_by(|a, b| a.expires_in_seconds.cmp(&b.expires_in_seconds));
+        Ok(items)
+    }
+
+    pub async fn revoke_ticket<C>(
+        &self,
+        conn: &mut C,
+        room_id: &str,
+        ticket: &str,
+    ) -> AppResult<bool>
+    where
+        C: AsyncCommands + ConnectionLike + Send,
+    {
+        let key = self.ticket_key(ticket);
+        let room: Option<String> = conn
+            .hget(&key, "room_id")
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        let Some(room) = room else {
+            let _: i64 = conn
+                .srem(self.room_tickets_key(room_id), ticket)
+                .await
+                .map_err(|e| AppError::Redis(e.to_string()))?;
+            return Ok(false);
+        };
+        if room != room_id {
+            return Err(AppError::BadRequest("ticket room mismatch".to_string()));
+        }
+
+        let deleted: i64 = conn
+            .del(&key)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        let _: i64 = conn
+            .srem(self.room_tickets_key(room_id), ticket)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        Ok(deleted > 0)
     }
 
     pub async fn consume_redeem<C>(
@@ -225,6 +343,10 @@ return {1, remaining}
         format!("{}:ticket:{}", self.prefix, ticket)
     }
 
+    fn room_tickets_key(&self, room_id: &str) -> String {
+        format!("{}:room:{}:tickets", self.prefix, room_id)
+    }
+
     fn redeem_key(&self, redeem_token: &str) -> String {
         format!("{}:redeem:{}", self.prefix, redeem_token)
     }
@@ -258,4 +380,12 @@ pub struct IssuedInvite {
 pub struct RedeemTicketResult {
     pub redeem_token: String,
     pub remaining_uses: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InviteTicketInfo {
+    pub invite_ticket: String,
+    pub invite_code: String,
+    pub remaining_uses: u64,
+    pub expires_in_seconds: u64,
 }
