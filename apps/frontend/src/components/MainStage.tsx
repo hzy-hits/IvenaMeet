@@ -652,6 +652,7 @@ function StageScene({
             <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-panel border border-ink/10 bg-white/12 backdrop-blur-md p-1.5 shadow-mucha backdrop-blur-md">
                 <div className="flex items-center gap-1">
                     <button
+                        type="button"
                         className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${micOn ? "text-teal bg-teal/15" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleMic();
@@ -663,6 +664,7 @@ function StageScene({
                         {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                     </button>
                     <button
+                        type="button"
                         className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${camOn ? "text-gold bg-ink/8" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleCamera();
@@ -682,6 +684,7 @@ function StageScene({
                         {camOn ? <Camera size={18} /> : <CameraOff size={18} />}
                     </button>
                     <button
+                        type="button"
                         className={`press-feedback rounded-chip p-2 transition-colors ease-mucha ${shareOn ? "text-gold bg-ink/8" : "text-white/85 hover:mucha-panel"}`}
                         onClick={() => {
                             void toggleShare();
