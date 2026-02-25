@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type MutableRefObject, typ
 import { INVITE_COPY_HINT_MS } from "../../lib/env";
 import { saveCachedAvatar } from "../../lib/avatar";
 import type { AvatarStatus } from "./useAvatarState";
-import type { JoinResp, MessageItem, Role, StageFeature } from "../../lib/types";
+import type { InviteListItem, JoinResp, MessageItem, Role, StageFeature } from "../../lib/types";
 
 type ApiClient = ReturnType<typeof import("../../lib/api").createApi>;
 
@@ -119,6 +119,8 @@ export function useRoomState({
   const [showReclaimCta, setShowReclaimCta] = useState(false);
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
   const [hostEntryUnlocked, setHostEntryUnlocked] = useState(false);
+  const [inviteItems, setInviteItems] = useState<InviteListItem[]>([]);
+  const [inviteListLoading, setInviteListLoading] = useState(false);
 
   const inviteMode = Boolean(inviteTicket);
   const effectiveRole: Role = hostEntryUnlocked ? "host" : inviteMode ? "member" : role;
@@ -197,6 +199,37 @@ export function useRoomState({
     };
   }, [api, joined, roomId, userName, pushLog]);
 
+  useEffect(() => {
+    if (!joined || joined.role !== "host") {
+      setInviteItems([]);
+      setInviteListLoading(false);
+      return;
+    }
+    const room = roomId.trim();
+    const host = userName.trim();
+    if (!room || !host) return;
+
+    let cancelled = false;
+    setInviteListLoading(true);
+    void api
+      .listInvites(room, host)
+      .then((res) => {
+        if (cancelled) return;
+        setInviteItems(res.items);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        pushLog(`invite list load failed: ${errorText(e)}`);
+      })
+      .finally(() => {
+        if (!cancelled) setInviteListLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, joined, roomId, userName, pushLog]);
+
   const clearClientState = (options?: { clearHostTotp?: boolean; clearMessages?: boolean }) => {
     setJoined(null);
     setAppSessionToken("");
@@ -210,6 +243,8 @@ export function useRoomState({
     setIngressId("");
     setWhipUrl("");
     setStreamKey("");
+    setInviteItems([]);
+    setInviteListLoading(false);
     setShowBroadcastModal(false);
     if (options?.clearMessages ?? true) {
       setMessages([]);
@@ -427,6 +462,45 @@ export function useRoomState({
     pushLog("invite issued and copied");
     pushLog(`switched to host room url: ${hostRoomUrl}`);
     showActionNotice("ok", "已复制微信群邀请文案");
+    try {
+      const listed = await api.listInvites(roomId.trim(), userName.trim());
+      setInviteItems(listed.items);
+    } catch (e) {
+      pushLog(`invite list refresh failed: ${errorText(e)}`);
+    }
+  };
+
+  const refreshInviteList = async () => {
+    const room = roomId.trim();
+    const host = userName.trim();
+    if (!room || !host) return;
+    setInviteListLoading(true);
+    try {
+      const listed = await api.listInvites(room, host);
+      setInviteItems(listed.items);
+      pushLog(`invite list refreshed (${listed.items.length})`);
+    } finally {
+      setInviteListLoading(false);
+    }
+  };
+
+  const revokeInvite = async (inviteTicket: string) => {
+    const room = roomId.trim();
+    const host = userName.trim();
+    if (!room || !host) throw new Error("room_id and host identity are required");
+    if (!inviteTicket.trim()) throw new Error("invite_ticket required");
+    const result = await api.revokeInvite({
+      room_id: room,
+      host_identity: host,
+      invite_ticket: inviteTicket.trim(),
+    });
+    if (result.revoked) {
+      showActionNotice("ok", "邀请码已作废");
+      pushLog(`invite revoked: ${inviteTicket.slice(0, 8)}...`);
+    } else {
+      showActionNotice("error", "邀请码已失效或不存在");
+    }
+    await refreshInviteList();
   };
 
   const startBroadcast = async () => {
@@ -559,6 +633,8 @@ export function useRoomState({
     actionNotice,
     hostEntryUnlocked,
     setHostEntryUnlocked,
+    inviteItems,
+    inviteListLoading,
     inviteMode,
     effectiveRole,
     showInviteGate,
@@ -570,6 +646,8 @@ export function useRoomState({
     joinRoom,
     forceReclaimAndRetry,
     issueInvite,
+    refreshInviteList,
+    revokeInvite,
     startBroadcast,
     stopBroadcast,
     muteAll,

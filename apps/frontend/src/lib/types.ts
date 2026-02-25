@@ -78,6 +78,27 @@ export interface CreateInviteResp {
   expires_at: string;
 }
 
+export interface InviteListItem {
+  invite_code: string;
+  invite_ticket: string;
+  remaining_uses: number;
+  expires_at: string;
+}
+
+export interface ListInvitesResp {
+  items: InviteListItem[];
+}
+
+export interface RevokeInviteReq {
+  room_id: string;
+  host_identity: string;
+  invite_ticket: string;
+}
+
+export interface RevokeInviteResp {
+  revoked: boolean;
+}
+
 export interface IssueBroadcastReq {
   room_id: string;
   host_identity: string;

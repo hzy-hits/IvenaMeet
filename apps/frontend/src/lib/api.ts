@@ -14,6 +14,7 @@ import type {
   JoinReq,
   JoinResp,
   LeaveResp,
+  ListInvitesResp,
   ListMessagesResp,
   MessageItem,
   MuteAllReq,
@@ -23,6 +24,8 @@ import type {
   RedeemInviteResp,
   RefreshSessionResp,
   ReconnectResp,
+  RevokeInviteReq,
+  RevokeInviteResp,
   SetMemberMediaPermissionReq,
   SetMemberMediaPermissionResp,
   SessionHeartbeatResp,
@@ -179,6 +182,29 @@ export function createApi(baseURL: string, getters: TokenGetters) {
     async issueInvite(payload: CreateInviteReq): Promise<CreateInviteResp> {
       try {
         const { data } = await withControl.post<CreateInviteResp>("/auth/invite", payload);
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async listInvites(roomId: string, hostIdentity: string): Promise<ListInvitesResp> {
+      try {
+        const { data } = await withControl.get<ListInvitesResp>("/auth/invites", {
+          params: {
+            room_id: roomId,
+            host_identity: hostIdentity,
+          },
+        });
+        return data;
+      } catch (e) {
+        toError(e);
+      }
+    },
+
+    async revokeInvite(payload: RevokeInviteReq): Promise<RevokeInviteResp> {
+      try {
+        const { data } = await withControl.post<RevokeInviteResp>("/auth/invite/revoke", payload);
         return data;
       } catch (e) {
         toError(e);

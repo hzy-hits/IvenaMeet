@@ -14,9 +14,11 @@ import {
     ShieldCheck,
     SlidersHorizontal,
     Radio,
+    RefreshCw,
     Send,
     Terminal,
     Ticket,
+    Trash2,
     Users,
     UserPlus,
 } from "lucide-react";
@@ -149,6 +151,16 @@ const useDialogFocus = ({
     }, [isOpen, rootRef]);
 };
 
+function inviteExpiryHint(expiresAt: string): string {
+    const expiresMs = Date.parse(expiresAt);
+    if (!Number.isFinite(expiresMs)) return "失效时间未知";
+    const diffSeconds = Math.floor((expiresMs - Date.now()) / 1000);
+    if (diffSeconds <= 0) return "已失效";
+    if (diffSeconds < 60) return `${diffSeconds}s 后失效`;
+    if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m 后失效`;
+    return `${Math.floor(diffSeconds / 3600)}h 后失效`;
+}
+
 export function Sidebar(props: Props) {
     const {
         requireInvite,
@@ -262,6 +274,8 @@ export function Sidebar(props: Props) {
         actionNotice,
         hostEntryUnlocked,
         setHostEntryUnlocked,
+        inviteItems,
+        inviteListLoading,
         inviteMode,
         effectiveRole,
         showInviteGate,
@@ -273,6 +287,8 @@ export function Sidebar(props: Props) {
         joinRoom,
         forceReclaimAndRetry,
         issueInvite,
+        refreshInviteList,
+        revokeInvite,
         startBroadcast,
         stopBroadcast,
         muteAll,
@@ -627,6 +643,52 @@ export function Sidebar(props: Props) {
                                     <Copy size={14} /> 复制成功
                                 </div>
                             ) : null}
+                            <div className="mt-3 rounded-chip border border-ink/10 bg-parchment/45 p-2">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                    <p className="font-display text-xs font-semibold text-ink/70">邀请码管理</p>
+                                    <button
+                                        type="button"
+                                        aria-label="刷新邀请码列表"
+                                        onClick={() => run(refreshInviteList)}
+                                        className="inline-flex items-center gap-1 rounded-chip border border-ink/12 bg-canvas/60 px-2 py-1 text-[11px] text-ink/65 hover:border-ink/15"
+                                    >
+                                        <RefreshCw size={12} />
+                                        刷新
+                                    </button>
+                                </div>
+                                {inviteListLoading ? (
+                                    <p className="font-mono text-[11px] text-ink/45">加载中...</p>
+                                ) : !inviteItems.length ? (
+                                    <p className="font-mono text-[11px] text-ink/45">当前无可用邀请码</p>
+                                ) : (
+                                    <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
+                                        {inviteItems.map((item) => (
+                                            <div
+                                                key={item.invite_ticket}
+                                                className="rounded-chip border border-ink/10 bg-canvas/65 px-2 py-2 text-[11px]"
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-mono text-ink/70">
+                                                        code {item.invite_code}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`作废邀请码 ${item.invite_code}`}
+                                                        onClick={() => run(() => revokeInvite(item.invite_ticket))}
+                                                        className="inline-flex items-center gap-1 rounded-chip border border-coral/40 bg-coral/12 px-2 py-1 text-coral hover:bg-coral/18"
+                                                    >
+                                                        <Trash2 size={11} />
+                                                        作废
+                                                    </button>
+                                                </div>
+                                                <p className="mt-1 font-mono text-ink/50">
+                                                    剩余 {item.remaining_uses} 次 · {inviteExpiryHint(item.expires_at)}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </section>
                     ) : null}
 
