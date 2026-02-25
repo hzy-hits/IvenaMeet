@@ -212,6 +212,7 @@ export function useChatState({
     let stopped = false;
     let closeStream: (() => void) | null = null;
     let retryDelayMs = 1000;
+    let laggedSyncInFlight = false;
 
     const connect = () => {
       if (stopped) return;
@@ -230,6 +231,38 @@ export function useChatState({
             lastMessageIdRef.current = maxId;
             return next;
           });
+        },
+        (skipped) => {
+          if (stopped || laggedSyncInFlight) return;
+          laggedSyncInFlight = true;
+          const syncAfterId = lastMessageIdRef.current > 0 ? lastMessageIdRef.current : undefined;
+          api
+            .listMessages(roomId, CHAT_HISTORY_LIMIT, syncAfterId)
+            .then((res) => {
+              if (stopped) return;
+              setMessages((prev) => {
+                const next = mergeMessages(
+                  prev,
+                  res.items.map((item) => ({ ...item, pending: false, failed: false })),
+                );
+                let maxId = lastMessageIdRef.current;
+                for (const message of next) {
+                  if (message.id > maxId) maxId = message.id;
+                }
+                lastMessageIdRef.current = maxId;
+                return next;
+              });
+              pushLog(
+                `chat stream lagged: skipped ${skipped}, resynced ${res.items.length} messages`,
+              );
+            })
+            .catch((e) => {
+              if (stopped) return;
+              pushLog(`chat lagged resync failed: ${String(e)}`);
+            })
+            .finally(() => {
+              laggedSyncInFlight = false;
+            });
         },
         (error) => {
           if (stopped) return;

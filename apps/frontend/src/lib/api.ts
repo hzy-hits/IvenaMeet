@@ -287,6 +287,7 @@ export function createApi(baseURL: string, getters: TokenGetters) {
       roomId: string,
       afterId: number | undefined,
       onMessage: (item: MessageItem) => void,
+      onLagged: (skipped: number) => void,
       onError: (error: Error) => void,
     ): CloseStream {
       const controller = new AbortController();
@@ -327,11 +328,18 @@ export function createApi(baseURL: string, getters: TokenGetters) {
               const frame = buffer.slice(0, idx);
               buffer = buffer.slice(idx + 2);
               const parsed = parseSseFrame(frame);
-              if (!parsed || parsed.event !== "message") continue;
-              try {
-                onMessage(JSON.parse(parsed.data) as MessageItem);
-              } catch {
-                onError(new Error("invalid message stream payload"));
+              if (!parsed) continue;
+              if (parsed.event === "message") {
+                try {
+                  onMessage(JSON.parse(parsed.data) as MessageItem);
+                } catch {
+                  onError(new Error("invalid message stream payload"));
+                }
+                continue;
+              }
+              if (parsed.event === "lagged") {
+                const skipped = Number.parseInt(parsed.data, 10);
+                onLagged(Number.isFinite(skipped) && skipped > 0 ? skipped : 0);
               }
             }
           }
