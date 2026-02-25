@@ -85,6 +85,13 @@ const useDialogFocus = ({
     getInitialFocus,
 }: UseDialogFocusOptions) => {
     const previousFocusRef = useRef<HTMLElement | null>(null);
+    const onCloseRef = useRef(onClose);
+    const getInitialFocusRef = useRef(getInitialFocus);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+        getInitialFocusRef.current = getInitialFocus;
+    }, [onClose, getInitialFocus]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -93,15 +100,16 @@ const useDialogFocus = ({
 
         previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         const focusable = getFocusableElements(dialog);
-        const explicitInitial = getInitialFocus?.();
+        const explicitInitial = getInitialFocusRef.current?.();
         const initial = (explicitInitial && dialog.contains(explicitInitial)) ? explicitInitial : (focusable[0] ?? dialog);
         initial.focus({ preventScroll: true });
 
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
-                if (!onClose) return;
+                const close = onCloseRef.current;
+                if (!close) return;
                 event.preventDefault();
-                onClose();
+                close();
                 return;
             }
             if (event.key !== "Tab") return;
@@ -138,7 +146,7 @@ const useDialogFocus = ({
                 previousFocus.focus({ preventScroll: true });
             }
         };
-    }, [isOpen, onClose, rootRef, getInitialFocus]);
+    }, [isOpen, rootRef]);
 };
 
 export function Sidebar(props: Props) {
@@ -513,7 +521,12 @@ export function Sidebar(props: Props) {
                     ) : null}
 
                     {isHost && consolePane === "control" ? (
-                        <section className="rounded-panel border border-ink/8 bg-canvas/60 p-3">
+                        <section
+                            id={consolePanelId}
+                            role="tabpanel"
+                            aria-labelledby={consoleTabControlId}
+                            className="rounded-panel border border-ink/8 bg-canvas/60 p-3"
+                        >
                             <h3 className="mb-2 font-display text-sm font-semibold text-ink">主持工具</h3>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
@@ -1030,8 +1043,16 @@ export function Sidebar(props: Props) {
                                     </button>
                                 </div>
                             ) : !inviteMode ? (
-                                <div className="rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
-                                    member mode
+                                <div className="flex items-center justify-between gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
+                                    <span>member mode</span>
+                                    <button
+                                        type="button"
+                                        aria-label="切换到主持人入口"
+                                        onClick={() => setHostEntryUnlocked(true)}
+                                        className="rounded-chip bg-gold/90 px-2 py-1 text-xs font-semibold text-canvas"
+                                    >
+                                        主持人入口
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-between gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/65">
