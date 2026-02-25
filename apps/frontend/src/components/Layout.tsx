@@ -37,6 +37,12 @@ const LS_KEYS = {
     hostSessionToken: "ivena.meet.host_session_token",
 } as const;
 
+function createChatClientId(): string {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().replace(/-/g, "")
+        : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function Layout() {
     const layoutRef = useRef<HTMLDivElement>(null);
     const [hostSessionToken, setHostSessionToken] = useState(
@@ -235,10 +241,7 @@ export function Layout() {
         async (text: string) => {
             const body = text.trim();
             if (!joined || !body) return;
-            const clientId =
-                typeof crypto !== "undefined" && "randomUUID" in crypto
-                    ? crypto.randomUUID().replace(/-/g, "")
-                    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+            const clientId = createChatClientId();
 
             const pendingMessage: MessageItem = {
                 id: -Math.floor(Date.now() * 1000 + Math.random() * 1000),
@@ -285,6 +288,69 @@ export function Layout() {
                         m.client_id === clientId
                             ? { ...m, pending: false, failed: true }
                             : m,
+                    ),
+                );
+                throw e;
+            }
+        },
+        [api, joined, roomId, userName, realtimeChatSender, upsertMessage, pushLog],
+    );
+
+    const retryFailedChatMessage = useCallback(
+        async (target: MessageItem) => {
+            const body = target.text.trim();
+            if (!joined || !body || !target.failed) return;
+            const room = roomId.trim();
+            const name = userName.trim();
+            if (!room || !name) return;
+
+            const clientId = createChatClientId();
+            const createdAt = Math.floor(Date.now() / 1000);
+            const targetClientId = target.client_id ?? null;
+            const targetId = target.id;
+
+            setMessages((prev) =>
+                prev.map((m) => {
+                    const hit = targetClientId ? m.client_id === targetClientId : m.id === targetId;
+                    if (!hit) return m;
+                    return {
+                        ...m,
+                        client_id: clientId,
+                        created_at: createdAt,
+                        pending: true,
+                        failed: false,
+                    };
+                }),
+            );
+
+            if (realtimeChatSender) {
+                try {
+                    await realtimeChatSender({
+                        type: "chat.message",
+                        room_id: room,
+                        client_id: clientId,
+                        user_name: name,
+                        nickname: name,
+                        avatar_url: target.avatar_url ?? null,
+                        role: joined.role,
+                        text: body,
+                        created_at: createdAt,
+                    });
+                } catch (e) {
+                    pushLog(`realtime retry send error: ${e instanceof Error ? e.message : String(e)}`);
+                }
+            }
+
+            try {
+                const created = await api.createMessage(room, {
+                    text: body,
+                    client_id: clientId,
+                });
+                setMessages((prev) => upsertMessage(prev, { ...created, pending: false, failed: false }));
+            } catch (e) {
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.client_id === clientId ? { ...m, pending: false, failed: true } : m,
                     ),
                 );
                 throw e;
@@ -393,6 +459,7 @@ export function Layout() {
                             realtimeChatSender={realtimeChatSender}
                             logs={logs}
                             pushLog={pushLog}
+                            onRetryMessage={retryFailedChatMessage}
                             chatPriorityMode={chatPriorityMode}
                             hideDesktopChat={!stagePriorityMode}
                             enableBootReconnect
@@ -503,6 +570,7 @@ export function Layout() {
                                 onlineCount={members.length}
                                 messages={messages}
                                 onSend={handleSendChat}
+                                onRetryMessage={retryFailedChatMessage}
                                 className="w-full lg:w-[340px] flex-shrink-0"
                             />
                         ) : null}
@@ -571,6 +639,7 @@ export function Layout() {
                                     realtimeChatSender={realtimeChatSender}
                                     logs={logs}
                                     pushLog={pushLog}
+                                    onRetryMessage={retryFailedChatMessage}
                                     chatPriorityMode={false}
                                     hideDesktopChat
                                     hideChatSectionCompletely
@@ -599,6 +668,7 @@ export function Layout() {
                                     onlineCount={members.length}
                                     messages={messages}
                                     onSend={handleSendChat}
+                                    onRetryMessage={retryFailedChatMessage}
                                     className="!flex h-full w-full rounded-panel border border-ink/10 bg-parchment/95 shadow-mucha backdrop-blur-md"
                                 />
                             </div>

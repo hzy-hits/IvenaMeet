@@ -8,6 +8,8 @@ type Props = {
     message: MessageItem;
     currentUserName: string;
     variant?: Variant;
+    onRetry?: () => void;
+    retrying?: boolean;
 };
 
 const VARIANT_BUBBLE: Record<Variant, { mine: string; peer: string }> = {
@@ -25,6 +27,8 @@ export function ChatMessageRow({
     message,
     currentUserName,
     variant = "panel",
+    onRetry,
+    retrying = false,
 }: Props) {
     const isMine = message.user_name === currentUserName.trim();
     const messageAvatar = resolveMessageAvatar(message.avatar_url, message.user_name);
@@ -61,7 +65,20 @@ export function ChatMessageRow({
                         </span>
                         <span>{formatChatTime(message.created_at)}</span>
                         {message.failed ? (
-                            <span className="text-coral">发送失败</span>
+                            <>
+                                <span className="text-coral">发送失败</span>
+                                {onRetry ? (
+                                    <button
+                                        type="button"
+                                        onClick={onRetry}
+                                        disabled={retrying}
+                                        aria-label={retrying ? "正在重发消息" : "重发失败消息"}
+                                        className="rounded-chip border border-coral/35 bg-coral/12 px-1.5 py-0.5 text-[10px] text-coral transition-colors hover:bg-coral/18 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {retrying ? "重发中" : "重发"}
+                                    </button>
+                                ) : null}
+                            </>
                         ) : message.pending ? (
                             <span className="text-teal">发送中</span>
                         ) : null}

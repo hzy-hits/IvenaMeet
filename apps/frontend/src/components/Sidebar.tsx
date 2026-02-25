@@ -58,6 +58,7 @@ type Props = {
     realtimeChatSender: ((payload: RealtimeChatPayload) => Promise<void>) | null;
     logs: string[];
     pushLog: (s: string) => void;
+    onRetryMessage?: (message: MessageItem) => Promise<void>;
     chatPriorityMode?: boolean;
     hideDesktopChat?: boolean;
     hideChatSectionCompletely?: boolean;
@@ -190,6 +191,7 @@ export function Sidebar(props: Props) {
         realtimeChatSender,
         logs,
         pushLog,
+        onRetryMessage,
         chatPriorityMode = false,
         hideDesktopChat = false,
         hideChatSectionCompletely = false,
@@ -352,6 +354,7 @@ export function Sidebar(props: Props) {
     });
 
     const [openTimeline, setOpenTimeline] = useState(true);
+    const [retryingMessageKey, setRetryingMessageKey] = useState("");
     const [timelineItems, setTimelineItems] = useState<MeetingTimelineItem[]>([]);
     const memberSnapshotRef = useRef<Map<string, { mic: boolean; camera: boolean; screen: boolean }>>(
         new Map(),
@@ -477,6 +480,19 @@ export function Sidebar(props: Props) {
 
     const requiresInviteCode = (requireInvite || inviteMode) && effectiveRole === "member";
     const canJoin = Boolean(roomId.trim() && userName.trim()) && (!requiresInviteCode || Boolean(inviteCode.trim() && inviteTicket.trim()));
+    const myUserName = userName.trim();
+
+    const retryFailedMessage = async (message: MessageItem) => {
+        if (!onRetryMessage || !message.failed) return;
+        const key = message.client_id ? `client:${message.client_id}` : `id:${message.id}`;
+        if (retryingMessageKey === key) return;
+        setRetryingMessageKey(key);
+        try {
+            await onRetryMessage(message);
+        } finally {
+            setRetryingMessageKey("");
+        }
+    };
 
     const avatarEditorDialogRef = useRef<HTMLDivElement>(null);
     const inviteGateDialogRef = useRef<HTMLDivElement>(null);
@@ -647,6 +663,9 @@ export function Sidebar(props: Props) {
                                 </button>
                             </div>
                             <p
+                                role="status"
+                                aria-live="polite"
+                                aria-atomic="true"
                                 className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
                                     ? "text-teal"
                                     : avatarStatus.kind === "error"
@@ -771,7 +790,12 @@ export function Sidebar(props: Props) {
                                 </button>
                             </div>
                             {inviteCopied ? (
-                                <div className="mt-2 inline-flex items-center gap-2 rounded-chip border border-teal/50 bg-teal/12 px-3 py-1 text-xs text-teal">
+                                <div
+                                    role="status"
+                                    aria-live="polite"
+                                    aria-atomic="true"
+                                    className="mt-2 inline-flex items-center gap-2 rounded-chip border border-teal/50 bg-teal/12 px-3 py-1 text-xs text-teal"
+                                >
                                     <Copy size={14} /> 复制成功
                                 </div>
                             ) : null}
@@ -789,9 +813,9 @@ export function Sidebar(props: Props) {
                                     </button>
                                 </div>
                                 {inviteListLoading ? (
-                                    <p className="font-mono text-[11px] text-ink/45">加载中...</p>
+                                    <p role="status" aria-live="polite" className="font-mono text-[11px] text-ink/45">加载中...</p>
                                 ) : !inviteItems.length ? (
-                                    <p className="font-mono text-[11px] text-ink/45">当前无可用邀请码</p>
+                                    <p role="status" aria-live="polite" className="font-mono text-[11px] text-ink/45">当前无可用邀请码</p>
                                 ) : (
                                     <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
                                         {inviteItems.map((item) => (
@@ -952,8 +976,14 @@ export function Sidebar(props: Props) {
                                                     <ChatMessageRow
                                                         key={m.client_id ?? m.id}
                                                         message={m}
-                                                        currentUserName={userName}
+                                                        currentUserName={myUserName}
                                                         variant="sidebar"
+                                                        onRetry={onRetryMessage && m.failed && m.user_name === myUserName
+                                                            ? () => {
+                                                                run(() => retryFailedMessage(m));
+                                                            }
+                                                            : undefined}
+                                                        retrying={retryingMessageKey === (m.client_id ? `client:${m.client_id}` : `id:${m.id}`)}
                                                     />
                                                 ))
                                             )}
@@ -1074,7 +1104,13 @@ export function Sidebar(props: Props) {
                                 {openTimeline ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             </button>
                             {openTimeline ? (
-                                <div id={timelineSectionId} className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                                <div
+                                    id={timelineSectionId}
+                                    role="log"
+                                    aria-live="polite"
+                                    aria-relevant="additions text"
+                                    className="max-h-44 space-y-2 overflow-y-auto pr-1"
+                                >
                                     {!timelineItems.length ? (
                                         <p className="font-mono text-xs text-ink/40">暂无会议事件</p>
                                     ) : (
@@ -1185,6 +1221,9 @@ export function Sidebar(props: Props) {
                             </div>
                         </div>
                         <p
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
                             className={`mt-2 font-mono text-[11px] ${avatarStatus.kind === "ok"
                                 ? "text-ok"
                                 : avatarStatus.kind === "error"
@@ -1304,6 +1343,9 @@ export function Sidebar(props: Props) {
                                         </button>
                                     </div>
                                     <p
+                                        role="status"
+                                        aria-live="polite"
+                                        aria-atomic="true"
                                         className={`font-mono text-[11px] ${avatarStatus.kind === "ok"
                                             ? "text-ok"
                                             : avatarStatus.kind === "error"

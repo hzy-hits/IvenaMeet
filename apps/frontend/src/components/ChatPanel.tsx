@@ -13,6 +13,7 @@ type Props = {
     onlineCount: number;
     messages: MessageItem[];
     onSend: (text: string) => Promise<void>;
+    onRetryMessage?: (message: MessageItem) => Promise<void>;
 };
 
 function errorText(e: unknown): string {
@@ -28,11 +29,13 @@ export function ChatPanel({
     onlineCount,
     messages,
     onSend,
+    onRetryMessage,
 }: Props) {
     const [chatText, setChatText] = useState("");
     const [sending, setSending] = useState(false);
     const [actionError, setActionError] = useState("");
     const [pendingHints, setPendingHints] = useState(0);
+    const [retryingMessageKey, setRetryingMessageKey] = useState("");
     const panelId = useId();
     const chatInputId = `${panelId}-chat-input`;
     const chatListId = `${panelId}-chat-list`;
@@ -102,6 +105,21 @@ export function ChatPanel({
         }
     };
 
+    const retryMessage = async (message: MessageItem) => {
+        if (!onRetryMessage || !message.failed) return;
+        const key = message.client_id ? `client:${message.client_id}` : `id:${message.id}`;
+        if (retryingMessageKey === key) return;
+        setRetryingMessageKey(key);
+        setActionError("");
+        try {
+            await onRetryMessage(message);
+        } catch (e) {
+            setActionError(errorText(e));
+        } finally {
+            setRetryingMessageKey("");
+        }
+    };
+
     return (
         <OrnamentFrame
             className={`paper-grain mucha-surface flex h-full min-h-0 flex-col shadow-mucha ${className ?? ""}`}
@@ -156,6 +174,12 @@ export function ChatPanel({
                                         message={m}
                                         currentUserName={userName}
                                         variant="panel"
+                                        onRetry={onRetryMessage && m.failed && m.user_name === userName.trim()
+                                            ? () => {
+                                                void retryMessage(m);
+                                            }
+                                            : undefined}
+                                        retrying={retryingMessageKey === (m.client_id ? `client:${m.client_id}` : `id:${m.id}`)}
                                     />
                                 ))
                             )}
