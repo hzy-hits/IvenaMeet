@@ -6,9 +6,11 @@ usage() {
 usage:
   NEW_TOKEN=... ./scripts/rotate-admin-token.sh [--env-file <path>] [--no-restart] [--dry-run]
   ./scripts/rotate-admin-token.sh --new-token <token> [--env-file <path>] [--no-restart] [--dry-run]
+  ./scripts/rotate-admin-token.sh --auto-generate [--env-file <path>] [--no-restart]
 
 options:
   --new-token <token>   New token value. If omitted, NEW_TOKEN env is used.
+  --auto-generate       Generate a strong random token when NEW_TOKEN is not provided.
   --env-file <path>     Env file to edit. Default: ./.env if exists, else /opt/livekit/control-plane/.env
   --service <name>      Systemd service name (default: ivena-meet-control-plane.service)
   --no-restart          Do not restart service after env update
@@ -27,12 +29,16 @@ ENV_FILE="${ENV_FILE:-}"
 SERVICE_NAME="${SERVICE_NAME:-ivena-meet-control-plane.service}"
 RESTART_AFTER="${RESTART_AFTER:-1}"
 DRY_RUN="${DRY_RUN:-0}"
+AUTO_GENERATE="${AUTO_GENERATE:-0}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --new-token)
       shift
       NEW_TOKEN="${1:-}"
+      ;;
+    --auto-generate)
+      AUTO_GENERATE=1
       ;;
     --env-file)
       shift
@@ -74,8 +80,17 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 2
 fi
 
+if [[ -z "$NEW_TOKEN" && "$AUTO_GENERATE" == "1" ]]; then
+  if command -v openssl >/dev/null 2>&1; then
+    NEW_TOKEN="$(openssl rand -hex 32)"
+  else
+    echo "error: openssl is required for --auto-generate" >&2
+    exit 2
+  fi
+fi
+
 if [[ -z "$NEW_TOKEN" ]]; then
-  echo "error: NEW_TOKEN is required" >&2
+  echo "error: NEW_TOKEN is required (or use --auto-generate)" >&2
   usage >&2
   exit 2
 fi
@@ -155,6 +170,9 @@ fi
 echo "rotation plan:"
 echo "  env_file: $ENV_FILE"
 echo "  service:  $SERVICE_NAME"
+if [[ "$AUTO_GENERATE" == "1" ]]; then
+  echo "  token:    auto-generated"
+fi
 echo "  set BOOTSTRAP_ADMIN_TOKEN=<new>"
 echo "  set BOOTSTRAP_ADMIN_TOKEN_PREVIOUS=<old_or_empty>"
 echo "  set RUNTIME_ADMIN_TOKEN=<new>"

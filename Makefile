@@ -1,4 +1,4 @@
-.PHONY: bootstrap-host cleanup-orphan-avatars init-db rotate-admin-token
+.PHONY: bootstrap-host cleanup-orphan-avatars init-db rotate-admin-token rotate-admin-token-auto
 
 bootstrap-host:
 	@if { [ -z "$$BOOTSTRAP_ADMIN_TOKEN" ] && [ -z "$$ADMIN_TOKEN" ]; } || [ -z "$$ROOM_ID" ] || [ -z "$$HOST_IDENTITY" ]; then \
@@ -20,3 +20,6 @@ rotate-admin-token:
 		exit 2; \
 	fi
 	@NEW_TOKEN="$$NEW_TOKEN" ENV_FILE="$${ENV_FILE:-}" RESTART_AFTER="$${RESTART_AFTER:-1}" ./scripts/rotate-admin-token.sh
+
+rotate-admin-token-auto:
+	@ENV_FILE="$${ENV_FILE:-}" RESTART_AFTER="$${RESTART_AFTER:-1}" AUTO_GENERATE=1 ./scripts/rotate-admin-token.sh --auto-generate

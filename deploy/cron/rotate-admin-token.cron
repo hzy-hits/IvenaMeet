@@ -1,0 +1,3 @@
+# Rotate admin token monthly at 03:30 local time on day 1.
+# Uses auto-generate mode and restarts control-plane service.
+30 3 1 * * cd /opt/livekit/control-plane && /usr/bin/env bash ./scripts/rotate-admin-token.sh --auto-generate --env-file /opt/livekit/control-plane/.env >> /opt/livekit/control-plane/logs/admin-token-rotate.log 2>&1

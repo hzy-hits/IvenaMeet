@@ -273,6 +273,20 @@ cd /opt/livekit/control-plane
 NEW_TOKEN='<new-random-token>' make rotate-admin-token
 ```
 
+Auto-generate rotate:
+
+```bash
+cd /opt/livekit/control-plane
+make rotate-admin-token-auto
+```
+
+Install monthly cron auto-rotation:
+
+```bash
+mkdir -p /opt/livekit/control-plane/logs
+(crontab -l 2>/dev/null; cat /opt/livekit/control-plane/deploy/cron/rotate-admin-token.cron) | crontab -
+```
+
 ## Operational Hardening
 
 ### Avatar pipeline

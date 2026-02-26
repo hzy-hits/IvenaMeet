@@ -22,6 +22,9 @@ NEW_TOKEN='<new-random-token>' ./scripts/rotate-admin-token.sh --dry-run
 
 # update env but restart manually
 NEW_TOKEN='<new-random-token>' RESTART_AFTER=0 make rotate-admin-token
+
+# auto-generate a random token
+make rotate-admin-token-auto
 ```
 
 Script behavior:
@@ -30,6 +33,24 @@ Script behavior:
 - Moves old active values into `*_PREVIOUS`
 - Keeps legacy `ADMIN_TOKEN` synced for backward compatibility
 - Creates env backup file before writing
+
+## Cron Auto-Rotation
+
+Template:
+
+- `deploy/cron/rotate-admin-token.cron`
+
+Install:
+
+```bash
+mkdir -p /opt/livekit/control-plane/logs
+(crontab -l 2>/dev/null; cat /opt/livekit/control-plane/deploy/cron/rotate-admin-token.cron) | crontab -
+```
+
+Important:
+
+- Auto-rotation is safe only if token consumers sync from `.env`/secret manager.
+- Because previous token is kept, old token has one grace window; after next rotation it becomes invalid.
 
 ## 30-day Rotation Playbook
 
