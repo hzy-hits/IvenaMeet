@@ -240,7 +240,11 @@ async fn start_broadcast(
         .await?
     {
         if existing.host_identity == participant_identity {
-            match state.livekit_service.get_ingress(&existing.ingress_id).await? {
+            match state
+                .livekit_service
+                .get_ingress(&existing.ingress_id)
+                .await?
+            {
                 Some(remote) => {
                     if !remote.enable_transcoding.unwrap_or(false) {
                         info!(
@@ -255,7 +259,10 @@ async fn start_broadcast(
                         return Ok(Json(start_resp_from_record(&existing)));
                     }
 
-                    let _ = state.livekit_service.delete_ingress(&existing.ingress_id).await;
+                    let _ = state
+                        .livekit_service
+                        .delete_ingress(&existing.ingress_id)
+                        .await;
                     state
                         .storage_service
                         .delete_room_broadcast(room_id.clone())
@@ -287,7 +294,10 @@ async fn start_broadcast(
                 }
             }
         } else {
-            let _ = state.livekit_service.delete_ingress(&existing.ingress_id).await;
+            let _ = state
+                .livekit_service
+                .delete_ingress(&existing.ingress_id)
+                .await;
             state
                 .storage_service
                 .delete_room_broadcast(room_id.clone())
@@ -411,7 +421,10 @@ async fn current_broadcast(
         return Ok(Json(CurrentBroadcastResp::inactive()));
     };
     if record.host_identity != host_identity {
-        let _ = state.livekit_service.delete_ingress(&record.ingress_id).await;
+        let _ = state
+            .livekit_service
+            .delete_ingress(&record.ingress_id)
+            .await;
         state.storage_service.delete_room_broadcast(room_id).await?;
         return Ok(Json(CurrentBroadcastResp::inactive()));
     }

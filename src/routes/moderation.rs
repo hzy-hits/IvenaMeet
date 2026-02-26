@@ -17,7 +17,10 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/moderation/mute", post(mute_member))
         .route("/moderation/mute-all", post(mute_all_members))
-        .route("/moderation/media-permission", post(set_member_media_permission))
+        .route(
+            "/moderation/media-permission",
+            post(set_member_media_permission),
+        )
 }
 
 #[derive(Deserialize)]
@@ -264,9 +267,11 @@ async fn set_member_media_permission(
 
     let now = now_ts();
     match feature {
-        MediaFeature::Camera => {
-            permission.set_camera_granted(req.enabled, now, state.config.member_media_grant_ttl_seconds)
-        }
+        MediaFeature::Camera => permission.set_camera_granted(
+            req.enabled,
+            now,
+            state.config.member_media_grant_ttl_seconds,
+        ),
         MediaFeature::ScreenShare => permission.set_screen_share_granted(
             req.enabled,
             now,

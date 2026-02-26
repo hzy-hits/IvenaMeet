@@ -2,8 +2,8 @@ use crate::error::{AppError, AppResult};
 use crate::middleware::control_auth::ControlPrincipal;
 use crate::request_meta;
 use crate::services::livekit::{PublishPermission, UserRole};
-use crate::services::stage_permission::EffectiveMemberMediaPermission;
 use crate::services::session::SessionClaims;
+use crate::services::stage_permission::EffectiveMemberMediaPermission;
 use crate::state::AppState;
 use crate::validation;
 use axum::{
@@ -366,29 +366,28 @@ async fn join_room(
 
     let media_permission = match role {
         UserRole::Host => EffectiveMemberMediaPermission::host_default(),
-        UserRole::Member => state
-            .stage_permission_service
-            .resolve_member(
-                &mut redis,
-                &room_id,
-                &user_name,
-                state.config.room_ttl_seconds,
-                now_ts(),
-            )
-            .await?,
+        UserRole::Member => {
+            state
+                .stage_permission_service
+                .resolve_member(
+                    &mut redis,
+                    &room_id,
+                    &user_name,
+                    state.config.room_ttl_seconds,
+                    now_ts(),
+                )
+                .await?
+        }
     };
-    let token = match state
-        .livekit_service
-        .issue_room_token(
-            &user_name,
-            &room_id,
-            role,
-            PublishPermission {
-                camera: media_permission.camera_allowed,
-                screen_share: media_permission.screen_share_allowed,
-            },
-        )
-    {
+    let token = match state.livekit_service.issue_room_token(
+        &user_name,
+        &room_id,
+        role,
+        PublishPermission {
+            camera: media_permission.camera_allowed,
+            screen_share: media_permission.screen_share_allowed,
+        },
+    ) {
         Ok(t) => t,
         Err(e) => {
             let _ = state
@@ -611,16 +610,18 @@ async fn reconnect_room(
         .ok_or_else(|| AppError::Unauthorized("session role invalid".to_string()))?;
     let media_permission = match role {
         UserRole::Host => EffectiveMemberMediaPermission::host_default(),
-        UserRole::Member => state
-            .stage_permission_service
-            .resolve_member(
-                &mut redis,
-                &claims.room_id,
-                &claims.user_name,
-                state.config.room_ttl_seconds,
-                now_ts(),
-            )
-            .await?,
+        UserRole::Member => {
+            state
+                .stage_permission_service
+                .resolve_member(
+                    &mut redis,
+                    &claims.room_id,
+                    &claims.user_name,
+                    state.config.room_ttl_seconds,
+                    now_ts(),
+                )
+                .await?
+        }
     };
     let token = state.livekit_service.issue_room_token(
         &claims.user_name,

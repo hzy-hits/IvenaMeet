@@ -134,7 +134,8 @@ impl StagePermissionService {
     where
         C: AsyncCommands + Send,
     {
-        let raw = serde_json::to_string(&permission).map_err(|e| AppError::Config(e.to_string()))?;
+        let raw =
+            serde_json::to_string(&permission).map_err(|e| AppError::Config(e.to_string()))?;
         conn.set_ex::<_, _, ()>(self.key(room_id, user_name), raw, ttl_seconds)
             .await
             .map_err(|e| AppError::Redis(e.to_string()))?;

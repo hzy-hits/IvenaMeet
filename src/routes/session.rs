@@ -42,8 +42,14 @@ async fn refresh_session(
         .session_service
         .refresh(&mut redis, token, state.config.session_ttl_seconds)
         .await?;
-    enforce_member_media_lease(&state, &mut redis, &claims, &request_id, "/sessions/refresh")
-        .await?;
+    enforce_member_media_lease(
+        &state,
+        &mut redis,
+        &claims,
+        &request_id,
+        "/sessions/refresh",
+    )
+    .await?;
     let owner = session_owner(&claims);
     let rotated = state
         .presence_service
@@ -95,8 +101,14 @@ async fn session_heartbeat(
 
     let mut redis = state.redis.clone();
     let claims = state.session_service.verify(&mut redis, token).await?;
-    enforce_member_media_lease(&state, &mut redis, &claims, &request_id, "/sessions/heartbeat")
-        .await?;
+    enforce_member_media_lease(
+        &state,
+        &mut redis,
+        &claims,
+        &request_id,
+        "/sessions/heartbeat",
+    )
+    .await?;
     let owner = session_owner(&claims);
     let touched = state
         .presence_service

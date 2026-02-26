@@ -179,7 +179,9 @@ async fn revoke_invite(
     let host_identity = validation::user_name(&req.host_identity)?;
     let invite_ticket = req.invite_ticket.trim();
     if invite_ticket.is_empty() {
-        return Err(AppError::BadRequest("invite_ticket is required".to_string()));
+        return Err(AppError::BadRequest(
+            "invite_ticket is required".to_string(),
+        ));
     }
     ensure_invite_scope(
         &state,
@@ -229,7 +231,9 @@ async fn ensure_invite_scope(
                 result = "denied",
                 "host token scope mismatch"
             );
-            return Err(AppError::Unauthorized("host token scope mismatch".to_string()));
+            return Err(AppError::Unauthorized(
+                "host token scope mismatch".to_string(),
+            ));
         }
     }
 

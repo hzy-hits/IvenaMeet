@@ -168,7 +168,11 @@ return {1, remaining}
         })
     }
 
-    pub async fn list_tickets<C>(&self, conn: &mut C, room_id: &str) -> AppResult<Vec<InviteTicketInfo>>
+    pub async fn list_tickets<C>(
+        &self,
+        conn: &mut C,
+        room_id: &str,
+    ) -> AppResult<Vec<InviteTicketInfo>>
     where
         C: AsyncCommands + ConnectionLike + Send,
     {
