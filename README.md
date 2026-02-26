@@ -31,7 +31,7 @@
   - incremental event feed (currently chat message events)
 - `POST /agent/v1/commands` (optional, behind `ENABLE_AGENT_API`)
   - low-risk command plane: `refresh_session`, `send_message`, `issue_invite`
-  - supports `dry_run` and optional `idempotency_key`
+  - supports `mode=simulate|execute` (compatible with legacy `dry_run`) and optional `idempotency_key`
 - `POST /auth/invite` (control)
   - issue invite link ticket + invite code (`INVITE_MAX_USES` controls redeem count)
 - `POST /invites/redeem`
@@ -245,7 +245,8 @@ Endpoints:
 - `POST /agent/v1/commands`
   - Command `refresh_session` / `send_message` require app session bearer token
   - Command `issue_invite` requires control bearer token (host session or admin token)
-  - Request supports `dry_run` and `idempotency_key`
+  - Request supports `mode=simulate|execute` and `idempotency_key`
+  - Legacy `dry_run` remains supported for backward compatibility
 
 Example command request:
 
@@ -253,8 +254,8 @@ Example command request:
 {
   "room_id": "test",
   "command": "send_message",
+  "mode": "execute",
   "idempotency_key": "agent-msg-00000001",
-  "dry_run": false,
   "params": {
     "text": "hello from agent"
   }

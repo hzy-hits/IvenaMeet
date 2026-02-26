@@ -16,7 +16,7 @@ Keep existing product logic untouched and drive automation through additive rout
 2. Call `GET /agent/v1/context` first and cache `next_event_cursor`.
 3. Call `GET /agent/v1/events` with `after_seq` to get incremental updates.
 4. Build decision from context+events before issuing any command.
-5. Call `POST /agent/v1/commands` with `dry_run=true` first for risky branches.
+5. Call `POST /agent/v1/commands` with `mode=simulate` first for risky branches (`dry_run` remains fallback compatibility).
 6. For retries or network uncertainty, include `idempotency_key`.
 7. Write operational logs with `room_id`, `command`, `status`, and `idempotency_key`.
 
@@ -33,6 +33,6 @@ Keep existing product logic untouched and drive automation through additive rout
 When reporting execution, include:
 
 1. `observed_state`: key context fields used for decision.
-2. `actions_taken`: commands executed and whether dry-run or real.
+2. `actions_taken`: commands executed and whether `simulate` or `execute`.
 3. `result`: command status and returned payload summary.
 4. `next_step`: polling cursor or human escalation suggestion.

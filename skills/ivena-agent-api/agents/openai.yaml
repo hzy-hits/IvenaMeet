@@ -1,4 +1,4 @@
 interface:
   display_name: "Ivena Agent API"
   short_description: "Operate Ivena room agent APIs safely"
-  default_prompt: "Read agent context and events first, then execute low-risk commands with dry_run and idempotency_key."
+  default_prompt: "Read agent context and events first, then run commands with mode=simulate or mode=execute plus idempotency_key."

@@ -46,13 +46,18 @@ Body:
 {
   "room_id": "test",
   "command": "send_message",
+  "mode": "execute",
   "idempotency_key": "agent-msg-00000001",
-  "dry_run": false,
   "params": {
     "text": "hello"
   }
 }
 ```
+
+Compatibility:
+
+- Preferred: `mode: "simulate" | "execute"`
+- Legacy fallback: `dry_run: true | false` (still accepted)
 
 Supported commands:
 
