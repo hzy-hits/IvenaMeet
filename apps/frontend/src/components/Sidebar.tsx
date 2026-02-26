@@ -12,11 +12,9 @@ import {
     Mic,
     MicOff,
     ShieldCheck,
-    SlidersHorizontal,
     Radio,
     RefreshCw,
     Send,
-    Terminal,
     Ticket,
     Trash2,
     Users,
@@ -593,12 +591,12 @@ export function Sidebar(props: Props) {
                                 aria-controls={consolePanelId}
                                 tabIndex={consolePane === "control" ? 0 : -1}
                                 onClick={() => setConsolePane("control")}
-                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
+                                className={`inline-flex min-h-11 items-center justify-center rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
-                                <SlidersHorizontal size={12} /> 控制
+                                <span className="whitespace-nowrap">控制</span>
                             </button>
                             <button
                                 type="button"
@@ -609,12 +607,12 @@ export function Sidebar(props: Props) {
                                 aria-controls={membersSectionId}
                                 tabIndex={consolePane === "members" ? 0 : -1}
                                 onClick={() => setConsolePane("members")}
-                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
+                                className={`inline-flex min-h-11 items-center justify-center rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
-                                <Users size={12} /> 成员
+                                <span className="whitespace-nowrap">成员</span>
                             </button>
                             <button
                                 type="button"
@@ -625,12 +623,12 @@ export function Sidebar(props: Props) {
                                 aria-controls={opsPanelId}
                                 tabIndex={consolePane === "ops" ? 0 : -1}
                                 onClick={() => setConsolePane("ops")}
-                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
+                                className={`inline-flex min-h-11 items-center justify-center rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
                             >
-                                <Terminal size={12} /> 系统
+                                <span className="whitespace-nowrap">系统</span>
                             </button>
                         </div>
                     </section>
@@ -657,7 +655,7 @@ export function Sidebar(props: Props) {
                                     type="button"
                                     aria-label="打开个人页头像上传"
                                     onClick={onPickAvatar}
-                                    className="inline-flex items-center gap-2 rounded-chip border border-ink/10 mucha-panel px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                    className="inline-flex items-center gap-2 whitespace-nowrap rounded-chip border border-ink/10 mucha-panel px-2.5 py-2 text-xs text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                                 >
                                     <ImagePlus size={16} /> 上传头像
                                 </button>
