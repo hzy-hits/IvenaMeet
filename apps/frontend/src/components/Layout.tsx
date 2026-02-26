@@ -571,7 +571,7 @@ export function Layout() {
 
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
                 {!inTheaterMode ? (
-                    <div className={`${mobilePane === "control" ? "flex" : "hidden"} order-2 min-h-0 w-full min-w-0 flex-1 flex-col lg:order-1 lg:flex lg:h-full lg:flex-shrink-0 lg:transition-[width,opacity] lg:duration-200 ${desktopSidebarOpen ? "lg:w-[280px] lg:opacity-100" : "lg:w-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"}`}>
+                    <div className={`${mobilePane === "control" ? "flex" : "hidden"} order-2 min-h-0 w-full min-w-0 flex-1 flex-col lg:order-1 lg:flex lg:h-full lg:flex-none lg:flex-shrink-0 lg:transition-[width,opacity] lg:duration-200 ${desktopSidebarOpen ? "lg:w-[248px] lg:opacity-100" : "lg:w-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"}`}>
                         <Sidebar
                             requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                             api={api}
