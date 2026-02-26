@@ -71,7 +71,7 @@ function MuchaCorner({ className = "", style }: { className?: string, style?: Re
     return (
         <MuchaAsset
             src="/assets/mucha/corner.png"
-            className={`w-28 h-28 object-contain opacity-[0.15] ${className}`}
+            className={`mucha-corner w-28 h-28 object-contain opacity-[0.15] ${className}`}
             style={style}
         />
     );
@@ -117,7 +117,7 @@ export function OrnamentFrame({
             <MuchaCorner style={{ bottom: "-5px", right: "-5px", transform: "scale(-1, -1)" }} />
 
             {/* Center Watermark to prevent "bareness" */}
-            <MuchaHalo className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] max-w-[800px] opacity-[0.03]" />
+            <MuchaHalo className="mucha-center-halo absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] max-w-[800px] opacity-[0.03]" />
 
             <div className="relative z-10 flex h-full flex-col">
                 {children}

@@ -505,6 +505,29 @@
 }
 
 /* ============================================================
+   Desktop Visual De-noise
+   Reduce layered ornament intensity on wide screens so hierarchy
+   is driven by layout/content instead of texture.
+   ============================================================ */
+@media (min-width: 1024px) {
+    .desktop-soft-ui .paper-grain::before {
+        opacity: 0.03;
+    }
+
+    .desktop-soft-ui .mucha-contour {
+        border-color: rgb(var(--ink) / 0.06);
+    }
+
+    .desktop-soft-ui .mucha-corner {
+        opacity: 0.08;
+    }
+
+    .desktop-soft-ui .mucha-center-halo {
+        opacity: 0.015;
+    }
+}
+
+/* ============================================================
    Mobile Safe Area & Landscape Tuning
    ============================================================ */
 .mobile-shell {

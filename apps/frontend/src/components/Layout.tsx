@@ -125,6 +125,8 @@ export function Layout() {
     const [theaterControlOpen, setTheaterControlOpen] = useState(false);
     const [theaterChatOpen, setTheaterChatOpen] = useState(false);
     const [mobilePane, setMobilePane] = useState<MobilePane>("stage");
+    const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+    const [desktopChatOpen, setDesktopChatOpen] = useState(false);
     const [lastRealtimeChat, setLastRealtimeChat] = useState<RealtimeChatPayload | null>(null);
     const [realtimeChatSender, setRealtimeChatSender] = useState<((payload: RealtimeChatPayload) => Promise<void>) | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
@@ -182,15 +184,15 @@ export function Layout() {
     const inTheaterMode = Boolean(joined && hasVisualMedia && theaterMode);
     const isHostView = (joined?.role ?? role) === "host";
     const chatPriorityMode = Boolean(joined && (chatDominant || !hasVisualMedia));
-    const stagePriorityMode = Boolean(joined && hasVisualMedia && !chatDominant);
     const centerPaneClass = inTheaterMode
         ? "flex min-h-0 flex-col flex-1"
-        : "flex min-h-0 flex-col lg:flex-row flex-1 gap-2";
+        : "flex min-h-0 flex-1 gap-2";
     const mobilePaneButtonClass = (pane: MobilePane): string => (`inline-flex min-h-11 items-center justify-center rounded-chip border px-2.5 text-[12px] font-semibold transition-colors ease-mucha ${
         mobilePane === pane
             ? "border-gold/55 bg-ink/8 text-ink/85"
             : "border-ink/12 bg-canvas/55 text-ink/65"
     }`);
+    const stageModeLabel = joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY";
 
     useEffect(() => {
         localStorage.setItem(LS_KEYS.roomId, roomId);
@@ -281,6 +283,10 @@ export function Layout() {
 
     useEffect(() => {
         if (inTheaterMode) setMobilePane("stage");
+    }, [inTheaterMode]);
+
+    useEffect(() => {
+        if (inTheaterMode) setDesktopChatOpen(false);
     }, [inTheaterMode]);
 
     useEffect(() => {
@@ -565,7 +571,7 @@ export function Layout() {
 
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
                 {!inTheaterMode ? (
-                    <div className={`${mobilePane === "control" ? "flex" : "hidden"} order-2 min-h-0 w-full min-w-0 flex-1 flex-col lg:order-1 lg:flex lg:h-full lg:w-[340px] lg:flex-shrink-0`}>
+                    <div className={`${mobilePane === "control" ? "flex" : "hidden"} order-2 min-h-0 w-full min-w-0 flex-1 flex-col lg:order-1 lg:flex lg:h-full lg:flex-shrink-0 lg:transition-[width,opacity] lg:duration-200 ${desktopSidebarOpen ? "lg:w-[280px] lg:opacity-100" : "lg:w-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"}`}>
                         <Sidebar
                             requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                             api={api}
@@ -589,7 +595,7 @@ export function Layout() {
                             pushLog={pushLog}
                             onRetryMessage={retryFailedChatMessage}
                             chatPriorityMode={chatPriorityMode}
-                            hideDesktopChat={!stagePriorityMode}
+                            hideDesktopChat
                             enableBootReconnect={!debugMobileMode}
                             themeMode={themeMode}
                             resolvedTheme={resolvedTheme}
@@ -605,16 +611,35 @@ export function Layout() {
                         className={`mobile-stage-header shrink-0 flex flex-wrap items-center justify-between gap-2 border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-3 py-2 lg:px-4 lg:py-3"
                             }`}
                     >
-                        <div className="flex min-w-0 items-center gap-2 lg:gap-3">
-                            <h1 className="font-display text-base font-semibold tracking-tight text-ink transition-colors ease-mucha lg:text-lg">
+                        <div className="flex min-w-0 flex-col">
+                            <h1 className="font-display text-base font-semibold tracking-tight text-ink lg:text-xl">
                                 Ivena Meet
                             </h1>
-                            <div className="mobile-room-meta h-4 w-px bg-gold/35"></div>
-                            <div className="mobile-room-meta flex items-center gap-2 text-xs font-mono">
-                                <span className="text-ink/50">CH/<span className="text-ink/80">{roomId}</span></span>
-                            </div>
+                            <p className="mobile-room-meta font-mono text-[11px] text-ink/55">CH/{roomId}</p>
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2 text-xs font-mono">
+                            {!inTheaterMode ? (
+                                <button
+                                    type="button"
+                                    aria-label={desktopSidebarOpen ? "收起控制侧栏" : "展开控制侧栏"}
+                                    aria-pressed={desktopSidebarOpen}
+                                    onClick={() => setDesktopSidebarOpen((v) => !v)}
+                                    className="hidden min-h-10 rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
+                                >
+                                    {desktopSidebarOpen ? "HIDE_CTRL" : "SHOW_CTRL"}
+                                </button>
+                            ) : null}
+                            {!inTheaterMode ? (
+                                <button
+                                    type="button"
+                                    aria-label={desktopChatOpen ? "收起聊天抽屉" : "展开聊天抽屉"}
+                                    aria-pressed={desktopChatOpen}
+                                    onClick={() => setDesktopChatOpen((v) => !v)}
+                                    className="hidden min-h-10 rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
+                                >
+                                    {desktopChatOpen ? "HIDE_CHAT" : "OPEN_CHAT"}
+                                </button>
+                            ) : null}
                             {joined && hasVisualMedia ? (
                                 <button
                                     type="button"
@@ -661,14 +686,24 @@ export function Layout() {
                                             : "FULLSCREEN"}
                                 </button>
                             ) : null}
-                            <span className="hidden rounded-chip border border-ink/10 bg-ink/6 px-2 py-1 text-gold sm:inline-flex">
-                                {joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY"}
-                            </span>
                             <span className="inline-flex min-h-9 items-center rounded-chip border border-ink/8 bg-parchment/70 px-2 py-1 text-ink/70">
                                 {joined ? joined.role.toUpperCase() : role.toUpperCase()}
                             </span>
                         </div>
                     </header>
+
+                    {!inTheaterMode ? (
+                        <section className="hidden items-center justify-between rounded-chip border border-ink/10 bg-canvas/45 px-3 py-1.5 font-mono text-[11px] text-ink/65 lg:flex">
+                            <span className="inline-flex items-center gap-2">
+                                <span className="rounded-chip border border-ink/10 bg-parchment/55 px-2 py-0.5 text-gold">
+                                    {stageModeLabel}
+                                </span>
+                                <span>online {members.length}</span>
+                                <span>msgs {messages.length}</span>
+                            </span>
+                            <span>room {roomId}</span>
+                        </section>
+                    ) : null}
 
                     <div className={centerPaneClass}>
                         <div className="min-h-0 min-w-0 flex-1">
@@ -690,18 +725,19 @@ export function Layout() {
                             />
                         </div>
 
-                        {/* Chat Panel - Only show if not stage priority, or if we force it */}
-                        {!inTheaterMode && chatPriorityMode ? (
-                            <ChatPanel
-                                joined={joined}
-                                roomId={roomId}
-                                userName={userName}
-                                onlineCount={members.length}
-                                messages={messages}
-                                onSend={handleSendChat}
-                                onRetryMessage={retryFailedChatMessage}
-                                className="hidden w-full flex-shrink-0 lg:flex lg:w-[340px]"
-                            />
+                        {!inTheaterMode ? (
+                            <div className={`hidden min-h-0 lg:flex lg:flex-shrink-0 lg:transition-[width,opacity] lg:duration-200 ${desktopChatOpen ? "lg:w-[320px] lg:opacity-100" : "lg:w-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"}`}>
+                                <ChatPanel
+                                    joined={joined}
+                                    roomId={roomId}
+                                    userName={userName}
+                                    onlineCount={members.length}
+                                    messages={messages}
+                                    onSend={handleSendChat}
+                                    onRetryMessage={retryFailedChatMessage}
+                                    className="h-full w-[320px]"
+                                />
+                            </div>
                         ) : null}
                     </div>
                 </div>
@@ -917,7 +953,7 @@ export function Layout() {
     );
 
     return (
-        <div ref={layoutRef} className="mobile-shell relative flex h-[100dvh] overflow-hidden bg-canvas font-body text-ink lg:h-screen">
+        <div ref={layoutRef} className="mobile-shell desktop-soft-ui relative flex h-[100dvh] overflow-hidden bg-canvas font-body text-ink lg:h-screen">
             {content}
         </div>
     );

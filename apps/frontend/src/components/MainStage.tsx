@@ -833,11 +833,13 @@ export function MainStage({
                     : "rounded-panel border border-ink/10 p-2 shadow-mucha lg:p-3"
                     }`}
             >
-                <MuchaHalo className="absolute inset-0 m-auto h-[360px] w-[360px] opacity-80" />
-                <section className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center rounded-panel border border-dashed border-white/20 bg-black/20 px-4 text-center">
-                    <p className="font-display text-xl font-semibold tracking-wide text-white/85">Debug Mobile Mode</p>
+                <MuchaHalo className="absolute inset-0 m-auto h-[360px] w-[360px] opacity-50 lg:opacity-20" />
+                <section className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center rounded-panel border border-dashed border-white/15 bg-black/24 px-4 text-center lg:mx-auto lg:h-auto lg:min-h-[220px] lg:max-w-xl lg:border-white/8 lg:bg-black/14">
+                    <p className="font-display text-lg font-semibold tracking-[0.08em] text-white/82 lg:text-base">
+                        Debug Layout Mode
+                    </p>
                     <p className="mt-2 max-w-md font-body text-sm text-white/55">
-                        LiveKit connection is disabled. You can inspect mobile layout and interaction flows without backend auth.
+                        LiveKit is disabled. This view is for UI layout and interaction checks without backend auth.
                     </p>
                 </section>
             </main>
