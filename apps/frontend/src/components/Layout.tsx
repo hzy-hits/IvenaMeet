@@ -428,6 +428,22 @@ export function Layout() {
         setChatDominant(true);
     }, [joined, role, hasVisualMedia, chatDominant, localScreenShareActive, pushLog]);
 
+    const toggleTheaterControlPanel = useCallback(() => {
+        setTheaterControlOpen((prev) => {
+            const next = !prev;
+            if (next) setTheaterChatOpen(false);
+            return next;
+        });
+    }, []);
+
+    const toggleTheaterChatPanel = useCallback(() => {
+        setTheaterChatOpen((prev) => {
+            const next = !prev;
+            if (next) setTheaterControlOpen(false);
+            return next;
+        });
+    }, []);
+
     const content = (
         <div className="relative flex h-full w-full mx-auto max-w-[2000px]">
             {/* We won't need the header row since discord/slack typically puts server info in the sidebar */}
@@ -579,6 +595,27 @@ export function Layout() {
 
                 {inTheaterMode ? (
                     <>
+                        <div className="pointer-events-none absolute inset-x-0 bottom-2 z-[60] flex items-center justify-center gap-2 px-2 lg:hidden">
+                            <button
+                                type="button"
+                                aria-label={theaterControlOpen ? "关闭舞台控制面板" : "打开舞台控制面板"}
+                                aria-pressed={theaterControlOpen}
+                                onClick={toggleTheaterControlPanel}
+                                className="pointer-events-auto rounded-chip border border-ink/20 bg-parchment/90 px-3 py-2 text-xs font-mono text-ink/80 shadow-mucha backdrop-blur-md"
+                            >
+                                {theaterControlOpen ? "关闭控制" : "控制"}
+                            </button>
+                            <button
+                                type="button"
+                                aria-label={theaterChatOpen ? "关闭舞台聊天面板" : "打开舞台聊天面板"}
+                                aria-pressed={theaterChatOpen}
+                                onClick={toggleTheaterChatPanel}
+                                className="pointer-events-auto rounded-chip border border-ink/20 bg-parchment/90 px-3 py-2 text-xs font-mono text-ink/80 shadow-mucha backdrop-blur-md"
+                            >
+                                {theaterChatOpen ? "关闭聊天" : "聊天"}
+                            </button>
+                        </div>
+
                         <div
                             className="pointer-events-none absolute inset-y-0 z-[60] hidden items-center lg:flex"
                             style={{ left: theaterControlOpen ? 322 : 0 }}
@@ -587,7 +624,7 @@ export function Layout() {
                                 type="button"
                                 aria-label={theaterControlOpen ? "收起舞台控制器" : "展开舞台控制器"}
                                 aria-pressed={theaterControlOpen}
-                                onClick={() => setTheaterControlOpen((v) => !v)}
+                                onClick={toggleTheaterControlPanel}
                                 className="pointer-events-auto ml-1 rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterControlOpen ? "HIDE CTRL" : "CTRL"}
@@ -601,7 +638,7 @@ export function Layout() {
                                 type="button"
                                 aria-label={theaterChatOpen ? "收起舞台聊天栏" : "展开舞台聊天栏"}
                                 aria-pressed={theaterChatOpen}
-                                onClick={() => setTheaterChatOpen((v) => !v)}
+                                onClick={toggleTheaterChatPanel}
                                 className="pointer-events-auto mr-1 rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
                                 {theaterChatOpen ? "HIDE CHAT" : "CHAT"}
@@ -609,69 +646,141 @@ export function Layout() {
                         </div>
 
                         {theaterControlOpen ? (
-                            <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
-                                <button
-                                    type="button"
+                            <>
+                                <div
+                                    className="absolute inset-0 z-50 bg-ink/55 backdrop-blur-sm lg:hidden"
                                     onClick={() => setTheaterControlOpen(false)}
-                                    className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
-                                    aria-label="关闭控制面板抽屉"
-                                >
-                                    ×
-                                </button>
-                                <Sidebar
-                                    requireInvite={REQUIRE_INVITE}
-                                    api={api}
-                                    roomId={roomId}
-                                    setRoomId={setRoomId}
-                                    userName={userName}
-                                    setUserName={setUserName}
-                                    role={role}
-                                    setRole={setRole}
-                                    joined={joined}
-                                    appSessionToken={appSessionToken}
-                                    setJoined={setJoined}
-                                    setAppSessionToken={setAppSessionToken}
-                                    setHostSessionToken={setHostSessionToken}
-                                    members={members}
-                                    messages={messages}
-                                    setMessages={setMessages}
-                                    lastRealtimeChat={lastRealtimeChat}
-                                    realtimeChatSender={realtimeChatSender}
-                                    logs={logs}
-                                    pushLog={pushLog}
-                                    onRetryMessage={retryFailedChatMessage}
-                                    chatPriorityMode={false}
-                                    hideDesktopChat
-                                    hideChatSectionCompletely
-                                    enableBootReconnect={false}
-                                    themeMode={themeMode}
-                                    resolvedTheme={resolvedTheme}
-                                    setThemeMode={setThemeMode}
                                 />
-                            </div>
+                                <div className="absolute inset-2 z-[70] overflow-hidden rounded-panel border border-ink/8 bg-parchment/80 shadow-mucha backdrop-blur-lg lg:hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTheaterControlOpen(false)}
+                                        className="absolute right-2 top-2 z-[80] grid h-7 w-7 place-items-center rounded-full border border-ink/10 bg-parchment/85 text-xs text-ink/65 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                        aria-label="关闭控制面板抽屉"
+                                    >
+                                        ×
+                                    </button>
+                                    <Sidebar
+                                        requireInvite={REQUIRE_INVITE}
+                                        api={api}
+                                        roomId={roomId}
+                                        setRoomId={setRoomId}
+                                        userName={userName}
+                                        setUserName={setUserName}
+                                        role={role}
+                                        setRole={setRole}
+                                        joined={joined}
+                                        appSessionToken={appSessionToken}
+                                        setJoined={setJoined}
+                                        setAppSessionToken={setAppSessionToken}
+                                        setHostSessionToken={setHostSessionToken}
+                                        members={members}
+                                        messages={messages}
+                                        setMessages={setMessages}
+                                        lastRealtimeChat={lastRealtimeChat}
+                                        realtimeChatSender={realtimeChatSender}
+                                        logs={logs}
+                                        pushLog={pushLog}
+                                        onRetryMessage={retryFailedChatMessage}
+                                        chatPriorityMode={false}
+                                        hideDesktopChat
+                                        hideChatSectionCompletely
+                                        enableBootReconnect={false}
+                                        themeMode={themeMode}
+                                        resolvedTheme={resolvedTheme}
+                                        setThemeMode={setThemeMode}
+                                    />
+                                </div>
+                                <div className="absolute bottom-2 left-2 top-2 z-50 hidden w-[320px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTheaterControlOpen(false)}
+                                        className="absolute right-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                        aria-label="关闭控制面板抽屉"
+                                    >
+                                        ×
+                                    </button>
+                                    <Sidebar
+                                        requireInvite={REQUIRE_INVITE}
+                                        api={api}
+                                        roomId={roomId}
+                                        setRoomId={setRoomId}
+                                        userName={userName}
+                                        setUserName={setUserName}
+                                        role={role}
+                                        setRole={setRole}
+                                        joined={joined}
+                                        appSessionToken={appSessionToken}
+                                        setJoined={setJoined}
+                                        setAppSessionToken={setAppSessionToken}
+                                        setHostSessionToken={setHostSessionToken}
+                                        members={members}
+                                        messages={messages}
+                                        setMessages={setMessages}
+                                        lastRealtimeChat={lastRealtimeChat}
+                                        realtimeChatSender={realtimeChatSender}
+                                        logs={logs}
+                                        pushLog={pushLog}
+                                        onRetryMessage={retryFailedChatMessage}
+                                        chatPriorityMode={false}
+                                        hideDesktopChat
+                                        hideChatSectionCompletely
+                                        enableBootReconnect={false}
+                                        themeMode={themeMode}
+                                        resolvedTheme={resolvedTheme}
+                                        setThemeMode={setThemeMode}
+                                    />
+                                </div>
+                            </>
                         ) : null}
 
                         {theaterChatOpen ? (
-                            <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
-                                <button
-                                    type="button"
+                            <>
+                                <div
+                                    className="absolute inset-0 z-50 bg-ink/55 backdrop-blur-sm lg:hidden"
                                     onClick={() => setTheaterChatOpen(false)}
-                                    className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
-                                    aria-label="关闭舞台聊天栏"
-                                >
-                                    ×
-                                </button>
-                                <ChatPanel
-                                    joined={joined}
-                                    roomId={roomId}
-                                    userName={userName}
-                                    onlineCount={members.length}
-                                    messages={messages}
-                                    onSend={handleSendChat}
-                                    onRetryMessage={retryFailedChatMessage}
-                                    className="!flex h-full w-full rounded-panel border border-ink/10 bg-parchment/95 shadow-mucha backdrop-blur-md"
                                 />
-                            </div>
+                                <div className="absolute inset-2 z-[70] overflow-hidden rounded-panel border border-ink/8 bg-parchment/80 shadow-mucha backdrop-blur-lg lg:hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTheaterChatOpen(false)}
+                                        className="absolute left-2 top-2 z-[80] grid h-7 w-7 place-items-center rounded-full border border-ink/10 bg-parchment/85 text-xs text-ink/65 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                        aria-label="关闭舞台聊天栏"
+                                    >
+                                        ×
+                                    </button>
+                                    <ChatPanel
+                                        joined={joined}
+                                        roomId={roomId}
+                                        userName={userName}
+                                        onlineCount={members.length}
+                                        messages={messages}
+                                        onSend={handleSendChat}
+                                        onRetryMessage={retryFailedChatMessage}
+                                        className="!flex h-full w-full rounded-panel border border-ink/10 bg-parchment/95 shadow-mucha backdrop-blur-md"
+                                    />
+                                </div>
+                                <div className="absolute bottom-2 right-2 top-2 z-50 hidden w-[360px] overflow-hidden rounded-panel border border-ink/8 bg-parchment/70 shadow-mucha backdrop-blur-lg lg:block">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTheaterChatOpen(false)}
+                                        className="absolute left-2 top-2 z-[70] grid h-6 w-6 place-items-center rounded-full border border-ink/10 bg-parchment/80 text-xs text-ink/55 transition-all ease-mucha hover:bg-parchment hover:text-ink"
+                                        aria-label="关闭舞台聊天栏"
+                                    >
+                                        ×
+                                    </button>
+                                    <ChatPanel
+                                        joined={joined}
+                                        roomId={roomId}
+                                        userName={userName}
+                                        onlineCount={members.length}
+                                        messages={messages}
+                                        onSend={handleSendChat}
+                                        onRetryMessage={retryFailedChatMessage}
+                                        className="!flex h-full w-full rounded-panel border border-ink/10 bg-parchment/95 shadow-mucha backdrop-blur-md"
+                                    />
+                                </div>
+                            </>
                         ) : null}
                     </>
                 ) : null}

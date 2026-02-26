@@ -931,7 +931,7 @@ export function Sidebar(props: Props) {
 
                     <section className={`min-h-0 flex-1 space-y-3 ${hideDesktopChat ? "lg:flex-none" : ""}`}>
                         <div
-                            className={`min-h-0 flex-1 flex flex-col rounded-panel border border-ink/8 mucha-panel p-2 ${hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "xl:hidden" : ""
+                            className={`min-h-0 flex-1 flex flex-col rounded-panel border border-ink/8 mucha-panel p-2 ${hideChatSectionCompletely ? "hidden" : hideDesktopChat ? "hidden" : ""
                                 }`}
                         >
                             <button
