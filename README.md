@@ -1,86 +1,54 @@
-# LiveKit Rust Control Plane (Axum + Redis + SQLite)
+# Ivena Meet
 
-## Repo layout
+Production-style private meeting room built on **LiveKit + Rust (Axum) + Redis + SQLite**, with a separate **agent-native API layer** for AI operators.
 
-```txt
-.
-├── src/                     # Rust control-plane
-├── apps/
-│   └── frontend/            # React + Vite frontend
-├── vendor/livekit-api/      # temporary patched dependency
-└── .github/workflows/ci.yml
+<p align="left">
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.93+-000000?logo=rust" />
+  <img alt="Axum" src="https://img.shields.io/badge/Axum-0.7-6b46c1" />
+  <img alt="LiveKit" src="https://img.shields.io/badge/LiveKit-RTC-0ea5e9" />
+  <img alt="React" src="https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61dafb" />
+  <img alt="Agent API" src="https://img.shields.io/badge/Agent%20API-v1-22c55e" />
+</p>
+
+## Product Preview
+
+| Desktop | Mobile |
+|---|---|
+| ![Ivena Meet desktop view](docs/assets/readme/showcase-desktop.png) | ![Ivena Meet mobile view](docs/assets/readme/showcase-mobile.png) |
+
+> Screenshot mode: `?debug=mobile` with LiveKit disabled for deterministic UI checks.
+
+## Auth Entry Preview
+
+| Desktop Auth Gate | Mobile Entry Gate |
+|---|---|
+| ![Ivena Meet auth gate desktop](docs/assets/readme/auth-gate-desktop.png) | ![Ivena Meet auth gate mobile](docs/assets/readme/auth-gate-mobile.png) |
+
+> Captured from normal open flow (no auth bypass): users choose host entry or invite entry before joining.
+
+## Why It Feels Like a Product
+
+- **Secure room lifecycle**: invite redeem, host identity binding, one-time broadcast start token, TTL-based sessions.
+- **Host control plane**: moderation, stage media permission, broadcast orchestration, invite management.
+- **Chat with durability**: persisted message history + streaming sync + retry-safe write path.
+- **Agent-native by design**: machine-readable `context/events/commands` contract without breaking existing APIs.
+- **Operationally ready**: systemd deploy scripts, cron cleanup, env dictionary, reverse-proxy topology.
+
+## Architecture At A Glance
+
+```mermaid
+flowchart LR
+    F["React Frontend<br/>Desktop + Mobile"] --> API["Rust Control Plane (Axum)"]
+    API --> R["Redis<br/>sessions, rate-limit, invites"]
+    API --> S["SQLite<br/>room/user/message persistence"]
+    API <--> LK["LiveKit<br/>RTC + broadcast ingress"]
+    A["External Agents<br/>Claude / Claw / Custom"] --> AG["Agent API v1<br/>/agent/context<br/>/agent/events<br/>/agent/commands"]
+    AG --> API
 ```
 
-## Capabilities
+## Quick Start (Local)
 
-- `POST /rooms/join`
-  - `role=host|member`
-  - `host` join supports `Authorization: Bearer <host_session_token>` (or `ADMIN_TOKEN` for bootstrap)
-  - room lifetime enforced (`ROOM_TTL_SECONDS`, default 4h)
-  - returns short-lived `app_session_token` for app-level write APIs
-- `POST /host/login/totp`
-  - host login by `room_id + host_identity + totp_code`
-  - returns short-lived `host_session_token`
-- `POST /host/sessions/refresh`
-  - rotate/refresh `host_session_token` before expiry
-- `POST /sessions/refresh`
-  - rotate/refresh `app_session_token` before expiry
-- `GET /agent/v1/context` (optional, behind `ENABLE_AGENT_API`)
-  - agent-friendly room/session/chat snapshot
-- `GET /agent/v1/events` (optional, behind `ENABLE_AGENT_API`)
-  - incremental event feed (currently chat message events)
-- `POST /agent/v1/commands` (optional, behind `ENABLE_AGENT_API`)
-  - low-risk command plane: `refresh_session`, `send_message`, `issue_invite`
-  - supports `mode=simulate|execute` (compatible with legacy `dry_run`) and optional `idempotency_key`
-- `POST /auth/invite` (control)
-  - issue invite link ticket + invite code (`INVITE_MAX_USES` controls redeem count)
-- `POST /invites/redeem`
-  - redeem `ticket + invite_code` to short-lived one-time `redeem_token`
-- `POST /broadcast/issue` (control)
-  - issue one-time short-lived broadcast start token
-- `POST /broadcast/start` (control)
-  - requires `start_token` and host binding check
-- `POST /broadcast/stop` (control)
-- `POST /users/upsert`
-- `GET /rooms/:room_id/messages`
-- `POST /rooms/:room_id/messages`
-  - requires `Authorization: Bearer <app_session_token>`
-- `GET /healthz`
-
-## Security model
-
-- Control routes require `Authorization: Bearer <host_session_token>`:
-  - `/auth/invite`
-  - `/broadcast/*`
-  - `/moderation/*`
-- Admin token is reserved for management/bootstrap APIs (e.g. `/host/mfa/enroll`).
-- `broadcast/start` is protected by:
-  - control auth
-  - room active check
-  - host identity binding
-  - one-time `start_token`
-  - rate limit
-- Member join can require invite flow (`REQUIRE_INVITE=true`):
-  - redeem link ticket + invite code first
-  - pass returned `redeem_token` to `/rooms/join`
-  - same invite ticket can be redeemed by multiple members until max uses is reached
-- Chat write identity is bound to backend-issued `app_session_token` (client body cannot forge `user_name`).
-- Rate limits (Redis):
-  - `room_join`
-  - `invite_redeem`
-  - `broadcast_start`
-- Client IP is taken from direct peer address by default; `x-forwarded-for` is only trusted when peer IP is in `TRUSTED_PROXY_IPS`.
-- Input validation (centralized):
-  - `room_id`: `[a-zA-Z0-9_-]`, 3-64 chars
-  - `user_name`: `[a-zA-Z0-9_-]`, 2-32 chars
-  - `nickname`: 2-32 chars
-  - `message.text`: 1-500 chars
-  - `avatar_url`: optional `https://`, max 512 chars
-- Request tracing:
-  - `x-request-id` is auto-generated if missing and echoed back in response headers
-  - key routes emit structured logs with `request_id/route/room_id/user_name/ip/result`
-
-## Run
+### 1) Start backend
 
 ```bash
 cd /opt/livekit/control-plane
@@ -88,167 +56,76 @@ cp .env.example .env
 cargo run
 ```
 
-## Systemd (auto start backend + frontend)
-
-Service templates are under `deploy/systemd/`:
-- `ivena-meet-control-plane.service`
-- `ivena-meet-frontend.service`
-
-Install and enable:
-
-```bash
-cd /opt/livekit/control-plane
-sudo ./deploy/systemd/install.sh
-```
-
-Then complete runtime files and build:
-
-```bash
-cp /opt/livekit/control-plane/deploy/env/frontend.env.example /opt/livekit/control-plane/deploy/env/frontend.env
-# edit /opt/livekit/control-plane/.env
-```
-
-One-command deploy (build + restart services):
-
-```bash
-/opt/livekit/control-plane/deploy/systemd/deploy.sh
-```
-
-Check status/logs:
-
-```bash
-systemctl status ivena-meet-control-plane.service --no-pager
-systemctl status ivena-meet-frontend.service --no-pager
-journalctl -u ivena-meet-control-plane.service -f
-journalctl -u ivena-meet-frontend.service -f
-```
-
-## Bootstrap a host (one command)
-
-Add a new host and bind it to a room in one step:
-
-```bash
-cd /opt/livekit/control-plane
-ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='alice_host' make bootstrap-host
-```
-
-This command does two admin operations:
-- enroll host MFA (`/host/mfa/enroll`)
-- create/refresh host room binding (`/rooms/join role=host`)
-
-The output includes `otpauth_url` for Google Authenticator scanning.
-By default, MFA enroll reuses existing secret (idempotent). To rotate secret:
-
-```bash
-ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' RESET_MFA=1 make bootstrap-host
-```
-
-Run frontend:
+### 2) Start frontend
 
 ```bash
 cd /opt/livekit/control-plane/apps/frontend
+cp .env.example .env
 npm install
 npm run dev -- --host 0.0.0.0 --port 8090
 ```
 
-Mobile debug bypass (dev only):
+### 3) Debug mobile layout without backend auth
 
 ```bash
 # apps/frontend/.env
 VITE_DEV_AUTH_BYPASS=true
-# optional: disable LiveKit room connection in debug mode
 VITE_DEV_DISABLE_LIVEKIT=true
 ```
 
 Then open:
 
 - `/?debug=mobile`
-- `/?debug=mobile&livekit=off` (forces LiveKit off even if env flag is false)
+- `/?debug=mobile&livekit=off`
 
-## Bearer admin token usage (bootstrap/management only)
+## Core Capabilities
 
-`Bearer ADMIN_TOKEN` is passed in the HTTP header:
+### Room + Session
 
-```bash
--H "authorization: Bearer $ADMIN_TOKEN"
-```
+- `POST /rooms/join` (`role=host|member`)
+- `POST /host/login/totp`
+- `POST /host/sessions/refresh`
+- `POST /sessions/refresh`
+- Session TTL + rotation + identity lock ownership checks
 
-## Required env
+### Invite + Broadcast
 
-- `APP_BIND` default `0.0.0.0:3000`
-- `REDIS_URL` default `redis://127.0.0.1:6379/`
-- `SQLITE_PATH` default `/opt/livekit/control-plane/data/app.db`
-- `MEET_BASE_URL` default `https://meet.ivena.top`
-- `LIVEKIT_HOST`
-- `LIVEKIT_PUBLIC_WS_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
-- `ADMIN_TOKEN`
+- `POST /auth/invite`
+- `POST /invites/redeem`
+- `POST /broadcast/issue`
+- `POST /broadcast/start`
+- `POST /broadcast/stop`
 
-## Config map (single places to edit)
+### Chat + Profile
 
-- Backend env + defaults:
-  - `.env` / `.env.example`
-  - `src/config.rs`
-- Frontend env + defaults:
-  - `apps/frontend/.env` / `apps/frontend/.env.example`
-  - `apps/frontend/src/lib/env.ts`
-- Host bootstrap helper:
-  - `scripts/bootstrap-host.sh`
-  - `Makefile` (`make bootstrap-host`)
-- Full dictionary:
-  - `docs/config-dictionary.md`
+- `GET /rooms/:room_id/messages`
+- `POST /rooms/:room_id/messages`
+- `GET /rooms/:room_id/messages/stream`
+- `POST /users/upsert`
+- `POST /users/avatar/upload`
 
-## Optional env
+### Agent API (optional)
 
-- `TOKEN_TTL_SECONDS` default `14400`
-- `INVITE_TTL_SECONDS` default `86400`
-- `INVITE_MAX_USES` default `10`
-- `REDEEM_TTL_SECONDS` default `300`
-- `ROOM_TTL_SECONDS` default `14400`
-- `BROADCAST_ISSUE_TTL_SECONDS` default `120`
-- `INVITE_PREFIX` default `invite`
-- `SESSION_PREFIX` default `appsession`
-- `SESSION_TTL_SECONDS` default `1800`
-- `REQUIRE_INVITE` default `false`
-- `ENABLE_AGENT_API` default `false`
-- `REQUIRE_ADMIN_FOR_JOIN` default `false`
-- `RATE_LIMIT_WINDOW_SECONDS` default `60`
-- `RATE_LIMIT_ROOM_JOIN` default `20`
-- `RATE_LIMIT_INVITE_REDEEM` default `12`
-- `RATE_LIMIT_HOST_LOGIN_TOTP` default `12`
-- `RATE_LIMIT_BROADCAST_START` default `3`
-- `RATE_LIMIT_AVATAR_UPLOAD_PER_MINUTE` default `2`
-- `RATE_LIMIT_AVATAR_UPLOAD_PER_DAY` default `20`
-- `AVATAR_STORAGE_QUOTA_BYTES` default `524288000` (500MB)
-- `TRUSTED_PROXY_IPS` default empty (example: `127.0.0.1,192.168.1.20`)
-
-## Agent API (AI-native, optional)
-
-When enabled, the backend exposes a stable integration surface for external agents (Claude/Claw, etc.) without changing existing room/chat/auth routes.
-
-Enable:
+Enable in `.env`:
 
 ```bash
-# .env
 ENABLE_AGENT_API=true
 ```
 
-Endpoints:
+Routes:
 
 - `GET /agent/v1/context?room_id=<room_id>&message_limit=20`
-  - Auth: `Authorization: Bearer <app_session_token>`
-  - Returns room/session/chat/broadcast snapshot and available commands
 - `GET /agent/v1/events?room_id=<room_id>&after_seq=0&limit=80`
-  - Auth: `Authorization: Bearer <app_session_token>`
-  - Returns ordered incremental events for polling
 - `POST /agent/v1/commands`
-  - Command `refresh_session` / `send_message` require app session bearer token
-  - Command `issue_invite` requires control bearer token (host session or admin token)
-  - Request supports `mode=simulate|execute` and `idempotency_key`
-  - Legacy `dry_run` remains supported for backward compatibility
 
-Example command request:
+Command model:
+
+- Low-risk commands: `refresh_session`, `send_message`, `issue_invite`
+- Preferred execution: `mode=simulate|execute`
+- Compatibility: legacy `dry_run` is still accepted
+- Retry safety: `idempotency_key` supported
+
+Example:
 
 ```json
 {
@@ -262,79 +139,164 @@ Example command request:
 }
 ```
 
-## Avatar hardening
+## Security Model
 
-- Upload endpoint: `POST /users/avatar/upload` (requires `app_session_token`)
-- Request body hard limit: 2MB
-- Allowed types: png / jpg / webp (data URL + magic-byte check)
-- Server transcode: always resize/crop to `256x256` and store as `.webp`
-- Per-user limits: 2/minute, 100/day
-- Storage quota: reject new uploads when avatar dir exceeds configured bytes
-- Keep-one policy: new upload replaces old avatar file for that user
+- Control routes require `Authorization: Bearer <host_session_token>`:
+  - `/auth/invite`
+  - `/broadcast/*`
+  - `/moderation/*`
+- Admin token is reserved for bootstrap/management APIs.
+- `broadcast/start` requires:
+  - control auth
+  - room active check
+  - host identity binding
+  - one-time `start_token`
+  - rate limit
+- Chat write identity is always bound to server-issued `app_session_token`.
+- `x-forwarded-for` is trusted only when peer IP is in `TRUSTED_PROXY_IPS`.
 
-Nightly orphan cleanup:
+Input validation defaults:
+
+- `room_id`: `[a-zA-Z0-9_-]`, 3-64 chars
+- `user_name`: `[a-zA-Z0-9_-]`, 2-32 chars
+- `nickname`: 2-32 chars
+- `message.text`: 1-500 chars
+- `avatar_url`: optional `https://`, max 512 chars
+
+## Deploy As Services (systemd)
+
+Service templates:
+
+- `deploy/systemd/ivena-meet-control-plane.service`
+- `deploy/systemd/ivena-meet-frontend.service`
+
+Install:
+
+```bash
+cd /opt/livekit/control-plane
+sudo ./deploy/systemd/install.sh
+```
+
+Deploy:
+
+```bash
+/opt/livekit/control-plane/deploy/systemd/deploy.sh
+```
+
+Check status:
+
+```bash
+systemctl status ivena-meet-control-plane.service --no-pager
+systemctl status ivena-meet-frontend.service --no-pager
+journalctl -u ivena-meet-control-plane.service -f
+journalctl -u ivena-meet-frontend.service -f
+```
+
+## Bootstrap Host (one command)
+
+```bash
+cd /opt/livekit/control-plane
+ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='alice_host' make bootstrap-host
+```
+
+With MFA reset:
+
+```bash
+ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' RESET_MFA=1 make bootstrap-host
+```
+
+## Reverse Proxy (recommended)
+
+- `meet.ivena.top` -> `192.168.1.108:8090` (frontend)
+- `meet.ivena.top/api` -> `192.168.1.108:3000` (control-plane)
+- `livekit.ivena.top` -> LiveKit server (WSS)
+
+Nginx Proxy Manager:
+
+- Proxy A (`meet.ivena.top`) forwards to frontend
+- Add advanced location `/api` to backend
+- Proxy B (`livekit.ivena.top`) forwards to `:7880` with SSL + WebSocket
+- Add NPM internal IP into `TRUSTED_PROXY_IPS`
+
+## Required Env
+
+- `APP_BIND` (default `0.0.0.0:3000`)
+- `REDIS_URL` (default `redis://127.0.0.1:6379/`)
+- `SQLITE_PATH` (default `/opt/livekit/control-plane/data/app.db`)
+- `MEET_BASE_URL` (default `https://meet.ivena.top`)
+- `LIVEKIT_HOST`
+- `LIVEKIT_PUBLIC_WS_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+- `ADMIN_TOKEN`
+
+## Optional Env (selected)
+
+- `ENABLE_AGENT_API` default `false`
+- `REQUIRE_INVITE` default `false`
+- `REQUIRE_ADMIN_FOR_JOIN` default `false`
+- `SESSION_TTL_SECONDS` default `1800`
+- `INVITE_MAX_USES` default `10`
+- `RATE_LIMIT_WINDOW_SECONDS` default `60`
+- `RATE_LIMIT_ROOM_JOIN` default `20`
+- `RATE_LIMIT_INVITE_REDEEM` default `12`
+- `RATE_LIMIT_CHAT_MESSAGE` default `30`
+- `TRUSTED_PROXY_IPS` default empty
+
+Full dictionary: `docs/config-dictionary.md`
+
+## Operational Hardening
+
+### Avatar pipeline
+
+- Upload cap: 2MB
+- Format whitelist: png/jpg/webp (magic-byte check)
+- Server transcode to `256x256 .webp`
+- Limits: 2/minute + 100/day + storage quota
+
+Nightly cleanup:
 
 ```bash
 cd /opt/livekit/control-plane
 make cleanup-orphan-avatars
 ```
 
-Install nightly cron (03:15 local time):
+Install cron:
 
 ```bash
 mkdir -p /opt/livekit/control-plane/logs
 (crontab -l 2>/dev/null; cat /opt/livekit/control-plane/deploy/cron/cleanup-orphan-avatars.cron) | crontab -
 ```
 
-## End-to-end flow (invite + secure start)
+### Echo-safe host setup
 
-1. Bootstrap host once (`make bootstrap-host`) to enroll MFA and bind room.
-2. Host logs in with TOTP (`/host/login/totp`) and gets `host_session_token`.
-3. Host joins room (`/rooms/join role=host`, bearer `host_session_token`).
-4. Host issues invite (`/auth/invite`) -> `invite_ticket + invite_code + invite_url + invite_max_uses`.
-5. Member redeems invite (`/invites/redeem`) -> one-time `redeem_token` (+ remaining uses).
-6. Member joins (`/rooms/join` with `redeem_token`).
-7. Host issues broadcast token (`/broadcast/issue`).
-8. Host starts broadcast (`/broadcast/start` with `start_token`).
+- Host microphone: browser LiveKit mic
+- Content audio: OBS WHIP ingress (`host__ingress`)
+- Browser screen share is video-only
+- Do not add microphone source in OBS when browser mic is already active
 
-### Echo-safe host setup (recommended)
+### OBS/WHIP troubleshooting
 
-- Keep voice and content audio on separate paths:
-  - Host microphone: browser LiveKit mic
-  - Content audio: OBS WHIP ingress (`host__ingress`)
-- Browser screen share is video-only in this project (no system audio).
-- When using OBS, do not add microphone source in OBS; otherwise host voice may loop/duplicate.
+- Symptom: OBS `PeerConnection state: Connecting` then timeout (~30-45s)
+- First check: disable VPN/TUN/global proxy for OBS machine
+- Required network:
+  - UDP `7885` ingress ICE
+  - UDP `7882` LiveKit RTC
+  - UDP `3478` TURN
+  - Optional TCP fallback `7886` / `7881`
 
-### OBS/WHIP troubleshooting (important)
+## End-to-End Flow (Invite + Secure Start)
 
-- Symptom pattern:
-  - OBS shows `PeerConnection state: Connecting` then fails around ~30-45s.
-  - Sometimes followed by `DELETE request ... HTTP 404` (this is usually cleanup after failure, not root cause).
-- First check client network path:
-  - Disable VPN/TUN/Global proxy mode on the OBS machine.
-  - Keep `livekit.ivena.top` and `turn.ivena.top` on direct route (no tunnel).
-- Required connectivity:
-  - Ingress WHIP ICE: UDP `7885` (server)
-  - LiveKit RTC: UDP `7882` (server)
-  - TURN: UDP `3478` (server)
-  - Optional fallback: TCP `7886` (ingress), TCP `7881` (RTC)
+1. Bootstrap host (`make bootstrap-host`)
+2. Host login (`/host/login/totp`) -> `host_session_token`
+3. Host join (`/rooms/join role=host`)
+4. Issue invite (`/auth/invite`)
+5. Member redeem (`/invites/redeem`)
+6. Member join (`/rooms/join` with `redeem_token`)
+7. Issue broadcast token (`/broadcast/issue`)
+8. Start broadcast (`/broadcast/start`)
 
-## Reverse proxy (recommended)
-
-- `meet.ivena.top` -> `192.168.1.108:8090` (frontend)
-- `meet.ivena.top/api` -> `192.168.1.108:3000` (control-plane)
-- `livekit.ivena.top` -> LiveKit server (WSS)
-
-Nginx Proxy Manager mapping:
-- Proxy host A (`meet.ivena.top`):
-  - forward to `http://192.168.1.108:8090`
-  - add advanced location `/api` -> `http://192.168.1.108:3000`
-- Proxy host B (`livekit.ivena.top`):
-  - forward to `http://192.168.1.108:7880`
-  - enable SSL + WebSocket
-- Add NPM internal IP to backend `TRUSTED_PROXY_IPS`.
-
-## Minimal curl
+## Minimal cURL Flow
 
 ```bash
 # 1) bootstrap once (admin)
@@ -367,27 +329,39 @@ curl -sS -X POST http://127.0.0.1:3000/rooms/join \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","user_name":"alice","role":"member","redeem_token":"<redeem_token>"}'
 
-# 4.1) write message with app_session_token from join response
+# 7) write chat message with app_session_token from join response
 curl -sS -X POST http://127.0.0.1:3000/rooms/test/messages \
   -H "authorization: Bearer <app_session_token>" \
   -H 'content-type: application/json' \
   -d '{"text":"hello"}'
 
-# 4.2) refresh app_session_token before expiry
+# 8) refresh app_session_token before expiry
 curl -sS -X POST http://127.0.0.1:3000/sessions/refresh \
   -H "authorization: Bearer <app_session_token>" \
   -H 'content-type: application/json' \
   -d '{}'
 
-# 7) issue short broadcast start token
+# 9) issue short broadcast start token
 curl -sS -X POST http://127.0.0.1:3000/broadcast/issue \
   -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","host_identity":"host-1"}'
 
-# 8) start broadcast with one-time token
+# 10) start broadcast with one-time token
 curl -sS -X POST http://127.0.0.1:3000/broadcast/start \
   -H "authorization: Bearer <host_session_token>" \
   -H 'content-type: application/json' \
   -d '{"room_id":"test","participant_identity":"host-1","start_token":"<start_token>"}'
+```
+
+## Repo Layout
+
+```txt
+.
+├── src/                     # Rust control-plane
+├── apps/
+│   └── frontend/            # React + Vite frontend
+├── docs/                    # design/config docs
+├── skills/                  # agent integration skills
+└── .github/workflows/ci.yml
 ```
