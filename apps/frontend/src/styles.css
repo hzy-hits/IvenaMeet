@@ -10,21 +10,21 @@
 @layer base {
     :root {
         /* ── Surfaces (warm Mucha cream — NOT grey) ── */
-        --canvas: 227 218 200;
-        /* #E3DAC8 — warm cream, like aged poster paper */
-        --parchment: 216 205 174;
-        /* #D8CDAE — honey-parchment, Mucha's favourite ground */
-        --rail: 203 191 158;
-        /* #CBBF9E — warm sandstone */
+        --canvas: 236 227 208;
+        /* #ECE3D0 — slightly brighter for better foreground contrast */
+        --parchment: 214 198 160;
+        /* #D6C6A0 — deeper panel tone to separate from canvas */
+        --rail: 196 178 138;
+        /* #C4B28A — stronger structural rail contrast */
         --surface-raise: 234 226 210;
         /* #EAE2D2 — subtle warm lift */
 
         /* ── Text ── */
-        --ink: 44 38 33;
-        /* #2C2621 — NEVER pure black */
-        --ink-secondary: 44 38 33;
+        --ink: 33 28 24;
+        /* #211C18 — darker ink to improve readability on light theme */
+        --ink-secondary: 33 28 24;
         /* used at 0.78 alpha */
-        --ink-muted: 44 38 33;
+        --ink-muted: 33 28 24;
         /* used at 0.55 alpha */
 
         /* ── Accents (rich Mucha palette) ── */
@@ -465,4 +465,29 @@
    ============================================================ */
 .ease-mucha {
     transition-timing-function: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ============================================================
+   Light Theme Readability Boost
+   Many UI labels use text-ink with low alpha (40-55%).
+   Raise effective contrast only for light theme.
+   ============================================================ */
+[data-theme="light"] .text-ink\/40 {
+    color: rgb(var(--ink) / 0.58);
+}
+
+[data-theme="light"] .text-ink\/45 {
+    color: rgb(var(--ink) / 0.64);
+}
+
+[data-theme="light"] .text-ink\/50 {
+    color: rgb(var(--ink) / 0.70);
+}
+
+[data-theme="light"] .text-ink\/55 {
+    color: rgb(var(--ink) / 0.74);
+}
+
+[data-theme="light"] .placeholder\:text-ink\/35::placeholder {
+    color: rgb(var(--ink) / 0.48);
 }
