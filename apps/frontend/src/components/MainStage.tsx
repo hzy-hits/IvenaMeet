@@ -55,6 +55,7 @@ type Props = {
         feature: StageFeature,
         enabled: boolean,
     ) => Promise<void>;
+    onSignalConnectionIssue?: (reason: string) => void;
     onLog: (msg: string) => void;
 };
 
@@ -752,11 +753,13 @@ export function MainStage({
     onRealtimeChatSenderReady,
     onVisualMediaChange,
     onHostStagePermissionChange,
+    onSignalConnectionIssue,
     onLog,
 }: Props) {
     const onLogRef = useRef(onLog);
     const roomIdRef = useRef(roomId);
     const userNameRef = useRef(userName);
+    const signalFailureRef = useRef(false);
 
     useEffect(() => {
         onLogRef.current = onLog;
@@ -802,15 +805,30 @@ export function MainStage({
     ]);
 
     const handleConnected = () => {
+        signalFailureRef.current = false;
         onLogRef.current(`livekit connected: ${roomIdRef.current} as ${userNameRef.current}`);
     };
 
     const handleDisconnected = () => {
         onLogRef.current("livekit disconnected");
+        if (signalFailureRef.current) {
+            signalFailureRef.current = false;
+            onSignalConnectionIssue?.("disconnected_after_signal_error");
+        }
     };
 
     const handleError = (e: Error) => {
-        onLogRef.current(`livekit error: ${e?.message ?? String(e)}`);
+        const msg = e?.message ?? String(e);
+        onLogRef.current(`livekit error: ${msg}`);
+        const lowered = msg.toLowerCase();
+        const signalIssue =
+            lowered.includes("could not establish signal connection")
+            || lowered.includes("failed to fetch")
+            || lowered.includes("signal connection");
+        if (signalIssue) {
+            signalFailureRef.current = true;
+            onSignalConnectionIssue?.(msg);
+        }
     };
 
     if (!joined) {

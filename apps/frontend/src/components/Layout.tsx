@@ -176,10 +176,38 @@ export function Layout() {
             }),
         [hostSessionToken, appSessionToken],
     );
+    const livekitReconnectInFlightRef = useRef(false);
+    const livekitReconnectCooldownUntilRef = useRef(0);
 
     const pushLog = useCallback((line: string) => {
         setLogs((prev) => [...prev.slice(-(LOG_MAX_LINES - 1)), `[${new Date().toLocaleTimeString()}] ${line}`]);
     }, []);
+
+    const recoverLivekitSignal = useCallback(
+        async (reason: string) => {
+            if (!joined || !appSessionToken) return;
+
+            const now = Date.now();
+            if (livekitReconnectInFlightRef.current) return;
+            if (now < livekitReconnectCooldownUntilRef.current) return;
+
+            livekitReconnectInFlightRef.current = true;
+            livekitReconnectCooldownUntilRef.current = now + 6000;
+            pushLog(`livekit signal issue, recovering: ${reason}`);
+
+            try {
+                const res = await api.reconnectRoom();
+                setJoined((prev) => (prev ? { ...prev, ...res } : prev));
+                pushLog("livekit reconnect token refreshed");
+            } catch (e) {
+                const detail = e instanceof Error ? e.message : String(e);
+                pushLog(`livekit reconnect failed: ${detail}`);
+            } finally {
+                livekitReconnectInFlightRef.current = false;
+            }
+        },
+        [api, appSessionToken, joined, pushLog],
+    );
 
     const inTheaterMode = Boolean(joined && hasVisualMedia && theaterMode);
     const isHostView = (joined?.role ?? role) === "host";
@@ -721,6 +749,7 @@ export function Layout() {
                                 onVisualMediaChange={setHasVisualMedia}
                                 onLocalScreenShareChange={setLocalScreenShareActive}
                                 onHostStagePermissionChange={handleHostStagePermissionChange}
+                                onSignalConnectionIssue={recoverLivekitSignal}
                                 onLog={pushLog}
                             />
                         </div>
