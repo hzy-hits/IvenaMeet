@@ -512,12 +512,12 @@ export function Layout() {
         <div className="relative flex h-full w-full mx-auto max-w-[2000px]">
             {/* We won't need the header row since discord/slack typically puts server info in the sidebar */}
             <div
-                className={`flex h-full w-full flex-col lg:flex-row ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}
+                className={`flex h-full w-full min-h-0 flex-col lg:flex-row ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}
             >
 
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
                 {!inTheaterMode ? (
-                    <div className="flex w-full flex-col lg:w-[340px] lg:flex-shrink-0">
+                    <div className="order-2 flex h-[46dvh] min-h-[300px] w-full min-w-0 flex-col lg:order-1 lg:h-full lg:w-[340px] lg:flex-shrink-0">
                         <Sidebar
                             requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                             api={api}
@@ -551,7 +551,7 @@ export function Layout() {
                 ) : null}
 
                 {/* Main Stage Output */}
-                <div className={`min-w-0 flex-1 ${inTheaterMode ? "flex flex-col" : "flex flex-col gap-2"}`}>
+                <div className={`order-1 min-w-0 flex-1 lg:order-2 ${inTheaterMode ? "flex flex-col" : "flex min-h-0 flex-col gap-2"}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
                     <header
                         className={`shrink-0 flex items-center justify-between border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
@@ -854,7 +854,7 @@ export function Layout() {
     );
 
     return (
-        <div ref={layoutRef} className="relative h-screen overflow-hidden bg-canvas font-body text-ink flex">
+        <div ref={layoutRef} className="relative h-[100dvh] overflow-hidden bg-canvas font-body text-ink flex lg:h-screen">
             {content}
         </div>
     );

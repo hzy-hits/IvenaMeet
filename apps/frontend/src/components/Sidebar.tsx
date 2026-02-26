@@ -580,7 +580,7 @@ export function Sidebar(props: Props) {
                     <OrnateDivider className="mt-4 mb-2" />
                 </section>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-4 [-webkit-overflow-scrolling:touch]">
                     <section className="px-4 py-2 shrink-0">
                         <p className="px-1 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-ink/45 mb-2">Navigator</p>
                         <div className="mt-2 grid grid-cols-3 gap-2" role="tablist" aria-label="侧边栏面板导航">
