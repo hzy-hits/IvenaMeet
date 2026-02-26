@@ -624,7 +624,7 @@ export function Layout() {
                                     aria-label={desktopSidebarOpen ? "收起控制侧栏" : "展开控制侧栏"}
                                     aria-pressed={desktopSidebarOpen}
                                     onClick={() => setDesktopSidebarOpen((v) => !v)}
-                                    className="hidden min-h-10 rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
+                                    className="hidden h-10 items-center justify-center rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] leading-none text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
                                 >
                                     {desktopSidebarOpen ? "HIDE_CTRL" : "SHOW_CTRL"}
                                 </button>
@@ -635,7 +635,7 @@ export function Layout() {
                                     aria-label={desktopChatOpen ? "收起聊天抽屉" : "展开聊天抽屉"}
                                     aria-pressed={desktopChatOpen}
                                     onClick={() => setDesktopChatOpen((v) => !v)}
-                                    className="hidden min-h-10 rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
+                                    className="hidden h-10 items-center justify-center rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] leading-none text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
                                 >
                                     {desktopChatOpen ? "HIDE_CHAT" : "OPEN_CHAT"}
                                 </button>
@@ -686,7 +686,7 @@ export function Layout() {
                                             : "FULLSCREEN"}
                                 </button>
                             ) : null}
-                            <span className="inline-flex min-h-9 items-center rounded-chip border border-ink/8 bg-parchment/70 px-2 py-1 text-ink/70">
+                            <span className="inline-flex h-10 items-center justify-center rounded-chip border border-ink/8 bg-parchment/70 px-3 text-[11px] leading-none text-ink/70">
                                 {joined ? joined.role.toUpperCase() : role.toUpperCase()}
                             </span>
                         </div>
