@@ -186,7 +186,7 @@ export function Layout() {
     const centerPaneClass = inTheaterMode
         ? "flex min-h-0 flex-col flex-1"
         : "flex min-h-0 flex-col lg:flex-row flex-1 gap-2";
-    const mobilePaneButtonClass = (pane: MobilePane): string => (`inline-flex items-center justify-center rounded-chip border px-3 py-2 text-xs font-medium transition-colors ease-mucha ${
+    const mobilePaneButtonClass = (pane: MobilePane): string => (`inline-flex min-h-11 items-center justify-center rounded-chip border px-2.5 text-[12px] font-semibold transition-colors ease-mucha ${
         mobilePane === pane
             ? "border-gold/55 bg-ink/8 text-ink/85"
             : "border-ink/12 bg-canvas/55 text-ink/65"
@@ -529,7 +529,7 @@ export function Layout() {
                 {!inTheaterMode ? (
                     <nav
                         aria-label="移动端主面板导航"
-                        className="shrink-0 rounded-panel border border-ink/10 bg-parchment/70 p-1 shadow-mucha lg:hidden"
+                        className="mobile-pane-nav shrink-0 rounded-panel border border-ink/10 bg-parchment/75 p-1 shadow-mucha lg:hidden"
                     >
                         <div className="grid grid-cols-3 gap-1">
                             <button
@@ -602,15 +602,15 @@ export function Layout() {
                 <div className={`order-1 min-h-0 min-w-0 flex-1 lg:order-2 lg:flex ${inTheaterMode ? "flex flex-col" : `${mobilePane === "stage" ? "flex" : "hidden"} flex-col gap-2`}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
                     <header
-                        className={`shrink-0 flex flex-wrap items-center justify-between gap-2 border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
+                        className={`mobile-stage-header shrink-0 flex flex-wrap items-center justify-between gap-2 border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-3 py-2 lg:px-4 lg:py-3"
                             }`}
                     >
-                        <div className="flex min-w-0 items-center gap-3">
-                            <h1 className="font-display text-lg font-semibold tracking-tight text-ink hover:text-gold transition-colors ease-mucha cursor-default">
+                        <div className="flex min-w-0 items-center gap-2 lg:gap-3">
+                            <h1 className="font-display text-base font-semibold tracking-tight text-ink transition-colors ease-mucha lg:text-lg">
                                 Ivena Meet
                             </h1>
-                            <div className="h-4 w-px bg-gold/35"></div>
-                            <div className="flex items-center gap-2 text-xs font-mono">
+                            <div className="mobile-room-meta h-4 w-px bg-gold/35"></div>
+                            <div className="mobile-room-meta flex items-center gap-2 text-xs font-mono">
                                 <span className="text-ink/50">CH/<span className="text-ink/80">{roomId}</span></span>
                             </div>
                         </div>
@@ -623,7 +623,7 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleChatFocusLayout();
                                     }}
-                                    className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${chatDominant
+                                    className={`hidden min-h-11 rounded-chip border px-3 text-[11px] transition-colors ease-mucha sm:inline-flex ${chatDominant
                                         ? "border-gold/55 bg-ink/8 text-ink/70"
                                         : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
@@ -647,7 +647,7 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleFullscreenStage();
                                     }}
-                                    className={`rounded-chip border px-2 py-1 transition-colors ease-mucha ${isFullscreen || inTheaterMode
+                                    className={`hidden min-h-11 rounded-chip border px-3 text-[11px] transition-colors ease-mucha sm:inline-flex ${isFullscreen || inTheaterMode
                                         ? "border-gold/55 bg-ink/8 text-ink/70"
                                         : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
@@ -661,10 +661,10 @@ export function Layout() {
                                             : "FULLSCREEN"}
                                 </button>
                             ) : null}
-                            <span className="rounded-chip bg-ink/6 px-2 py-1 text-gold border border-ink/10">
+                            <span className="hidden rounded-chip border border-ink/10 bg-ink/6 px-2 py-1 text-gold sm:inline-flex">
                                 {joined ? (chatPriorityMode ? "CHAT_MODE" : "STAGE_MODE") : "STANDBY"}
                             </span>
-                            <span className="rounded-chip bg-parchment/70 px-2 py-1 text-ink/70 border border-ink/8">
+                            <span className="inline-flex min-h-9 items-center rounded-chip border border-ink/8 bg-parchment/70 px-2 py-1 text-ink/70">
                                 {joined ? joined.role.toUpperCase() : role.toUpperCase()}
                             </span>
                         </div>
@@ -917,7 +917,7 @@ export function Layout() {
     );
 
     return (
-        <div ref={layoutRef} className="relative h-[100dvh] overflow-hidden bg-canvas font-body text-ink flex lg:h-screen">
+        <div ref={layoutRef} className="mobile-shell relative flex h-[100dvh] overflow-hidden bg-canvas font-body text-ink lg:h-screen">
             {content}
         </div>
     );

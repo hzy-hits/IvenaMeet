@@ -571,7 +571,7 @@ export function Sidebar(props: Props) {
                                 type="button"
                                 aria-label="离开房间"
                                 onClick={() => run(leaveRoom)}
-                                className="inline-flex items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
+                                className="inline-flex min-h-11 items-center gap-2 rounded-chip border border-ink/10 bg-canvas/60 px-3 py-2 text-sm text-ink/70 transition-colors ease-mucha hover:border-gold/50"
                             >
                                 <LogOut size={16} /> Leave
                             </button>
@@ -593,7 +593,7 @@ export function Sidebar(props: Props) {
                                 aria-controls={consolePanelId}
                                 tabIndex={consolePane === "control" ? 0 : -1}
                                 onClick={() => setConsolePane("control")}
-                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
+                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "control"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
@@ -609,7 +609,7 @@ export function Sidebar(props: Props) {
                                 aria-controls={membersSectionId}
                                 tabIndex={consolePane === "members" ? 0 : -1}
                                 onClick={() => setConsolePane("members")}
-                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
+                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs transition-colors ease-mucha ${consolePane === "members"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}
@@ -625,7 +625,7 @@ export function Sidebar(props: Props) {
                                 aria-controls={opsPanelId}
                                 tabIndex={consolePane === "ops" ? 0 : -1}
                                 onClick={() => setConsolePane("ops")}
-                                className={`inline-flex items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
+                                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-2 py-2 text-xs font-medium transition-colors ease-mucha ${consolePane === "ops"
                                     ? "border border-gold/55 bg-ink/6 text-ink/70"
                                     : "border border-ink/15 mucha-panel text-ink/65 hover:border-ink/12"
                                     }`}

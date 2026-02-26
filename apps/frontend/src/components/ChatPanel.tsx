@@ -229,7 +229,7 @@ export function ChatPanel({
                             onClick={() => void send()}
                             disabled={sending || !chatText.trim()}
                             aria-busy={sending}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-all ease-mucha hover:bg-gold/85 hover:shadow-gold-glow press-feedback"
+                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-chip bg-gold leading-none text-canvas font-semibold disabled:cursor-not-allowed disabled:opacity-40 transition-all ease-mucha hover:bg-gold/85 hover:shadow-gold-glow press-feedback"
                         >
                             <Send size={16} />
                         </button>

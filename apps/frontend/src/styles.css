@@ -503,3 +503,38 @@
 [data-theme="light"] .placeholder\:text-ink\/35::placeholder {
     color: rgb(var(--ink) / 0.48);
 }
+
+/* ============================================================
+   Mobile Safe Area & Landscape Tuning
+   ============================================================ */
+.mobile-shell {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 1024px) {
+    .mobile-shell {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+@media (max-width: 1023px) and (orientation: landscape) {
+    .mobile-pane-nav {
+        padding: 0.125rem;
+    }
+
+    .mobile-pane-nav button {
+        min-height: 2.25rem;
+        font-size: 11px;
+    }
+
+    .mobile-stage-header {
+        padding-top: 0.35rem !important;
+        padding-bottom: 0.35rem !important;
+    }
+
+    .mobile-room-meta {
+        display: none !important;
+    }
+}
