@@ -7,11 +7,13 @@ This file is the single reference for runtime config in this repo.
 | Key | Default | Purpose | Recommended |
 |---|---|---|---|
 | `APP_BIND` | `0.0.0.0:3000` | Control-plane bind address | Keep default unless port conflict |
+| `APP_ENV` | `development` | Runtime environment marker (`development` / `production`) | Set `production` in public/prod deploys |
+| `ALLOW_OPEN_JOIN_IN_PROD` | `false` | Production safety override to allow `REQUIRE_INVITE=false` | Keep `false`; set only for explicit open-room use |
 | `REDIS_URL` | `redis://127.0.0.1:6379/` | Redis for sessions/rate limits/invites | Use local/private Redis with auth in production |
 | `SQLITE_PATH` | `/opt/livekit/control-plane/data/app.db` | SQLite file path | Place on persistent disk |
-| `MEET_BASE_URL` | `https://meet.ivena.top` | Base URL for generated invite links | Set to your public meet domain |
+| `MEET_BASE_URL` | `https://meet.example.com` | Base URL for generated invite links | Set to your public meet domain |
 | `LIVEKIT_HOST` | required | LiveKit HTTP API endpoint | Use internal/private address if possible |
-| `LIVEKIT_PUBLIC_WS_URL` | `wss://livekit.ivena.top` | WS URL returned to clients | Set to public WSS domain |
+| `LIVEKIT_PUBLIC_WS_URL` | `wss://livekit.example.com` | WS URL returned to clients | Set to public WSS domain |
 | `LIVEKIT_API_KEY` | required | LiveKit API key | Use non-default key |
 | `LIVEKIT_API_SECRET` | required | LiveKit API secret | Strong random secret |
 | `TOKEN_TTL_SECONDS` | `14400` | LiveKit room token TTL | `14400` (4h) |
@@ -27,9 +29,14 @@ This file is the single reference for runtime config in this repo.
 | `HOST_SESSION_TTL_SECONDS` | `900` | Host session TTL | `900-1200` |
 | `HOST_AUTH_PREFIX` | `hostauth` | Redis key prefix (host MFA data) | Keep default |
 | `HOST_MFA_ISSUER` | `Ivena Meet` | TOTP issuer text in authenticator | Your product/team name |
-| `REQUIRE_INVITE` | `false` | Require invite-redeem for member join | `true` on public deployments |
+| `REQUIRE_INVITE` | `true` | Require invite-redeem for member join | Keep `true` for public deployments |
 | `ENABLE_AGENT_API` | `false` | Enable `/agent/v1/*` integration routes for external AI agents (context/events/commands) | Keep `false` by default; enable in controlled envs |
-| `ADMIN_TOKEN` | required | Admin bearer token | Long random value, rotate periodically |
+| `ADMIN_TOKEN` | optional legacy | Backward-compatible single admin token fallback | Prefer split tokens below |
+| `BOOTSTRAP_ADMIN_TOKEN` | required (or legacy `ADMIN_TOKEN`) | Bootstrap admin token for MFA enroll and host bootstrap paths | Long random value, rotate every 30 days |
+| `BOOTSTRAP_ADMIN_TOKEN_PREVIOUS` | empty | Previous bootstrap token accepted during rotation window | Keep only one old token during rotation |
+| `RUNTIME_ADMIN_TOKEN` | required (or legacy `ADMIN_TOKEN`) | Runtime admin token for control-plane admin override paths | Long random value, rotate every 30 days |
+| `RUNTIME_ADMIN_TOKEN_PREVIOUS` | empty | Previous runtime token accepted during rotation window | Keep only one old token during rotation |
+| `CONTROL_ADMIN_ALLOWLIST_IPS` | empty | Optional peer IP allowlist for admin/control middleware | Set to internal bastion/proxy IPs in production |
 | `REQUIRE_ADMIN_FOR_JOIN` | `false` | Require admin middleware for `/rooms/join` | Keep `false` for normal host/member flow |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate limit window | `60` |
 | `RATE_LIMIT_ROOM_JOIN` | `20` | Max room joins per window per IP | `10-20` |
@@ -64,14 +71,15 @@ This file is the single reference for runtime config in this repo.
 | Key | Default | Purpose | Recommended |
 |---|---|---|---|
 | `API_BASE_URL` | `http://127.0.0.1:3000` | Control-plane URL used by bootstrap script | Internal API address |
-| `ADMIN_TOKEN` | required | Admin token for bootstrap API calls | Export in shell only (do not commit) |
+| `ADMIN_TOKEN` | required | Bootstrap admin token for script calls (can be `BOOTSTRAP_ADMIN_TOKEN`) | Export in shell only (do not commit) |
 | `ROOM_ID` | required | Room to bind to host | Short stable ID |
 | `HOST_IDENTITY` | required | Host identity (account-like identifier) | One unique identity per host |
+| `CI` | empty | When `true`, script forbids `--show-secrets` | Keep `true` in CI pipelines |
 
 ## Security Baseline
 
 - Public environment: set `REQUIRE_INVITE=true`.
-- Do not expose `ADMIN_TOKEN` in frontend/runtime logs.
+- Do not expose bootstrap/runtime admin tokens in logs.
 - Restrict admin/bootstrap endpoints to internal network.
-- Rotate `ADMIN_TOKEN` and LiveKit secret periodically.
+- Rotate bootstrap/runtime tokens and LiveKit secret periodically.
 - Keep `HOST_SESSION_TTL_SECONDS` short and rely on refresh flow.

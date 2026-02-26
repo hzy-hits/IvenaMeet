@@ -48,7 +48,7 @@ pub(super) async fn verify_control_principal(
     let token = bearer_from_headers(headers)
         .ok_or_else(|| AppError::Unauthorized("missing control token".to_string()))?;
 
-    if token == state.config.admin_token {
+    if state.config.is_runtime_admin_token(token) {
         return Ok(ControlPrincipal::Admin);
     }
 

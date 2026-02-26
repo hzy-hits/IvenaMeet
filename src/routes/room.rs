@@ -123,7 +123,7 @@ async fn join_room(
                 "host join requires admin token or host session token".to_string(),
             )
         })?;
-        if token != state.config.admin_token {
+        if !state.config.is_bootstrap_admin_token(token) {
             let mut redis = state.redis.clone();
             let claims = state
                 .host_session_service

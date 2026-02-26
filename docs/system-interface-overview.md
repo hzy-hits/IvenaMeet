@@ -14,7 +14,7 @@
 
 - `POST /rooms/join`
 - 鉴权：
-  - 当 `role=host` 时，要求 `Authorization: Bearer <ADMIN_TOKEN>`
+  - 当 `role=host` 时，要求 `Authorization: Bearer <BOOTSTRAP_ADMIN_TOKEN>`（或 host session）
   - 或全局 `REQUIRE_ADMIN_FOR_JOIN=true` 时统一要求 admin token
 - 请求体：
   - `room_id: string`
@@ -131,7 +131,10 @@
 
 ### 4.1 鉴权
 
-- 管理接口统一 `Bearer ADMIN_TOKEN`
+- 管理接口建议拆分：
+  - bootstrap 路径使用 `BOOTSTRAP_ADMIN_TOKEN`
+  - 运行期控制面使用 `RUNTIME_ADMIN_TOKEN`
+  - 兼容旧配置：`ADMIN_TOKEN`
 - 聊天写入等敏感写操作绑定 `app_session_token`
 - 聊天接口不再信任前端传入 `user_name`
 

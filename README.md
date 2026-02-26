@@ -53,6 +53,7 @@ flowchart LR
 ```bash
 cd /opt/livekit/control-plane
 cp .env.example .env
+make init-db
 cargo run
 ```
 
@@ -196,45 +197,63 @@ journalctl -u ivena-meet-frontend.service -f
 
 ```bash
 cd /opt/livekit/control-plane
-ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='alice_host' make bootstrap-host
+BOOTSTRAP_ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='alice_host' make bootstrap-host
 ```
+
+Need secret material (default is redacted):
+
+```bash
+BOOTSTRAP_ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' ./scripts/bootstrap-host.sh --show-secrets
+```
+
+Notes:
+
+- `--show-secrets` writes one-time temp files with `chmod 600`
+- `CI=true` forbids `--show-secrets`
+- delete temp files after setup
 
 With MFA reset:
 
 ```bash
-ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' RESET_MFA=1 make bootstrap-host
+BOOTSTRAP_ADMIN_TOKEN='...' ROOM_ID='test' HOST_IDENTITY='alice_host' RESET_MFA=1 make bootstrap-host
 ```
 
 ## Reverse Proxy (recommended)
 
-- `meet.ivena.top` -> `192.168.1.108:8090` (frontend)
-- `meet.ivena.top/api` -> `192.168.1.108:3000` (control-plane)
-- `livekit.ivena.top` -> LiveKit server (WSS)
+- `meet.example.com` -> `10.0.0.10:8090` (frontend)
+- `meet.example.com/api` -> `10.0.0.10:3000` (control-plane)
+- `livekit.example.com` -> LiveKit server (WSS)
 
 Nginx Proxy Manager:
 
-- Proxy A (`meet.ivena.top`) forwards to frontend
+- Proxy A (`meet.example.com`) forwards to frontend
 - Add advanced location `/api` to backend
-- Proxy B (`livekit.ivena.top`) forwards to `:7880` with SSL + WebSocket
+- Proxy B (`livekit.example.com`) forwards to `:7880` with SSL + WebSocket
 - Add NPM internal IP into `TRUSTED_PROXY_IPS`
 
 ## Required Env
 
 - `APP_BIND` (default `0.0.0.0:3000`)
+- `APP_ENV` (default `development`)
+- `ALLOW_OPEN_JOIN_IN_PROD` (default `false`)
 - `REDIS_URL` (default `redis://127.0.0.1:6379/`)
 - `SQLITE_PATH` (default `/opt/livekit/control-plane/data/app.db`)
-- `MEET_BASE_URL` (default `https://meet.ivena.top`)
+- `MEET_BASE_URL` (example `https://meet.example.com`)
 - `LIVEKIT_HOST`
 - `LIVEKIT_PUBLIC_WS_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
-- `ADMIN_TOKEN`
+- `BOOTSTRAP_ADMIN_TOKEN` (or legacy `ADMIN_TOKEN`)
+- `RUNTIME_ADMIN_TOKEN` (or legacy `ADMIN_TOKEN`)
 
 ## Optional Env (selected)
 
 - `ENABLE_AGENT_API` default `false`
-- `REQUIRE_INVITE` default `false`
+- `REQUIRE_INVITE` default `true`
 - `REQUIRE_ADMIN_FOR_JOIN` default `false`
+- `BOOTSTRAP_ADMIN_TOKEN_PREVIOUS` optional dual-token rotation slot
+- `RUNTIME_ADMIN_TOKEN_PREVIOUS` optional dual-token rotation slot
+- `CONTROL_ADMIN_ALLOWLIST_IPS` optional IP allowlist for admin/control access
 - `SESSION_TTL_SECONDS` default `1800`
 - `INVITE_MAX_USES` default `10`
 - `RATE_LIMIT_WINDOW_SECONDS` default `60`
@@ -244,6 +263,8 @@ Nginx Proxy Manager:
 - `TRUSTED_PROXY_IPS` default empty
 
 Full dictionary: `docs/config-dictionary.md`
+
+Admin token rotation runbook: `docs/admin-token-ops.md`
 
 ## Operational Hardening
 
@@ -300,7 +321,7 @@ mkdir -p /opt/livekit/control-plane/logs
 
 ```bash
 # 1) bootstrap once (admin)
-ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='host-1' make bootstrap-host
+BOOTSTRAP_ADMIN_TOKEN='replace-with-strong-random-token' ROOM_ID='test' HOST_IDENTITY='host-1' make bootstrap-host
 
 # 2) host login with TOTP
 curl -sS -X POST http://127.0.0.1:3000/host/login/totp \

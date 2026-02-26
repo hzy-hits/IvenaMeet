@@ -25,7 +25,6 @@ required_backend_keys=(
   "LIVEKIT_HOST"
   "LIVEKIT_API_KEY"
   "LIVEKIT_API_SECRET"
-  "ADMIN_TOKEN"
 )
 
 for key in "${required_backend_keys[@]}"; do
@@ -34,6 +33,21 @@ for key in "${required_backend_keys[@]}"; do
     exit 3
   fi
 done
+
+has_legacy_admin_token=0
+if grep -qE "^ADMIN_TOKEN=.+" "$BACKEND_ENV"; then
+  has_legacy_admin_token=1
+fi
+
+has_split_tokens=0
+if grep -qE "^BOOTSTRAP_ADMIN_TOKEN=.+" "$BACKEND_ENV" && grep -qE "^RUNTIME_ADMIN_TOKEN=.+" "$BACKEND_ENV"; then
+  has_split_tokens=1
+fi
+
+if [[ "$has_legacy_admin_token" -ne 1 && "$has_split_tokens" -ne 1 ]]; then
+  echo "missing admin token config: set ADMIN_TOKEN or both BOOTSTRAP_ADMIN_TOKEN and RUNTIME_ADMIN_TOKEN" >&2
+  exit 3
+fi
 
 if ! grep -qE "^FRONTEND_PORT=.+" "$FRONTEND_ENV"; then
   echo "missing FRONTEND_PORT in $FRONTEND_ENV" >&2
