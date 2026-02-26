@@ -102,6 +102,23 @@ impl SessionService {
         Ok(())
     }
 
+    pub async fn ttl_seconds<C>(&self, conn: &mut C, token: &str) -> AppResult<u64>
+    where
+        C: AsyncCommands + Send,
+    {
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(self.key(token))
+            .query_async(conn)
+            .await
+            .map_err(|e| AppError::Redis(e.to_string()))?;
+        if ttl < 0 {
+            return Err(AppError::Unauthorized(
+                "invalid or expired app session".to_string(),
+            ));
+        }
+        Ok(ttl as u64)
+    }
+
     fn key(&self, token: &str) -> String {
         format!("{}:{}", self.prefix, token)
     }

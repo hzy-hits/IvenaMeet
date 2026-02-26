@@ -25,6 +25,13 @@
   - rotate/refresh `host_session_token` before expiry
 - `POST /sessions/refresh`
   - rotate/refresh `app_session_token` before expiry
+- `GET /agent/v1/context` (optional, behind `ENABLE_AGENT_API`)
+  - agent-friendly room/session/chat snapshot
+- `GET /agent/v1/events` (optional, behind `ENABLE_AGENT_API`)
+  - incremental event feed (currently chat message events)
+- `POST /agent/v1/commands` (optional, behind `ENABLE_AGENT_API`)
+  - low-risk command plane: `refresh_session`, `send_message`, `issue_invite`
+  - supports `dry_run` and optional `idempotency_key`
 - `POST /auth/invite` (control)
   - issue invite link ticket + invite code (`INVITE_MAX_USES` controls redeem count)
 - `POST /invites/redeem`
@@ -204,6 +211,7 @@ Then open:
 - `SESSION_PREFIX` default `appsession`
 - `SESSION_TTL_SECONDS` default `1800`
 - `REQUIRE_INVITE` default `false`
+- `ENABLE_AGENT_API` default `false`
 - `REQUIRE_ADMIN_FOR_JOIN` default `false`
 - `RATE_LIMIT_WINDOW_SECONDS` default `60`
 - `RATE_LIMIT_ROOM_JOIN` default `20`
@@ -214,6 +222,44 @@ Then open:
 - `RATE_LIMIT_AVATAR_UPLOAD_PER_DAY` default `20`
 - `AVATAR_STORAGE_QUOTA_BYTES` default `524288000` (500MB)
 - `TRUSTED_PROXY_IPS` default empty (example: `127.0.0.1,192.168.1.20`)
+
+## Agent API (AI-native, optional)
+
+When enabled, the backend exposes a stable integration surface for external agents (Claude/Claw, etc.) without changing existing room/chat/auth routes.
+
+Enable:
+
+```bash
+# .env
+ENABLE_AGENT_API=true
+```
+
+Endpoints:
+
+- `GET /agent/v1/context?room_id=<room_id>&message_limit=20`
+  - Auth: `Authorization: Bearer <app_session_token>`
+  - Returns room/session/chat/broadcast snapshot and available commands
+- `GET /agent/v1/events?room_id=<room_id>&after_seq=0&limit=80`
+  - Auth: `Authorization: Bearer <app_session_token>`
+  - Returns ordered incremental events for polling
+- `POST /agent/v1/commands`
+  - Command `refresh_session` / `send_message` require app session bearer token
+  - Command `issue_invite` requires control bearer token (host session or admin token)
+  - Request supports `dry_run` and `idempotency_key`
+
+Example command request:
+
+```json
+{
+  "room_id": "test",
+  "command": "send_message",
+  "idempotency_key": "agent-msg-00000001",
+  "dry_run": false,
+  "params": {
+    "text": "hello from agent"
+  }
+}
+```
 
 ## Avatar hardening
 

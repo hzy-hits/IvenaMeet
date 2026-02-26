@@ -28,6 +28,7 @@ This file is the single reference for runtime config in this repo.
 | `HOST_AUTH_PREFIX` | `hostauth` | Redis key prefix (host MFA data) | Keep default |
 | `HOST_MFA_ISSUER` | `Ivena Meet` | TOTP issuer text in authenticator | Your product/team name |
 | `REQUIRE_INVITE` | `false` | Require invite-redeem for member join | `true` on public deployments |
+| `ENABLE_AGENT_API` | `false` | Enable `/agent/v1/*` integration routes for external AI agents (context/events/commands) | Keep `false` by default; enable in controlled envs |
 | `ADMIN_TOKEN` | required | Admin bearer token | Long random value, rotate periodically |
 | `REQUIRE_ADMIN_FOR_JOIN` | `false` | Require admin middleware for `/rooms/join` | Keep `false` for normal host/member flow |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate limit window | `60` |

@@ -29,7 +29,7 @@ pub fn build_router(state: AppState) -> Router {
         routes::room::router()
     };
 
-    let api_routes = Router::new()
+    let mut api_routes = Router::new()
         .merge(routes::health::router())
         .merge(routes::invite::router())
         .merge(host_public_routes)
@@ -39,6 +39,10 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::user::router())
         .merge(control_routes)
         .merge(admin_only_routes);
+
+    if state.config.enable_agent_api {
+        api_routes = api_routes.merge(routes::agent::router());
+    }
 
     Router::new()
         .merge(api_routes.clone())
