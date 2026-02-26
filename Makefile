@@ -1,4 +1,4 @@
-.PHONY: bootstrap-host cleanup-orphan-avatars init-db
+.PHONY: bootstrap-host cleanup-orphan-avatars init-db rotate-admin-token
 
 bootstrap-host:
 	@if { [ -z "$$BOOTSTRAP_ADMIN_TOKEN" ] && [ -z "$$ADMIN_TOKEN" ]; } || [ -z "$$ROOM_ID" ] || [ -z "$$HOST_IDENTITY" ]; then \
@@ -13,3 +13,10 @@ cleanup-orphan-avatars:
 
 init-db:
 	@./scripts/init-db.sh
+
+rotate-admin-token:
+	@if [ -z "$$NEW_TOKEN" ]; then \
+		echo "usage: NEW_TOKEN=... make rotate-admin-token [ENV_FILE=.env] [RESTART_AFTER=1]"; \
+		exit 2; \
+	fi
+	@NEW_TOKEN="$$NEW_TOKEN" ENV_FILE="$${ENV_FILE:-}" RESTART_AFTER="$${RESTART_AFTER:-1}" ./scripts/rotate-admin-token.sh

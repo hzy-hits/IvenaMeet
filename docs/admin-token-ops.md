@@ -7,20 +7,39 @@ This project supports split admin tokens with dual-token rollover:
 
 Legacy fallback (`ADMIN_TOKEN`) is still accepted for compatibility, but should be phased out.
 
+## One-command Rotation (recommended)
+
+```bash
+cd /opt/livekit/control-plane
+NEW_TOKEN='<new-random-token>' make rotate-admin-token
+```
+
+Optional:
+
+```bash
+# only preview changes
+NEW_TOKEN='<new-random-token>' ./scripts/rotate-admin-token.sh --dry-run
+
+# update env but restart manually
+NEW_TOKEN='<new-random-token>' RESTART_AFTER=0 make rotate-admin-token
+```
+
+Script behavior:
+
+- Sets `BOOTSTRAP_ADMIN_TOKEN` and `RUNTIME_ADMIN_TOKEN` to `NEW_TOKEN`
+- Moves old active values into `*_PREVIOUS`
+- Keeps legacy `ADMIN_TOKEN` synced for backward compatibility
+- Creates env backup file before writing
+
 ## 30-day Rotation Playbook
 
-1. Generate new random tokens for both bootstrap/runtime channels.
-2. Update `.env`:
-   - `BOOTSTRAP_ADMIN_TOKEN=<new_bootstrap>`
-   - `BOOTSTRAP_ADMIN_TOKEN_PREVIOUS=<old_bootstrap>`
-   - `RUNTIME_ADMIN_TOKEN=<new_runtime>`
-   - `RUNTIME_ADMIN_TOKEN_PREVIOUS=<old_runtime>`
-3. Deploy service.
-4. Update all callers/scripts/automation to use new tokens.
-5. After grace window (for example 24-72h), clear previous tokens:
+1. Generate new random token.
+2. Run `NEW_TOKEN=... make rotate-admin-token`.
+3. Update all callers/scripts/automation to use the new token.
+4. After grace window (for example 24-72h), clear previous tokens:
    - `BOOTSTRAP_ADMIN_TOKEN_PREVIOUS=`
    - `RUNTIME_ADMIN_TOKEN_PREVIOUS=`
-6. Deploy again to finish rotation.
+5. Restart service again to finish rotation.
 
 ## Emergency Revoke
 

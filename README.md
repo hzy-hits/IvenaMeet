@@ -266,6 +266,13 @@ Full dictionary: `docs/config-dictionary.md`
 
 Admin token rotation runbook: `docs/admin-token-ops.md`
 
+Quick rotate command:
+
+```bash
+cd /opt/livekit/control-plane
+NEW_TOKEN='<new-random-token>' make rotate-admin-token
+```
+
 ## Operational Hardening
 
 ### Avatar pipeline
