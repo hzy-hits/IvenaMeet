@@ -488,6 +488,18 @@
     color: rgb(var(--ink) / 0.74);
 }
 
+[data-theme="light"] .text-ink\/60 {
+    color: rgb(var(--ink) / 0.78);
+}
+
+[data-theme="light"] .text-ink\/65 {
+    color: rgb(var(--ink) / 0.82);
+}
+
+[data-theme="light"] .text-ink\/70 {
+    color: rgb(var(--ink) / 0.86);
+}
+
 [data-theme="light"] .placeholder\:text-ink\/35::placeholder {
     color: rgb(var(--ink) / 0.48);
 }

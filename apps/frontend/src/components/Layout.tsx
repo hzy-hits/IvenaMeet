@@ -43,6 +43,7 @@ const DEBUG_QUERY_KEY = "debug";
 const DEBUG_QUERY_MOBILE_VALUE = "mobile";
 const DEBUG_LIVEKIT_QUERY_KEY = "livekit";
 const DEBUG_LIVEKIT_OFF_VALUE = "off";
+type MobilePane = "control" | "stage" | "chat";
 
 function readStoredRole(): Role {
     const raw = localStorage.getItem(LS_KEYS.role);
@@ -123,6 +124,7 @@ export function Layout() {
     const [chatDominant, setChatDominant] = useState(false);
     const [theaterControlOpen, setTheaterControlOpen] = useState(false);
     const [theaterChatOpen, setTheaterChatOpen] = useState(false);
+    const [mobilePane, setMobilePane] = useState<MobilePane>("stage");
     const [lastRealtimeChat, setLastRealtimeChat] = useState<RealtimeChatPayload | null>(null);
     const [realtimeChatSender, setRealtimeChatSender] = useState<((payload: RealtimeChatPayload) => Promise<void>) | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
@@ -184,6 +186,11 @@ export function Layout() {
     const centerPaneClass = inTheaterMode
         ? "flex min-h-0 flex-col flex-1"
         : "flex min-h-0 flex-col lg:flex-row flex-1 gap-2";
+    const mobilePaneButtonClass = (pane: MobilePane): string => (`inline-flex items-center justify-center rounded-chip border px-3 py-2 text-xs font-medium transition-colors ease-mucha ${
+        mobilePane === pane
+            ? "border-gold/55 bg-ink/8 text-ink/85"
+            : "border-ink/12 bg-canvas/55 text-ink/65"
+    }`);
 
     useEffect(() => {
         localStorage.setItem(LS_KEYS.roomId, roomId);
@@ -270,6 +277,10 @@ export function Layout() {
             setTheaterControlOpen(false);
             setTheaterChatOpen(false);
         }
+    }, [inTheaterMode]);
+
+    useEffect(() => {
+        if (inTheaterMode) setMobilePane("stage");
     }, [inTheaterMode]);
 
     useEffect(() => {
@@ -515,9 +526,46 @@ export function Layout() {
                 className={`flex h-full w-full min-h-0 flex-col lg:flex-row ${inTheaterMode ? "p-0" : "gap-2 p-2"}`}
             >
 
+                {!inTheaterMode ? (
+                    <nav
+                        aria-label="移动端主面板导航"
+                        className="shrink-0 rounded-panel border border-ink/10 bg-parchment/70 p-1 shadow-mucha lg:hidden"
+                    >
+                        <div className="grid grid-cols-3 gap-1">
+                            <button
+                                type="button"
+                                aria-label="显示控制面板"
+                                aria-pressed={mobilePane === "control"}
+                                onClick={() => setMobilePane("control")}
+                                className={mobilePaneButtonClass("control")}
+                            >
+                                控制台
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="显示舞台"
+                                aria-pressed={mobilePane === "stage"}
+                                onClick={() => setMobilePane("stage")}
+                                className={mobilePaneButtonClass("stage")}
+                            >
+                                舞台
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="显示聊天面板"
+                                aria-pressed={mobilePane === "chat"}
+                                onClick={() => setMobilePane("chat")}
+                                className={mobilePaneButtonClass("chat")}
+                            >
+                                聊天
+                            </button>
+                        </div>
+                    </nav>
+                ) : null}
+
                 {/* Left Sidebar (fixed width, slightly wider to accommodate videos later) */}
                 {!inTheaterMode ? (
-                    <div className="order-2 flex h-[46dvh] min-h-[300px] w-full min-w-0 flex-col lg:order-1 lg:h-full lg:w-[340px] lg:flex-shrink-0">
+                    <div className={`${mobilePane === "control" ? "flex" : "hidden"} order-2 min-h-0 w-full min-w-0 flex-1 flex-col lg:order-1 lg:flex lg:h-full lg:w-[340px] lg:flex-shrink-0`}>
                         <Sidebar
                             requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                             api={api}
@@ -551,13 +599,13 @@ export function Layout() {
                 ) : null}
 
                 {/* Main Stage Output */}
-                <div className={`order-1 min-w-0 flex-1 lg:order-2 ${inTheaterMode ? "flex flex-col" : "flex min-h-0 flex-col gap-2"}`}>
+                <div className={`order-1 min-h-0 min-w-0 flex-1 lg:order-2 lg:flex ${inTheaterMode ? "flex flex-col" : `${mobilePane === "stage" ? "flex" : "hidden"} flex-col gap-2`}`}>
                     {/* Minimal top bar for room info if needed (optional, moving to sidebar might be better, keeping here temporarily or simplifying) */}
                     <header
-                        className={`shrink-0 flex items-center justify-between border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
+                        className={`shrink-0 flex flex-wrap items-center justify-between gap-2 border border-ink/10 bg-parchment/60 shadow-mucha backdrop-blur-sm ${inTheaterMode ? "rounded-none px-3 py-2" : "rounded-panel px-4 py-3"
                             }`}
                     >
-                        <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
                             <h1 className="font-display text-lg font-semibold tracking-tight text-ink hover:text-gold transition-colors ease-mucha cursor-default">
                                 Ivena Meet
                             </h1>
@@ -566,7 +614,7 @@ export function Layout() {
                                 <span className="text-ink/50">CH/<span className="text-ink/80">{roomId}</span></span>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-mono">
+                        <div className="flex flex-wrap items-center justify-end gap-2 text-xs font-mono">
                             {joined && hasVisualMedia ? (
                                 <button
                                     type="button"
@@ -652,11 +700,26 @@ export function Layout() {
                                 messages={messages}
                                 onSend={handleSendChat}
                                 onRetryMessage={retryFailedChatMessage}
-                                className="w-full lg:w-[340px] flex-shrink-0"
+                                className="hidden w-full flex-shrink-0 lg:flex lg:w-[340px]"
                             />
                         ) : null}
                     </div>
                 </div>
+
+                {!inTheaterMode ? (
+                    <div className={`${mobilePane === "chat" ? "flex" : "hidden"} order-3 min-h-0 w-full flex-1 lg:hidden`}>
+                        <ChatPanel
+                            joined={joined}
+                            roomId={roomId}
+                            userName={userName}
+                            onlineCount={members.length}
+                            messages={messages}
+                            onSend={handleSendChat}
+                            onRetryMessage={retryFailedChatMessage}
+                            className="h-full w-full"
+                        />
+                    </div>
+                ) : null}
 
                 {inTheaterMode ? (
                     <>
