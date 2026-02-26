@@ -44,6 +44,7 @@ type Props = {
     role: Role;
     compact?: boolean;
     immersive?: boolean;
+    disableLivekit?: boolean;
     onLocalScreenShareChange?: (enabled: boolean) => void;
     onMembersChange: (members: MemberItem[]) => void;
     onRealtimeChatMessage: (payload: RealtimeChatPayload) => void;
@@ -744,6 +745,7 @@ export function MainStage({
     role,
     compact = false,
     immersive = false,
+    disableLivekit = false,
     onLocalScreenShareChange,
     onMembersChange,
     onRealtimeChatMessage,
@@ -772,6 +774,33 @@ export function MainStage({
         if (!joined) onVisualMediaChange?.(false);
     }, [joined, onVisualMediaChange]);
 
+    useEffect(() => {
+        if (!joined || !disableLivekit) return;
+        const identity = userName.trim() || "debug_user";
+        onMembersChange([
+            {
+                identity,
+                isLocal: true,
+                speaking: false,
+                micEnabled: false,
+                cameraEnabled: false,
+                screenShareEnabled: false,
+            },
+        ]);
+        onRealtimeChatSenderReady(null);
+        onVisualMediaChange?.(false);
+        onLocalScreenShareChange?.(false);
+        onLogRef.current("livekit disabled by debug mode");
+    }, [
+        disableLivekit,
+        joined,
+        onLocalScreenShareChange,
+        onMembersChange,
+        onRealtimeChatSenderReady,
+        onVisualMediaChange,
+        userName,
+    ]);
+
     const handleConnected = () => {
         onLogRef.current(`livekit connected: ${roomIdRef.current} as ${userNameRef.current}`);
     };
@@ -792,6 +821,25 @@ export function MainStage({
                     <p className="font-display text-2xl font-semibold text-white/80 tracking-widest">Ivena Meet</p>
                     <p className="mt-3 font-body text-sm text-white/45">Join a room from the Command Center to enter Main Stage.</p>
                 </div>
+            </main>
+        );
+    }
+
+    if (disableLivekit) {
+        return (
+            <main
+                className={`relative h-full min-h-0 bg-[#1A1A1A] ${immersive
+                    ? "rounded-none border-0 p-0 shadow-none backdrop-blur-none"
+                    : "rounded-panel border border-ink/10 p-2 shadow-mucha lg:p-3"
+                    }`}
+            >
+                <MuchaHalo className="absolute inset-0 m-auto h-[360px] w-[360px] opacity-80" />
+                <section className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center rounded-panel border border-dashed border-white/20 bg-black/20 px-4 text-center">
+                    <p className="font-display text-xl font-semibold tracking-wide text-white/85">Debug Mobile Mode</p>
+                    <p className="mt-2 max-w-md font-body text-sm text-white/55">
+                        LiveKit connection is disabled. You can inspect mobile layout and interaction flows without backend auth.
+                    </p>
+                </section>
             </main>
         );
     }

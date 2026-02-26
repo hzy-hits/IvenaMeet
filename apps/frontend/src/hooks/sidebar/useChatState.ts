@@ -136,12 +136,12 @@ export function useChatState({
   const historySyncErrorLoggedRef = useRef(false);
 
   useEffect(() => {
-    if (!joined) return;
+    if (!joined || !appSessionToken) return;
     api
       .listMessages(roomId, CHAT_HISTORY_LIMIT)
       .then((res) => setMessages(res.items))
       .catch((e) => pushLog(`history error: ${String(e)}`));
-  }, [joined, roomId, api, setMessages, pushLog]);
+  }, [joined, appSessionToken, roomId, api, setMessages, pushLog]);
 
   useEffect(() => {
     let maxId = 0;

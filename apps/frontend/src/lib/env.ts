@@ -3,6 +3,10 @@ export const REQUIRE_INVITE = String(import.meta.env.VITE_REQUIRE_INVITE ?? "fal
 export const DEFAULT_ROOM_ID = import.meta.env.VITE_DEFAULT_ROOM_ID ?? "test";
 export const DEFAULT_USER_NAME = import.meta.env.VITE_DEFAULT_USER_NAME ?? "guest_01";
 export const DEFAULT_ROLE = (import.meta.env.VITE_DEFAULT_ROLE ?? "member") as "host" | "member";
+export const DEV_AUTH_BYPASS = import.meta.env.DEV
+  && String(import.meta.env.VITE_DEV_AUTH_BYPASS ?? "false") === "true";
+export const DEV_DISABLE_LIVEKIT = import.meta.env.DEV
+  && String(import.meta.env.VITE_DEV_DISABLE_LIVEKIT ?? "false") === "true";
 export const LOG_MAX_LINES = Number(import.meta.env.VITE_LOG_MAX_LINES ?? "250");
 export const CHAT_HISTORY_LIMIT = Number(import.meta.env.VITE_CHAT_HISTORY_LIMIT ?? "80");
 export const CHAT_SYNC_POLL_MS = Number(import.meta.env.VITE_CHAT_SYNC_POLL_MS ?? "3000");

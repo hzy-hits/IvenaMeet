@@ -48,6 +48,8 @@ This file is the single reference for runtime config in this repo.
 | `VITE_DEFAULT_ROOM_ID` | `test` | Initial room value in join modal | Set to your common room or leave `test` |
 | `VITE_DEFAULT_USER_NAME` | `guest_01` | Initial user name placeholder value | `guest_01` |
 | `VITE_DEFAULT_ROLE` | `member` | Initial role in UI | `member` |
+| `VITE_DEV_AUTH_BYPASS` | `false` | Dev-only bypass switch. When `true`, query `?debug=mobile` creates local mock join state and skips invite/join gating | Keep `false` outside local debugging |
+| `VITE_DEV_DISABLE_LIVEKIT` | `false` | Dev-only flag to disable LiveKit connection while in `?debug=mobile` mode | Set `true` for pure UI debugging without backend |
 | `VITE_LOG_MAX_LINES` | `250` | Max in-memory log lines in sidebar | `200-500` |
 | `VITE_CHAT_HISTORY_LIMIT` | `80` | Message history fetch count | `50-100` |
 | `VITE_CHAT_SYNC_POLL_MS` | `3000` | Chat incremental sync polling interval | `2000-5000` |

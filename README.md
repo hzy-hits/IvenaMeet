@@ -144,6 +144,20 @@ npm install
 npm run dev -- --host 0.0.0.0 --port 8090
 ```
 
+Mobile debug bypass (dev only):
+
+```bash
+# apps/frontend/.env
+VITE_DEV_AUTH_BYPASS=true
+# optional: disable LiveKit room connection in debug mode
+VITE_DEV_DISABLE_LIVEKIT=true
+```
+
+Then open:
+
+- `/?debug=mobile`
+- `/?debug=mobile&livekit=off` (forces LiveKit off even if env flag is false)
+
 ## Bearer admin token usage (bootstrap/management only)
 
 `Bearer ADMIN_TOKEN` is passed in the HTTP header:

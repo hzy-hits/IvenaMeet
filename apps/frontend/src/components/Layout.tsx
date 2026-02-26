@@ -9,6 +9,8 @@ import type {
 } from "../lib/types";
 import {
     API_BASE_URL,
+    DEV_AUTH_BYPASS,
+    DEV_DISABLE_LIVEKIT,
     DEFAULT_ROOM_ID,
     DEFAULT_ROLE,
     DEFAULT_USER_NAME,
@@ -37,6 +39,44 @@ const LS_KEYS = {
     hostSessionToken: "ivena.meet.host_session_token",
 } as const;
 
+const DEBUG_QUERY_KEY = "debug";
+const DEBUG_QUERY_MOBILE_VALUE = "mobile";
+const DEBUG_LIVEKIT_QUERY_KEY = "livekit";
+const DEBUG_LIVEKIT_OFF_VALUE = "off";
+
+function readStoredRole(): Role {
+    const raw = localStorage.getItem(LS_KEYS.role);
+    return raw === "host" || raw === "member" ? raw : DEFAULT_ROLE;
+}
+
+function createDebugJoined(userName: string, role: Role): JoinResp {
+    return {
+        lk_url: "wss://debug.invalid",
+        token: "debug-livekit-token",
+        expires_in_seconds: 3600,
+        role,
+        camera_allowed: true,
+        screen_share_allowed: true,
+        camera_expires_at: null,
+        screen_share_expires_at: null,
+        nickname: userName,
+        avatar_url: null,
+        app_session_token: "",
+        app_session_expires_in_seconds: 3600,
+    };
+}
+
+function readDebugFlags(): { debugMobileMode: boolean; disableLivekitInDebug: boolean } {
+    if (typeof window === "undefined" || !DEV_AUTH_BYPASS) {
+        return { debugMobileMode: false, disableLivekitInDebug: false };
+    }
+    const params = new URLSearchParams(window.location.search);
+    const debugMobileMode = params.get(DEBUG_QUERY_KEY) === DEBUG_QUERY_MOBILE_VALUE;
+    const disableLivekitInDebug = debugMobileMode
+        && (DEV_DISABLE_LIVEKIT || params.get(DEBUG_LIVEKIT_QUERY_KEY) === DEBUG_LIVEKIT_OFF_VALUE);
+    return { debugMobileMode, disableLivekitInDebug };
+}
+
 function createChatClientId(): string {
     return typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID().replace(/-/g, "")
@@ -45,11 +85,12 @@ function createChatClientId(): string {
 
 export function Layout() {
     const layoutRef = useRef<HTMLDivElement>(null);
+    const { debugMobileMode, disableLivekitInDebug } = useMemo(() => readDebugFlags(), []);
     const [hostSessionToken, setHostSessionToken] = useState(
-        () => localStorage.getItem(LS_KEYS.hostSessionToken) ?? "",
+        () => (debugMobileMode ? "" : localStorage.getItem(LS_KEYS.hostSessionToken) ?? ""),
     );
     const [appSessionToken, setAppSessionToken] = useState(
-        () => localStorage.getItem(LS_KEYS.appSessionToken) ?? "",
+        () => (debugMobileMode ? "" : localStorage.getItem(LS_KEYS.appSessionToken) ?? ""),
     );
 
     const [roomId, setRoomId] = useState(
@@ -58,12 +99,13 @@ export function Layout() {
     const [userName, setUserName] = useState(
         () => localStorage.getItem(LS_KEYS.userName) ?? DEFAULT_USER_NAME,
     );
-    const [role, setRole] = useState<Role>(() => {
-        const raw = localStorage.getItem(LS_KEYS.role);
-        return raw === "host" || raw === "member" ? raw : DEFAULT_ROLE;
-    });
+    const [role, setRole] = useState<Role>(() => readStoredRole());
 
     const [joined, setJoined] = useState<JoinResp | null>(() => {
+        if (debugMobileMode) {
+            const storedName = localStorage.getItem(LS_KEYS.userName) ?? DEFAULT_USER_NAME;
+            return createDebugJoined(storedName, readStoredRole());
+        }
         const raw = localStorage.getItem(LS_KEYS.joined);
         if (!raw) return null;
         try {
@@ -153,17 +195,28 @@ export function Layout() {
         localStorage.setItem(LS_KEYS.role, role);
     }, [role]);
     useEffect(() => {
+        if (debugMobileMode) return;
         if (joined) localStorage.setItem(LS_KEYS.joined, JSON.stringify(joined));
         else localStorage.removeItem(LS_KEYS.joined);
-    }, [joined]);
+    }, [debugMobileMode, joined]);
     useEffect(() => {
+        if (debugMobileMode) return;
         if (appSessionToken) localStorage.setItem(LS_KEYS.appSessionToken, appSessionToken);
         else localStorage.removeItem(LS_KEYS.appSessionToken);
-    }, [appSessionToken]);
+    }, [appSessionToken, debugMobileMode]);
     useEffect(() => {
+        if (debugMobileMode) return;
         if (hostSessionToken) localStorage.setItem(LS_KEYS.hostSessionToken, hostSessionToken);
         else localStorage.removeItem(LS_KEYS.hostSessionToken);
-    }, [hostSessionToken]);
+    }, [hostSessionToken, debugMobileMode]);
+    useEffect(() => {
+        if (!debugMobileMode) return;
+        localStorage.removeItem(LS_KEYS.joined);
+        localStorage.removeItem(LS_KEYS.appSessionToken);
+        localStorage.removeItem(LS_KEYS.hostSessionToken);
+        if (appSessionToken) setAppSessionToken("");
+        if (hostSessionToken) setHostSessionToken("");
+    }, [appSessionToken, debugMobileMode, hostSessionToken]);
     useEffect(() => {
         try {
             localStorage.setItem(THEME_LS_KEY, themeMode);
@@ -218,6 +271,17 @@ export function Layout() {
             setTheaterChatOpen(false);
         }
     }, [inTheaterMode]);
+
+    useEffect(() => {
+        if (!debugMobileMode) return;
+        const safeName = userName.trim() || DEFAULT_USER_NAME;
+        setJoined((prev) => {
+            if (prev && prev.nickname === safeName && prev.role === role) {
+                return prev;
+            }
+            return createDebugJoined(safeName, role);
+        });
+    }, [debugMobileMode, joined, role, userName]);
 
     useEffect(() => {
         if (!hasVisualMedia) {
@@ -455,7 +519,7 @@ export function Layout() {
                 {!inTheaterMode ? (
                     <div className="flex w-full flex-col lg:w-[340px] lg:flex-shrink-0">
                         <Sidebar
-                            requireInvite={REQUIRE_INVITE}
+                            requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                             api={api}
                             roomId={roomId}
                             setRoomId={setRoomId}
@@ -478,7 +542,7 @@ export function Layout() {
                             onRetryMessage={retryFailedChatMessage}
                             chatPriorityMode={chatPriorityMode}
                             hideDesktopChat={!stagePriorityMode}
-                            enableBootReconnect
+                            enableBootReconnect={!debugMobileMode}
                             themeMode={themeMode}
                             resolvedTheme={resolvedTheme}
                             setThemeMode={setThemeMode}
@@ -567,6 +631,7 @@ export function Layout() {
                                 role={joined?.role ?? role}
                                 compact={chatPriorityMode}
                                 immersive={inTheaterMode}
+                                disableLivekit={disableLivekitInDebug}
                                 onMembersChange={setMembers}
                                 onRealtimeChatMessage={setLastRealtimeChat}
                                 onRealtimeChatSenderReady={handleRealtimeChatSenderReady}
@@ -661,7 +726,7 @@ export function Layout() {
                                         ×
                                     </button>
                                     <Sidebar
-                                        requireInvite={REQUIRE_INVITE}
+                                        requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                                         api={api}
                                         roomId={roomId}
                                         setRoomId={setRoomId}
@@ -701,7 +766,7 @@ export function Layout() {
                                         ×
                                     </button>
                                     <Sidebar
-                                        requireInvite={REQUIRE_INVITE}
+                                        requireInvite={debugMobileMode ? false : REQUIRE_INVITE}
                                         api={api}
                                         roomId={roomId}
                                         setRoomId={setRoomId}
