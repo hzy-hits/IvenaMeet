@@ -13,8 +13,12 @@ import type { TrackReference, TrackReferenceOrPlaceholder } from "@livekit/compo
 import {
     RoomEvent,
     Track,
+    VideoQuality,
     type AudioCaptureOptions,
+    type TrackPublishDefaults,
+    type TrackPublishOptions,
     type ScreenShareCaptureOptions,
+    type VideoCaptureOptions,
 } from "livekit-client";
 import {
     Camera,
@@ -85,6 +89,32 @@ const MIC_CAPTURE_OPTIONS: AudioCaptureOptions = {
 const SCREEN_SHARE_CAPTURE_OPTIONS: ScreenShareCaptureOptions = {
     audio: false,
     systemAudio: "exclude",
+    resolution: { width: 2560, height: 1440, frameRate: 60 },
+};
+const HIGH_QUALITY_STAGE_DIMENSIONS = {
+    width: 2560,
+    height: 1440,
+} as const;
+const HIGH_QUALITY_STAGE_FPS = 60;
+const HIGH_QUALITY_VIDEO_CAPTURE_OPTIONS: VideoCaptureOptions = {
+    resolution: { width: 2560, height: 1440, frameRate: 60 },
+    frameRate: 60,
+};
+const HIGH_QUALITY_PUBLISH_DEFAULTS: TrackPublishDefaults = {
+    videoCodec: "av1",
+    videoEncoding: { maxBitrate: 8_000_000, maxFramerate: 60 },
+    screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60 },
+    backupCodec: { codec: "vp8" },
+};
+const HIGH_QUALITY_CAMERA_PUBLISH_OPTIONS: TrackPublishOptions = {
+    videoCodec: "av1",
+    videoEncoding: { maxBitrate: 8_000_000, maxFramerate: 60 },
+    backupCodec: { codec: "vp8" },
+};
+const HIGH_QUALITY_SCREEN_SHARE_PUBLISH_OPTIONS: TrackPublishOptions = {
+    videoCodec: "av1",
+    screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60 },
+    backupCodec: { codec: "vp8" },
 };
 
 function parseRealtimeChatPayload(payload: Uint8Array): RealtimeChatPayload | null {
@@ -268,6 +298,18 @@ function StageScene({
     const micOn = !!localParticipant?.isMicrophoneEnabled;
     const camOn = !!localParticipant?.isCameraEnabled;
     const shareOn = !!localParticipant?.isScreenShareEnabled;
+
+    useEffect(() => {
+        const publication = heroTrack?.publication as {
+            setVideoQuality?: (quality: VideoQuality) => void;
+            setVideoDimensions?: (dimensions: { width: number; height: number }) => void;
+            setVideoFPS?: (fps: number) => void;
+        } | undefined;
+        if (!publication || typeof publication.setVideoQuality !== "function") return;
+        publication.setVideoQuality(VideoQuality.HIGH);
+        publication.setVideoDimensions?.(HIGH_QUALITY_STAGE_DIMENSIONS);
+        publication.setVideoFPS?.(HIGH_QUALITY_STAGE_FPS);
+    }, [heroTrack]);
 
     const showStageNotice = (kind: "ok" | "error", text: string) => {
         setStageNotice({ kind, text });
@@ -487,7 +529,11 @@ function StageScene({
         }
 
         try {
-            await localParticipant?.setCameraEnabled(!camOn);
+            await localParticipant?.setCameraEnabled(
+                !camOn,
+                HIGH_QUALITY_VIDEO_CAPTURE_OPTIONS,
+                HIGH_QUALITY_CAMERA_PUBLISH_OPTIONS,
+            );
             const text = !camOn ? "摄像头已开启" : "摄像头已关闭";
             showStageNotice("ok", text);
             onLog(text);
@@ -516,7 +562,11 @@ function StageScene({
             return;
         }
         try {
-            await localParticipant?.setScreenShareEnabled(!shareOn, SCREEN_SHARE_CAPTURE_OPTIONS);
+            await localParticipant?.setScreenShareEnabled(
+                !shareOn,
+                SCREEN_SHARE_CAPTURE_OPTIONS,
+                HIGH_QUALITY_SCREEN_SHARE_PUBLISH_OPTIONS,
+            );
             const text = !shareOn ? "已开始共享屏幕（不含系统音）" : "已停止共享屏幕";
             showStageNotice("ok", text);
             onLog(text);
@@ -876,7 +926,12 @@ export function MainStage({
                 token={joined.token}
                 serverUrl={joined.lk_url}
                 connect
-                options={{ adaptiveStream: true, dynacast: true }}
+                options={{
+                    adaptiveStream: { pixelDensity: "screen" },
+                    dynacast: true,
+                    videoCaptureDefaults: HIGH_QUALITY_VIDEO_CAPTURE_OPTIONS,
+                    publishDefaults: HIGH_QUALITY_PUBLISH_DEFAULTS,
+                }}
                 audio={false}
                 video={false}
                 onConnected={handleConnected}
