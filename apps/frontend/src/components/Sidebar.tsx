@@ -357,6 +357,7 @@ export function Sidebar(props: Props) {
     const memberSnapshotRef = useRef<Map<string, { mic: boolean; camera: boolean; screen: boolean }>>(
         new Map(),
     );
+    const contentScrollRef = useRef<HTMLDivElement>(null);
     const memberSnapshotReadyRef = useRef(false);
     const lastLogIndexRef = useRef(0);
     const lastIngressIdRef = useRef("");
@@ -476,6 +477,10 @@ export function Sidebar(props: Props) {
         }
     }, [joined, logs]);
 
+    useEffect(() => {
+        contentScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    }, [consolePane]);
+
     const requiresInviteCode = (requireInvite || inviteMode) && effectiveRole === "member";
     const canJoin = Boolean(roomId.trim() && userName.trim()) && (!requiresInviteCode || Boolean(inviteCode.trim() && inviteTicket.trim()));
     const myUserName = userName.trim();
@@ -578,7 +583,10 @@ export function Sidebar(props: Props) {
                     <OrnateDivider className="mt-4 mb-2" />
                 </section>
 
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-4 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]">
+                <div
+                    ref={contentScrollRef}
+                    className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-4 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]"
+                >
                     <section className="px-4 py-2 shrink-0">
                         <p className="px-1 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-ink/45 mb-2">Navigator</p>
                         <div className="mt-2 grid grid-cols-3 gap-2" role="tablist" aria-label="侧边栏面板导航">
@@ -851,7 +859,7 @@ export function Sidebar(props: Props) {
                             id={membersSectionId}
                             role="tabpanel"
                             aria-labelledby={consoleTabMembersId}
-                            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 py-2 [scrollbar-gutter:stable]"
+                            className="flex min-h-0 flex-1 flex-col gap-2 px-2 py-2"
                         >
                             {/* Members list */}
                             <button
@@ -866,7 +874,7 @@ export function Sidebar(props: Props) {
                                 {openMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
                             {openMembers ? (
-                                <div id={membersListId} className="max-h-36 space-y-2 overflow-auto pr-3 [scrollbar-gutter:stable]">
+                                <div id={membersListId} className="min-h-0 flex-1 space-y-2 overflow-auto pr-3 [scrollbar-gutter:stable]">
                                     {members.map((m) => (
                                         <div
                                             key={m.identity}
@@ -1040,7 +1048,7 @@ export function Sidebar(props: Props) {
                             id={opsPanelId}
                             role="tabpanel"
                             aria-labelledby={consoleTabOpsId}
-                            className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}
+                            className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "hidden"}`}
                         >
                             <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Visual Theme</p>
                             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="界面主题模式">
@@ -1066,7 +1074,7 @@ export function Sidebar(props: Props) {
                             </p>
                         </div>
 
-                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "hidden"}`}>
                             <button
                                 type="button"
                                 aria-label={openLogs ? "折叠系统日志" : "展开系统日志"}
@@ -1089,7 +1097,7 @@ export function Sidebar(props: Props) {
                             )}
                         </div>
 
-                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "xl:hidden"}`}>
+                        <div className={`rounded-panel border border-ink/8 mucha-panel p-3 ${consolePane === "ops" ? "" : "hidden"}`}>
                             <button
                                 type="button"
                                 aria-label={openTimeline ? "折叠会议事件时间线" : "展开会议事件时间线"}
