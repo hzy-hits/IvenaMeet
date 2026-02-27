@@ -663,9 +663,9 @@ export function Layout() {
                                     aria-label={desktopChatOpen ? "收起聊天抽屉" : "展开聊天抽屉"}
                                     aria-pressed={desktopChatOpen}
                                     onClick={() => setDesktopChatOpen((v) => !v)}
-                                    className="hidden h-10 items-center justify-center rounded-chip border border-ink/20 bg-canvas/60 px-3 text-[11px] leading-none text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
+                                    className="hidden h-10 min-w-[7.5rem] items-center justify-center rounded-chip border border-ink/20 bg-canvas/60 px-3 text-center text-[11px] font-mono leading-none tracking-[0.12em] text-ink/75 transition-colors ease-mucha hover:border-ink/12 lg:inline-flex"
                                 >
-                                    {desktopChatOpen ? "HIDE_CHAT" : "OPEN_CHAT"}
+                                    {desktopChatOpen ? "HIDE CHAT" : "OPEN CHAT"}
                                 </button>
                             ) : null}
                             {joined && hasVisualMedia ? (
@@ -676,12 +676,12 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleChatFocusLayout();
                                     }}
-                                    className={`hidden min-h-11 rounded-chip border px-3 text-[11px] transition-colors ease-mucha sm:inline-flex ${chatDominant
+                                    className={`hidden min-h-11 min-w-[7.5rem] items-center justify-center rounded-chip border px-3 text-center text-[11px] font-mono leading-none tracking-[0.12em] transition-colors ease-mucha sm:inline-flex ${chatDominant
                                         ? "border-gold/55 bg-ink/8 text-ink/70"
                                         : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
                                 >
-                                    {chatDominant ? "EXIT_CHAT_FOCUS" : "CHAT_FOCUS"}
+                                    {chatDominant ? "EXIT CHAT" : "CHAT FOCUS"}
                                 </button>
                             ) : null}
                             {joined && hasVisualMedia ? (
@@ -700,17 +700,17 @@ export function Layout() {
                                     onClick={() => {
                                         void toggleFullscreenStage();
                                     }}
-                                    className={`hidden min-h-11 rounded-chip border px-3 text-[11px] transition-colors ease-mucha sm:inline-flex ${isFullscreen || inTheaterMode
+                                    className={`hidden min-h-11 min-w-[7.5rem] items-center justify-center rounded-chip border px-3 text-center text-[11px] font-mono leading-none tracking-[0.12em] transition-colors ease-mucha sm:inline-flex ${isFullscreen || inTheaterMode
                                         ? "border-gold/55 bg-ink/8 text-ink/70"
                                         : "border-ink/20 bg-canvas/60 text-ink/75 hover:border-ink/12"
                                         }`}
                                 >
                                     {isHostView || localScreenShareActive
                                         ? inTheaterMode
-                                            ? "EXIT_STAGE"
-                                            : "STAGE_FOCUS"
+                                            ? "EXIT STAGE"
+                                            : "STAGE FOCUS"
                                         : isFullscreen
-                                            ? "EXIT_FULLSCREEN"
+                                            ? "EXIT FULL"
                                             : "FULLSCREEN"}
                                 </button>
                             ) : null}
@@ -818,9 +818,9 @@ export function Layout() {
                                 aria-label={theaterControlOpen ? "收起舞台控制器" : "展开舞台控制器"}
                                 aria-pressed={theaterControlOpen}
                                 onClick={toggleTheaterControlPanel}
-                                className="pointer-events-auto ml-1 rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
+                                className="pointer-events-auto ml-1 inline-flex min-w-[5.75rem] items-center justify-center rounded-r-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-center text-[11px] font-mono leading-none tracking-[0.12em] text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
-                                {theaterControlOpen ? "HIDE CTRL" : "CTRL"}
+                                {theaterControlOpen ? "HIDE CTRL" : "OPEN CTRL"}
                             </button>
                         </div>
                         <div
@@ -832,9 +832,9 @@ export function Layout() {
                                 aria-label={theaterChatOpen ? "收起舞台聊天栏" : "展开舞台聊天栏"}
                                 aria-pressed={theaterChatOpen}
                                 onClick={toggleTheaterChatPanel}
-                                className="pointer-events-auto mr-1 rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-[11px] font-mono text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
+                                className="pointer-events-auto mr-1 inline-flex min-w-[5.75rem] items-center justify-center rounded-l-panel border border-ink/12 bg-parchment/85 px-2 py-3 text-center text-[11px] font-mono leading-none tracking-[0.12em] text-ink/75 backdrop-blur-md hover:bg-parchment transition-colors ease-mucha"
                             >
-                                {theaterChatOpen ? "HIDE CHAT" : "CHAT"}
+                                {theaterChatOpen ? "HIDE CHAT" : "OPEN CHAT"}
                             </button>
                         </div>
 

@@ -555,7 +555,7 @@ export function Sidebar(props: Props) {
 
     return (
         <>
-            <OrnamentFrame className="paper-grain mucha-surface flex h-full min-h-0 flex-col gap-3 shadow-mucha">
+            <OrnamentFrame className="paper-grain mucha-surface flex h-full min-h-0 min-w-0 flex-col gap-3 shadow-mucha">
                 <section className="px-5 pt-5 pb-0 flex flex-col shrink-0">
                     <div className="flex items-center justify-between gap-2">
                         <div>
@@ -578,7 +578,7 @@ export function Sidebar(props: Props) {
                     <OrnateDivider className="mt-4 mb-2" />
                 </section>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-4 [-webkit-overflow-scrolling:touch]">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-4 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]">
                     <section className="px-4 py-2 shrink-0">
                         <p className="px-1 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-ink/45 mb-2">Navigator</p>
                         <div className="mt-2 grid grid-cols-3 gap-2" role="tablist" aria-label="侧边栏面板导航">
@@ -815,7 +815,7 @@ export function Sidebar(props: Props) {
                                 ) : !inviteItems.length ? (
                                     <p role="status" aria-live="polite" className="font-mono text-[11px] text-ink/45">当前无可用邀请码</p>
                                 ) : (
-                                    <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
+                                    <div className="max-h-36 space-y-2 overflow-y-auto pr-3 [scrollbar-gutter:stable]">
                                         {inviteItems.map((item) => (
                                             <div
                                                 key={item.invite_ticket}
@@ -851,7 +851,7 @@ export function Sidebar(props: Props) {
                             id={membersSectionId}
                             role="tabpanel"
                             aria-labelledby={consoleTabMembersId}
-                            className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2"
+                            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 py-2 [scrollbar-gutter:stable]"
                         >
                             {/* Members list */}
                             <button
@@ -866,7 +866,7 @@ export function Sidebar(props: Props) {
                                 {openMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
                             {openMembers ? (
-                                <div id={membersListId} className="max-h-36 space-y-2 overflow-auto pr-1">
+                                <div id={membersListId} className="max-h-36 space-y-2 overflow-auto pr-3 [scrollbar-gutter:stable]">
                                     {members.map((m) => (
                                         <div
                                             key={m.identity}
@@ -963,7 +963,7 @@ export function Sidebar(props: Props) {
                                             role="log"
                                             aria-live="polite"
                                             aria-atomic="true"
-                                            className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
+                                            className="h-full min-h-0 space-y-2 overflow-y-auto pr-3 [scrollbar-gutter:stable]"
                                         >
                                             {!messages.length ? (
                                                 <div className="grid h-full place-items-center rounded-chip border border-dashed border-ink/10 mucha-panel px-3 font-body text-sm text-ink/40">
@@ -1079,7 +1079,7 @@ export function Sidebar(props: Props) {
                                 {openLogs ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             </button>
                             {openLogs ? (
-                                <div id={logsSectionId} className="font-mono max-h-40 space-y-1 overflow-auto text-[11px] text-ink/65">
+                                <div id={logsSectionId} className="font-mono max-h-40 space-y-1 overflow-auto pr-3 text-[11px] text-ink/65 [scrollbar-gutter:stable]">
                                     {logs.map((line, idx) => (
                                         <p key={`${line}-${idx}`}>{line}</p>
                                     ))}
@@ -1107,7 +1107,7 @@ export function Sidebar(props: Props) {
                                     role="log"
                                     aria-live="polite"
                                     aria-relevant="additions text"
-                                    className="max-h-44 space-y-2 overflow-y-auto pr-1"
+                                    className="max-h-44 space-y-2 overflow-y-auto pr-3 [scrollbar-gutter:stable]"
                                 >
                                     {!timelineItems.length ? (
                                         <p className="font-mono text-xs text-ink/40">暂无会议事件</p>

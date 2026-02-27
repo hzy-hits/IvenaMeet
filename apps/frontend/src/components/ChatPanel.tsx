@@ -122,7 +122,7 @@ export function ChatPanel({
 
     return (
         <OrnamentFrame
-            className={`paper-grain mucha-surface flex h-full min-h-0 flex-col shadow-mucha ${className ?? ""}`}
+            className={`paper-grain mucha-surface flex h-full min-h-0 min-w-0 flex-col shadow-mucha ${className ?? ""}`}
         >
             {/* Header */}
             <section className="px-5 pt-5 pb-0 shrink-0">
@@ -161,7 +161,7 @@ export function ChatPanel({
                             id={chatListId}
                             role="log"
                             aria-live="polite"
-                            className="h-full min-h-0 space-y-2 overflow-y-auto pr-1"
+                            className="h-full min-h-0 space-y-2 overflow-y-auto pr-3 [scrollbar-gutter:stable]"
                         >
                             {!messages.length ? (
                                 <div className="grid h-full place-items-center rounded-panel border border-dashed border-ink/10 mucha-panel px-3 font-body text-sm text-ink/45">

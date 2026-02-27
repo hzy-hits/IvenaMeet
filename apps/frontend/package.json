@@ -11,6 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/lora": "^5.2.8",
+    "@fontsource/playfair-display": "^5.2.8",
     "@livekit/components-react": "^2.9.6",
     "@livekit/components-styles": "^1.1.6",
     "axios": "^1.8.4",
