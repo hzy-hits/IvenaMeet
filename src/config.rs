@@ -50,6 +50,10 @@ impl Config {
         let app_env = env_or("APP_ENV", "development");
         let allow_open_join_in_prod = parse_env_bool("ALLOW_OPEN_JOIN_IN_PROD", false);
         let require_invite = parse_env_bool("REQUIRE_INVITE", true);
+        let room_ttl_seconds = parse_env_u64("ROOM_TTL_SECONDS", 4 * 3600)?;
+        let session_ttl_seconds = parse_env_u64("SESSION_TTL_SECONDS", room_ttl_seconds)?;
+        let host_session_ttl_seconds =
+            parse_env_u64("HOST_SESSION_TTL_SECONDS", room_ttl_seconds)?;
         let legacy_admin_token = env_optional("ADMIN_TOKEN");
         let bootstrap_admin_token = env_optional("BOOTSTRAP_ADMIN_TOKEN")
             .or_else(|| legacy_admin_token.clone())
@@ -86,13 +90,13 @@ impl Config {
             invite_ttl_seconds: parse_env_u64("INVITE_TTL_SECONDS", 24 * 3600)?,
             invite_max_uses: parse_env_u64("INVITE_MAX_USES", 10)?,
             redeem_ttl_seconds: parse_env_u64("REDEEM_TTL_SECONDS", 300)?,
-            room_ttl_seconds: parse_env_u64("ROOM_TTL_SECONDS", 4 * 3600)?,
+            room_ttl_seconds,
             broadcast_issue_ttl_seconds: parse_env_u64("BROADCAST_ISSUE_TTL_SECONDS", 120)?,
             invite_prefix: env_or("INVITE_PREFIX", "invite"),
             session_prefix: env_or("SESSION_PREFIX", "appsession"),
-            session_ttl_seconds: parse_env_u64("SESSION_TTL_SECONDS", 30 * 60)?,
+            session_ttl_seconds,
             host_session_prefix: env_or("HOST_SESSION_PREFIX", "hostsession"),
-            host_session_ttl_seconds: parse_env_u64("HOST_SESSION_TTL_SECONDS", 15 * 60)?,
+            host_session_ttl_seconds,
             host_auth_prefix: env_or("HOST_AUTH_PREFIX", "hostauth"),
             host_mfa_issuer: env_or("HOST_MFA_ISSUER", "Ivena Meet"),
             require_invite,

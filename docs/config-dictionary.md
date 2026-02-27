@@ -24,9 +24,9 @@ This file is the single reference for runtime config in this repo.
 | `BROADCAST_ISSUE_TTL_SECONDS` | `120` | Broadcast start token TTL | `60-180` |
 | `INVITE_PREFIX` | `invite` | Redis key prefix (invite flow) | Keep default unless key namespace conflict |
 | `SESSION_PREFIX` | `appsession` | Redis key prefix (app session) | Keep default |
-| `SESSION_TTL_SECONDS` | `1800` | App session TTL (chat writes) | `1800` |
+| `SESSION_TTL_SECONDS` | `14400` | App session TTL (aligned with room lifetime by default) | `14400` (4h) |
 | `HOST_SESSION_PREFIX` | `hostsession` | Redis key prefix (host session) | Keep default |
-| `HOST_SESSION_TTL_SECONDS` | `900` | Host session TTL | `900-1200` |
+| `HOST_SESSION_TTL_SECONDS` | `14400` | Host session TTL (aligned with room lifetime by default) | `14400` (4h) |
 | `HOST_AUTH_PREFIX` | `hostauth` | Redis key prefix (host MFA data) | Keep default |
 | `HOST_MFA_ISSUER` | `Ivena Meet` | TOTP issuer text in authenticator | Your product/team name |
 | `REQUIRE_INVITE` | `true` | Require invite-redeem for member join | Keep `true` for public deployments |
@@ -82,4 +82,4 @@ This file is the single reference for runtime config in this repo.
 - Do not expose bootstrap/runtime admin tokens in logs.
 - Restrict admin/bootstrap endpoints to internal network.
 - Rotate bootstrap/runtime tokens and LiveKit secret periodically.
-- Keep `HOST_SESSION_TTL_SECONDS` short and rely on refresh flow.
+- Keep `SESSION_TTL_SECONDS` and `HOST_SESSION_TTL_SECONDS` aligned with `ROOM_TTL_SECONDS` unless you intentionally want shorter privileged sessions.

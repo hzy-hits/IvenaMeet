@@ -10,10 +10,6 @@ export const DEV_DISABLE_LIVEKIT = import.meta.env.DEV
 export const LOG_MAX_LINES = Number(import.meta.env.VITE_LOG_MAX_LINES ?? "250");
 export const CHAT_HISTORY_LIMIT = Number(import.meta.env.VITE_CHAT_HISTORY_LIMIT ?? "80");
 export const CHAT_SYNC_POLL_MS = Number(import.meta.env.VITE_CHAT_SYNC_POLL_MS ?? "3000");
-export const SESSION_REFRESH_POLL_MS = Number(import.meta.env.VITE_SESSION_REFRESH_POLL_MS ?? "30000");
-export const SESSION_REFRESH_BEFORE_SECONDS = Number(
-  import.meta.env.VITE_SESSION_REFRESH_BEFORE_SECONDS ?? "120",
-);
 export const SESSION_HEARTBEAT_MS = Number(import.meta.env.VITE_SESSION_HEARTBEAT_MS ?? "20000");
 export const INVITE_COPY_HINT_MS = Number(import.meta.env.VITE_INVITE_COPY_HINT_MS ?? "1800");
 export const AVATAR_MAX_BYTES = Number(import.meta.env.VITE_AVATAR_MAX_BYTES ?? `${2 * 1024 * 1024}`);

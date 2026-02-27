@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SESSION_HEARTBEAT_MS,
-  SESSION_REFRESH_BEFORE_SECONDS,
-  SESSION_REFRESH_POLL_MS,
 } from "../../lib/env";
 import type { JoinResp, MessageItem } from "../../lib/types";
 
@@ -20,10 +18,6 @@ type Params = {
   joined: JoinResp | null;
   appSessionToken: string;
   isHost: boolean;
-  sessionExpireAt: number;
-  hostSessionExpireAt: number;
-  setSessionExpireAt: (v: number) => void;
-  setHostSessionExpireAt: (v: number) => void;
   setJoined: (v: JoinResp | null) => void;
   clearClientState: (options?: { clearHostTotp?: boolean; clearMessages?: boolean }) => void;
   setMessages: (v: MessageItem[]) => void;
@@ -39,10 +33,6 @@ export function useSessionState({
   joined,
   appSessionToken,
   isHost,
-  sessionExpireAt,
-  hostSessionExpireAt,
-  setSessionExpireAt,
-  setHostSessionExpireAt,
   setJoined,
   clearClientState,
   setMessages,
@@ -237,43 +227,6 @@ export function useSessionState({
   ]);
 
   useEffect(() => {
-    if (!joined || !sessionExpireAt) return;
-    const timer = window.setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      if (now >= sessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
-        void api
-          .refreshSession()
-          .then((res) => {
-            setSessionExpireAt(now + res.app_session_expires_in_seconds);
-            refreshErrorLoggedRef.current = false;
-            clearReconnectTimers();
-            applySessionConnectionStatus("connected");
-            pushLog("app session refreshed");
-          })
-          .catch((e) => {
-            if (!refreshErrorLoggedRef.current) {
-              refreshErrorLoggedRef.current = true;
-              pushLog(`session refresh failed: ${String(e)}`);
-              showActionNotice("error", "会话续期失败，正在重连");
-            }
-            scheduleSessionReconnect(3, "refresh");
-          });
-      }
-    }, SESSION_REFRESH_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [
-    api,
-    applySessionConnectionStatus,
-    clearReconnectTimers,
-    joined,
-    pushLog,
-    scheduleSessionReconnect,
-    sessionExpireAt,
-    setSessionExpireAt,
-    showActionNotice,
-  ]);
-
-  useEffect(() => {
     if (!joined || !appSessionToken) return;
     const timer = window.setInterval(() => {
       void api
@@ -300,42 +253,6 @@ export function useSessionState({
     joined,
     pushLog,
     scheduleSessionReconnect,
-    showActionNotice,
-  ]);
-
-  useEffect(() => {
-    if (!joined || !isHost || !hostSessionExpireAt) return;
-    const timer = window.setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      if (now >= hostSessionExpireAt - SESSION_REFRESH_BEFORE_SECONDS) {
-        void api
-          .refreshHostSession()
-          .then((res) => {
-            setHostSessionExpireAt(now + res.expires_in_seconds);
-            pushLog("host session refreshed");
-          })
-          .catch((e) => {
-            clearClientState({ clearHostTotp: true, clearMessages: true });
-            setHostSessionExpireAt(0);
-            setSessionExpireAt(0);
-            applySessionConnectionStatus("disconnected");
-            pushLog(`host session refresh failed: ${String(e)}`);
-            pushLog("主持权限已过期，请重新输入 TOTP");
-            showActionNotice("error", "主持会话已过期，请重新加入并验证");
-          });
-      }
-    }, SESSION_REFRESH_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [
-    applySessionConnectionStatus,
-    joined,
-    isHost,
-    hostSessionExpireAt,
-    api,
-    clearClientState,
-    setHostSessionExpireAt,
-    setSessionExpireAt,
-    pushLog,
     showActionNotice,
   ]);
 
