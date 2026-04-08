@@ -1,6 +1,6 @@
 # Ivena Meet
 
-Production-style private meeting room built on **LiveKit + Rust (Axum) + Redis + SQLite**, with a separate **agent-native API layer** for AI operators.
+Private meeting room control plane built on **LiveKit + Rust (Axum) + Redis + SQLite**, designed like a real product rather than a demo: secure room lifecycle, durable chat, broadcast orchestration, and a separate **agent-native API layer** for AI operators.
 
 <p align="left">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.93+-000000?logo=rust" />
@@ -9,6 +9,24 @@ Production-style private meeting room built on **LiveKit + Rust (Axum) + Redis +
   <img alt="React" src="https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61dafb" />
   <img alt="Agent API" src="https://img.shields.io/badge/Agent%20API-v1-22c55e" />
 </p>
+
+## Thesis
+
+- **Room state is a control problem**: identities, invites, sessions, and broadcast rights must stay consistent under concurrency
+- **Security is part of the product surface**: token scope, TTL rotation, rate limits, and trusted-proxy rules are built into normal flows
+- **Agents get a safe interface, not raw power**: context, events, and commands are exposed explicitly with idempotency and `simulate|execute` semantics
+
+## Production Snapshot
+
+- **Control plane**: Rust (Axum) backend with 30 API endpoints
+- **User surface**: desktop + mobile React frontend on top of LiveKit rooms
+- **State model**: Redis for sessions / invites / rate limits, SQLite for durable room and chat state
+- **Automation surface**: separate `agent/v1` API with `simulate|execute` semantics and idempotency keys
+- **Operations**: systemd deploys, cron cleanup, bootstrap flows, reverse-proxy rules
+
+## Why This Problem Is Hard
+
+The difficult part is not getting a room to open. The difficult part is keeping identity, permissions, retries, chat durability, and automation behavior consistent while a real room is under use.
 
 ## Product Preview
 
@@ -26,13 +44,13 @@ Production-style private meeting room built on **LiveKit + Rust (Axum) + Redis +
 
 > Captured from normal open flow (no auth bypass): users choose host entry or invite entry before joining.
 
-## Why It Feels Like a Product
+## What Had To Be True
 
-- **Secure room lifecycle**: invite redeem, host identity binding, one-time broadcast start token, TTL-based sessions.
-- **Host control plane**: moderation, stage media permission, broadcast orchestration, invite management.
-- **Chat with durability**: persisted message history + streaming sync + retry-safe write path.
-- **Agent-native by design**: machine-readable `context/events/commands` contract without breaking existing APIs.
-- **Operationally ready**: systemd deploy scripts, cron cleanup, env dictionary, reverse-proxy topology.
+- **Joining a room could not corrupt identity state**: invites, host identity binding, and session refresh all had to survive retries and concurrent actions
+- **Broadcast control could not be "just another endpoint"**: start rights, one-time tokens, and room checks had to compose into a safe control flow
+- **Chat had to be durable, not cosmetic**: persisted history, retry-safe writes, and live streaming needed to agree with each other
+- **The system had to stay operable after shipping**: systemd units, cron cleanup, env docs, and reverse-proxy rules are part of the product, not afterthoughts
+- **Agents needed a constrained surface area**: machine-readable `context/events/commands` should exist without giving automation raw unchecked power
 
 ## Architecture At A Glance
 
@@ -80,6 +98,8 @@ Then open:
 - `/?debug=mobile&livekit=off`
 
 ## Core Capabilities
+
+The API is split by invariant, not by CRUD convenience:
 
 ### Room + Session
 
@@ -141,6 +161,8 @@ Example:
 ```
 
 ## Security Model
+
+The security model is intentionally tied to product behavior rather than bolted on afterward:
 
 - Control routes require `Authorization: Bearer <host_session_token>`:
   - `/auth/invite`
